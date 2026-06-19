@@ -1,17 +1,27 @@
 import base64
 import unittest
+from unittest.mock import MagicMock
 
 from xpwebapi.api import (
     API,
     DATAREF_DATATYPE,
     Cache,
+    CommandCache,
     Command,
     CommandMeta,
+    DatarefCache,
     Dataref,
     DatarefMeta,
     DatarefValueType,
     ValueCache,
 )
+
+
+def mock_response(status_code: int, payload: dict | None = None):
+    response = MagicMock()
+    response.status_code = status_code
+    response.json.return_value = payload or {}
+    return response
 
 
 class DummyAPI(API):
@@ -112,24 +122,95 @@ class TestValueCache(unittest.TestCase):
         self.assertTrue(cache.changed("sim/test/value", "hello"))
 
 
-class TestCache(unittest.TestCase):
+class TestDatarefCache(unittest.TestCase):
     def test_meta_factory_creates_dataref_meta(self):
-        meta = Cache.meta(name="sim/test/value", value_type="int", is_writable=True, id=1)
+        meta = DatarefCache.meta(name="sim/test/value", value_type="int", is_writable=True, id=1)
         self.assertIsInstance(meta, DatarefMeta)
-
-    def test_meta_factory_creates_command_meta(self):
-        meta = Cache.meta(name="sim/test/command", description="Test command", id=2)
-        self.assertIsInstance(meta, CommandMeta)
+        self.assertEqual(meta.name, "sim/test/value")
+        self.assertEqual(meta.value_type, "int")
+        self.assertTrue(meta.is_writable)
 
     def test_lookup_by_name_and_id(self):
-        cache = Cache(DummyAPI())
+        cache = DatarefCache(DummyAPI())
         meta = DatarefMeta(name="sim/test/value", value_type="int", is_writable=True, id=7)
         cache._by_name = {meta.name: meta}
         cache._by_ids = {meta.ident: meta}
+        self.assertIs(cache.get("sim/test/value"), meta)
         self.assertIs(cache.get_by_name("sim/test/value"), meta)
         self.assertIs(cache.get_by_id(7), meta)
+        self.assertIsNone(cache.get_by_name("sim/test/missing"))
+        self.assertIsNone(cache.get_by_id(99))
         self.assertEqual(cache.count, 1)
         self.assertTrue(cache.has_data)
+        self.assertEqual(cache.equiv(7), "7(sim/test/value)")
+
+    def test_load_uses_datarefs_endpoint(self):
+        api = DummyAPI()
+        api.session = MagicMock()
+        api.session.get.return_value = mock_response(200, {"data": [{"name": "sim/test/value", "value_type": "int", "is_writable": True, "id": 7}]})
+        cache = DatarefCache(api)
+        cache.load()
+        api.session.get.assert_called_once_with(f"{api.rest_url}/datarefs")
+        self.assertIsInstance(cache.get_by_name("sim/test/value"), DatarefMeta)
+
+    def test_failed_load_leaves_cache_empty(self):
+        api = DummyAPI()
+        api.session = MagicMock()
+        api.session.get.return_value = mock_response(500)
+        cache = DatarefCache(api)
+        cache.load()
+        self.assertEqual(cache.count, 0)
+        self.assertFalse(cache.has_data)
+
+
+class TestCommandCache(unittest.TestCase):
+    def test_meta_factory_creates_command_meta(self):
+        meta = CommandCache.meta(name="sim/test/command", description="Test command", id=2)
+        self.assertIsInstance(meta, CommandMeta)
+        self.assertEqual(meta.name, "sim/test/command")
+        self.assertEqual(meta.description, "Test command")
+
+    def test_lookup_by_name_and_id(self):
+        cache = CommandCache(DummyAPI())
+        meta = CommandMeta(name="sim/test/command", description="Test command", id=8)
+        cache._by_name = {meta.name: meta}
+        cache._by_ids = {meta.ident: meta}
+        self.assertIs(cache.get("sim/test/command"), meta)
+        self.assertIs(cache.get_by_name("sim/test/command"), meta)
+        self.assertIs(cache.get_by_id(8), meta)
+        self.assertIsNone(cache.get_by_name("sim/test/missing"))
+        self.assertIsNone(cache.get_by_id(99))
+        self.assertEqual(cache.count, 1)
+        self.assertTrue(cache.has_data)
+        self.assertEqual(cache.equiv(8), "8(sim/test/command)")
+
+    def test_load_uses_commands_endpoint(self):
+        api = DummyAPI()
+        api.session = MagicMock()
+        api.session.get.return_value = mock_response(200, {"data": [{"name": "sim/test/command", "description": "Test command", "id": 8}]})
+        cache = CommandCache(api)
+        cache.load()
+        api.session.get.assert_called_once_with(f"{api.rest_url}/commands")
+        self.assertIsInstance(cache.get_by_name("sim/test/command"), CommandMeta)
+
+
+class TestCacheCompatibility(unittest.TestCase):
+    def test_meta_factory_keeps_old_dataref_heuristic(self):
+        meta = Cache.meta(name="sim/test/value", value_type="int", is_writable=True, id=1)
+        self.assertIsInstance(meta, DatarefMeta)
+
+    def test_meta_factory_keeps_old_command_heuristic(self):
+        meta = Cache.meta(name="sim/test/command", description="Test command", id=2)
+        self.assertIsInstance(meta, CommandMeta)
+
+    def test_load_accepts_old_path_argument(self):
+        api = DummyAPI()
+        api.session = MagicMock()
+        api.session.get.return_value = mock_response(200, {"data": [{"name": "sim/test/value", "value_type": "int", "is_writable": True, "id": 7}]})
+        cache = Cache(api)
+        cache.load("/datarefs")
+        api.session.get.assert_called_once_with(f"{api.rest_url}/datarefs")
+        self.assertIsInstance(cache.get_by_name("sim/test/value"), DatarefMeta)
 
 
 class TestDataref(unittest.TestCase):

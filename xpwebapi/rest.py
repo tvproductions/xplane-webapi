@@ -11,7 +11,19 @@ from enum import Enum
 import httpx
 from natsort import natsorted
 
-from .api import CONNECTION_STATUS, DATAREF_DATATYPE, API, Dataref, DatarefMeta, Command, CommandMeta, Cache, webapi_logger, DatarefValueType
+from .api import (
+    CONNECTION_STATUS,
+    DATAREF_DATATYPE,
+    API,
+    Command,
+    CommandCache,
+    CommandMeta,
+    Dataref,
+    DatarefCache,
+    DatarefMeta,
+    DatarefValueType,
+    webapi_logger,
+)
 
 if TYPE_CHECKING:
     from .beacon import BeaconData
@@ -83,8 +95,8 @@ class XPRestAPI(API):
 
         # Caches ids for all known datarefs and commands
         self._should_use_cache = use_cache  # desired use of cache, not actual one in _use_cache
-        self.all_datarefs: Cache | None = None
-        self.all_commands: Cache | None = None
+        self.all_datarefs: DatarefCache | None = None
+        self.all_commands: CommandCache | None = None
 
         self._last_updated = 0
         self._warning_count = 0
@@ -271,13 +283,13 @@ class XPRestAPI(API):
                         return
                 else:
                     logger.warning(f"no value for {RUNNING_TIME}")
-        self.all_datarefs = Cache(self)
-        self.all_datarefs.load("/datarefs")
+        self.all_datarefs = DatarefCache(self)
+        self.all_datarefs.load()
         if save:
             self.all_datarefs.save("webapi-datarefs.json")
-        self.all_commands = Cache(self)
+        self.all_commands = CommandCache(self)
         if self.version == "v2":  # >
-            self.all_commands.load("/commands")
+            self.all_commands.load()
             if save:
                 self.all_commands.save("webapi-commands.json")
         currtime = self._running_time.value
@@ -348,10 +360,11 @@ class XPRestAPI(API):
             metadata = respjson[REST_KW.DATA.value]
             if len(metadata) > 0:
                 m0 = metadata[0]
-                m = Cache.meta(**m0)
-                if isinstance(obj, Dataref) and isinstance(m, DatarefMeta):
+                if isinstance(obj, Dataref):
+                    m = DatarefCache.meta(**m0)
                     obj._cached_meta = m
-                elif isinstance(obj, Command) and isinstance(m, CommandMeta):
+                else:
+                    m = CommandCache.meta(**m0)
                     obj._cached_meta = m
                 return m
         logger.error(f"{obj_type} {obj.path} could not get meta data through REST API")
@@ -360,29 +373,25 @@ class XPRestAPI(API):
     def get_dataref_meta_by_name(self, path: str) -> DatarefMeta | None:
         """Get dataref meta data by dataref name"""
         if self.all_datarefs is not None:
-            r = self.all_datarefs.get_by_name(path)
-            return r if isinstance(r, DatarefMeta) else None
+            return self.all_datarefs.get_by_name(path)
         return None
 
     def get_dataref_meta_by_id(self, ident: int) -> DatarefMeta | None:
         """Get dataref meta data by dataref identifier"""
         if self.all_datarefs is not None:
-            r = self.all_datarefs.get_by_id(ident)
-            return r if isinstance(r, DatarefMeta) else None
+            return self.all_datarefs.get_by_id(ident)
         return None
 
     def get_command_meta_by_name(self, path: str) -> CommandMeta | None:
         """Get command meta data by command path"""
         if self.all_commands is not None:
-            r = self.all_commands.get_by_name(path)
-            return r if isinstance(r, CommandMeta) else None
+            return self.all_commands.get_by_name(path)
         return None
 
     def get_command_meta_by_id(self, ident: int) -> CommandMeta | None:
         """Get command meta data by command identifier"""
         if self.all_commands is not None:
-            r = self.all_commands.get_by_id(ident)
-            return r if isinstance(r, CommandMeta) else None
+            return self.all_commands.get_by_id(ident)
         return None
 
     def write_dataref(self, dataref: Dataref) -> bool | int:
@@ -494,8 +503,7 @@ class XPRestAPI(API):
             webapi_logger.info(f"GET {dataref.path}: {url} = {respjson}")
             data = respjson[REST_KW.DATA.value]
             try:
-                ret = Cache.meta(**data[0]) if type(data) is list and len(data) > 0 else Cache.meta(**data)
-                return ret if isinstance(ret, DatarefMeta) else None
+                return DatarefCache.meta(**data[0]) if type(data) is list and len(data) > 0 else DatarefCache.meta(**data)
             except Exception:
                 logger.warning(f"dataref meta invalid {data}", exc_info=True)
             return None
@@ -525,8 +533,7 @@ class XPRestAPI(API):
             webapi_logger.info(f"GET {payload}: {url} = {respjson}")
             data = respjson[REST_KW.DATA.value]
             try:
-                ret = [Cache.meta(**m) for m in data]
-                return [m for m in ret if isinstance(m, DatarefMeta)]
+                return [DatarefCache.meta(**m) for m in data]
             except Exception:
                 logger.warning(f"dataref meta invalid {data}", exc_info=True)
             return []
@@ -554,8 +561,7 @@ class XPRestAPI(API):
             webapi_logger.info(f"GET {payload}: {url} = {respjson}")
             data = respjson[REST_KW.DATA.value]
             try:
-                ret = [Cache.meta(**m) for m in data]
-                return [m for m in ret if isinstance(m, CommandMeta)]
+                return [CommandCache.meta(**m) for m in data]
             except Exception:
                 logger.warning(f"command meta invalid {data}", exc_info=True)
             return []

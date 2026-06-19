@@ -1,4 +1,5 @@
 from .api import Dataref, Command, DatarefValueType, DATAREF_DATATYPE
+from .async_rest import AsyncXPRestAPI
 from .beacon import XPBeaconMonitor, BeaconData, XPlaneNoBeacon, XPlaneVersionNotSupported
 from .exceptions import XPWebAPIError, XPConnectionError, XPBeaconError, XPTimeoutError, XPVersionError
 from .rest import XPRestAPI
@@ -10,6 +11,7 @@ __all__ = [
     "Command",
     "DatarefValueType",
     "DATAREF_DATATYPE",
+    "AsyncXPRestAPI",
     "XPBeaconMonitor",
     "BeaconData",
     "XPlaneNoBeacon",
@@ -26,6 +28,7 @@ __all__ = [
     "XPlaneTimeout",
     "beacon",
     "rest_api",
+    "async_rest_api",
     "ws_api",
     "udp_api",
     "version",
@@ -38,6 +41,10 @@ def beacon():
 
 def rest_api(**kwargs):
     return XPRestAPI(**kwargs)
+
+
+def async_rest_api(**kwargs):
+    return AsyncXPRestAPI(**kwargs)
 
 
 def ws_api(**kwargs):

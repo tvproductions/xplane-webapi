@@ -211,8 +211,8 @@ class API(ABC):
 
         self.session: httpx.Client = httpx.Client()
         self.use_cache: bool = False
-        self.all_datarefs: Cache | None = None
-        self.all_commands: Cache | None = None
+        self.all_datarefs: DatarefCache | None = None
+        self.all_commands: CommandCache | None = None
 
         self.set_network(host=host, port=port, api=api, api_version=api_version)
 
@@ -398,8 +398,8 @@ class API(ABC):
         self.status = CONNECTION_STATUS.RECEIVING_BEACON if connected else CONNECTION_STATUS.NO_BEACON
 
 
-class Cache:
-    """Stores dataref or command meta data in cache
+class MetaCacheBase(ABC):
+    """Stores X-Plane Web API metadata in cache.
 
     Must be "refreshed" each time a new connection is created.
     Must be refreshed each time a new aircraft is loaded (for new datarefs, commands, etc.)
@@ -408,7 +408,9 @@ class Cache:
     There is no faster structure than a python dict() for (name,value) pair storage.
     """
 
-    def __init__(self, api: API) -> None:
+    path = ""
+
+    def __init__(self, api) -> None:
         self.api = api
         self._what = ""
         self._raw = {}
@@ -417,19 +419,19 @@ class Cache:
         self._last_updated = 0
 
     @classmethod
-    def meta(cls, **kwargs) -> DatarefMeta | CommandMeta:
-        """Create DatarefMeta or CommandMeta from dictionary of meta data returned by X-Plane Web API"""
-        return DatarefMeta(**kwargs) if "is_writable" in kwargs else CommandMeta(**kwargs)  # definitely not a good differentiator
+    def meta(cls, **kwargs) -> APIObjMeta:
+        """Create metadata from dictionary returned by X-Plane Web API."""
+        raise NotImplementedError("use DatarefCache or CommandCache")
 
-    def load(self, path):
+    def load(self):
         """Load cache data"""
         if not self.api.connected:
             logger.warning("not connected")
             return None
-        self._what = path
-        url = self.api.rest_url + path
+        self._what = self.path
+        url = self.api.rest_url + self.path
         response = self.api.session.get(url)
-        webapi_logger.info(f"GET {path}: {url} = {response}")
+        webapi_logger.info(f"GET {self.path}: {url} = {response}")
         if response.status_code != 200:  # We have version 12.1.4 or above
             logger.error(f"load: response={response.status_code}")
             return
@@ -437,12 +439,12 @@ class Cache:
         data = raw["data"]
         self._raw = data
 
-        metas = [Cache.meta(**c) for c in data]
+        metas = [self.meta(**c) for c in data]
         self._by_name = {m.name: m for m in metas}
         self._by_ids = {m.ident: m for m in metas}
 
         self.last_cached = datetime.now().timestamp()
-        logger.debug(f"{path[1:]} cached ({len(metas)} entries)")
+        logger.debug(f"{self.path[1:]} cached ({len(metas)} entries)")
 
     @property
     def count(self) -> int:
@@ -454,15 +456,15 @@ class Cache:
         """Cache contains data"""
         return self._by_name is not None and len(self._by_name) > 0
 
-    def get(self, name) -> DatarefMeta | CommandMeta | None:
+    def get(self, name) -> APIObjMeta | None:
         """Get meta data from cache by name"""
         return self.get_by_name(name=name)
 
-    def get_by_name(self, name) -> DatarefMeta | CommandMeta | None:
+    def get_by_name(self, name) -> APIObjMeta | None:
         """Get meta data from cache by name"""
         return self._by_name.get(name)
 
-    def get_by_id(self, ident: int) -> DatarefMeta | CommandMeta | None:
+    def get_by_id(self, ident: int) -> APIObjMeta | None:
         """Get meta data from cache by dataref or command identifier"""
         return self._by_ids.get(ident)
 
@@ -477,6 +479,70 @@ class Cache:
         if r is not None:
             return f"{ident}({r.name})"
         return f"no equivalence for {ident}"
+
+
+class DatarefCache(MetaCacheBase):
+    """Stores dataref metadata in cache."""
+
+    path = "/datarefs"
+
+    @classmethod
+    def meta(cls, **kwargs) -> DatarefMeta:
+        """Create DatarefMeta from dictionary returned by X-Plane Web API."""
+        return DatarefMeta(**kwargs)
+
+    def get(self, name) -> DatarefMeta | None:
+        """Get dataref metadata from cache by name."""
+        return self.get_by_name(name=name)
+
+    def get_by_name(self, name) -> DatarefMeta | None:
+        """Get dataref metadata from cache by name."""
+        return self._by_name.get(name)
+
+    def get_by_id(self, ident: int) -> DatarefMeta | None:
+        """Get dataref metadata from cache by identifier."""
+        return self._by_ids.get(ident)
+
+
+class CommandCache(MetaCacheBase):
+    """Stores command metadata in cache."""
+
+    path = "/commands"
+
+    @classmethod
+    def meta(cls, **kwargs) -> CommandMeta:
+        """Create CommandMeta from dictionary returned by X-Plane Web API."""
+        return CommandMeta(**kwargs)
+
+    def get(self, name) -> CommandMeta | None:
+        """Get command metadata from cache by name."""
+        return self.get_by_name(name=name)
+
+    def get_by_name(self, name) -> CommandMeta | None:
+        """Get command metadata from cache by name."""
+        return self._by_name.get(name)
+
+    def get_by_id(self, ident: int) -> CommandMeta | None:
+        """Get command metadata from cache by identifier."""
+        return self._by_ids.get(ident)
+
+
+class Cache(MetaCacheBase):
+    """Backward-compatible generic metadata cache.
+
+    Prefer DatarefCache or CommandCache for new code.
+    """
+
+    @classmethod
+    def meta(cls, **kwargs) -> DatarefMeta | CommandMeta:
+        """Create metadata using the legacy dataref/command heuristic."""
+        return DatarefMeta(**kwargs) if "is_writable" in kwargs else CommandMeta(**kwargs)
+
+    def load(self, path: str | None = None):
+        """Load cache data, preserving the old optional path argument."""
+        if path is not None:
+            self.path = path
+        return super().load()
 
 
 # #############################################
@@ -517,7 +583,7 @@ class Dataref:
             if self.api.all_datarefs is not None:
                 r = self.api.all_datarefs.get(self.path)
                 if r is not None:
-                    return cast(DatarefMeta, r)
+                    return r
                 logger.error(f"dataref {self.path} has no api meta data in cache")
             else:
                 logger.error("no cache data")
@@ -802,7 +868,7 @@ class Command:
             if self.api.all_commands is not None:
                 r = self.api.all_commands.get(self.path)
                 if r is not None:
-                    return cast(CommandMeta, r)
+                    return r
                 self.add_error()
                 logger.error(f"command {self.path} has no api meta data in cache")
             else:

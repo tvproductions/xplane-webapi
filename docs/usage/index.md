@@ -22,6 +22,26 @@ mapview = api.command("sim/map/show_current")
 mapview.execute()
 ```
 
+## Usage of Async REST API
+
+```python
+import asyncio
+import xpwebapi
+
+
+async def main():
+    async with xpwebapi.async_rest_api() as api:
+        dataref = api.dataref("sim/cockpit2/clock_timer/local_time_seconds")
+        value = await api.dataref_value(dataref)
+        print(value)
+
+        mapview = api.command("sim/map/show_current")
+        await api.execute_command(mapview)
+
+
+asyncio.run(main())
+```
+
 ## Usage of Websocket API
 
 ```python
