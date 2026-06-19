@@ -3,6 +3,7 @@ import struct
 import unittest
 from unittest.mock import MagicMock, patch
 
+import xpwebapi
 from xpwebapi.beacon import BeaconData, XPBeaconMonitor, XPlaneNoBeacon, XPlaneVersionNotSupported
 
 
@@ -34,6 +35,15 @@ class TestBeaconData(unittest.TestCase):
         self.assertEqual(data.hostname, "xp")
         self.assertEqual(data.xplane_version, 121400)
         self.assertEqual(data.role, 1)
+
+
+class TestBeaconFactory(unittest.TestCase):
+    def test_package_factory_forwards_retry_options(self):
+        with patch("xpwebapi.beacon.list_my_ips", return_value=[]):
+            monitor = xpwebapi.beacon(retry_attempts=2, retry_backoff=0.25)
+
+        self.assertEqual(monitor.retry_config.attempts, 2)
+        self.assertEqual(monitor.retry_config.backoff, 0.25)
 
 
 class TestXPBeaconMonitorGetBeacon(BeaconMonitorTestCase):
@@ -70,6 +80,27 @@ class TestXPBeaconMonitorGetBeacon(BeaconMonitorTestCase):
                     monitor.get_beacon(timeout=1.5)
 
         self.assertEqual(caught.exception.context, {"timeout": 1.5})
+
+    def test_get_beacon_retries_timeout_then_returns_valid_packet(self):
+        with patch("xpwebapi.beacon.list_my_ips", return_value=[]):
+            monitor = XPBeaconMonitor(retry_attempts=2, retry_backoff=0.25)
+        packet = make_beacon_packet()
+        monitor_socket_1 = MagicMock()
+        beacon_socket_1 = MagicMock()
+        beacon_socket_1.recvfrom.side_effect = socket.timeout("timed out")
+        monitor_socket_2 = MagicMock()
+        beacon_socket_2 = MagicMock()
+        beacon_socket_2.recvfrom.return_value = (packet, ("127.0.0.1", 49000))
+
+        with patch("xpwebapi.beacon.socket.socket", side_effect=[monitor_socket_1, beacon_socket_1, monitor_socket_2, beacon_socket_2]):
+            with patch("xpwebapi.beacon.platform.system", return_value="Windows"):
+                with patch("xpwebapi.beacon.sleep_before_retry") as sleep:
+                    data = monitor.get_beacon(timeout=1.0)
+
+        self.assertEqual(data, BeaconData(host="127.0.0.1", port=49000, hostname="testhost", xplane_version=121400, role=1))
+        self.assertEqual(beacon_socket_1.recvfrom.call_count, 1)
+        self.assertEqual(beacon_socket_2.recvfrom.call_count, 1)
+        sleep.assert_called_once_with(monitor.retry_config, 0)
 
     def test_get_beacon_raises_version_error_for_unsupported_packet(self):
         monitor = self.make_monitor()

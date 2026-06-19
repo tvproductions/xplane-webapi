@@ -14,8 +14,9 @@ import logging
 import threading
 import platform
 
+from types import TracebackType
 from time import sleep
-from typing import Tuple, Dict, Callable
+from typing import Tuple, Dict, Callable, Self
 
 from .api import API, CONNECTION_STATUS, DatarefValueType, Dataref, Command
 from .beacon import BeaconData, BEACON_TIMEOUT
@@ -42,6 +43,7 @@ class XPUDPAPI(API):
 
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.socket.settimeout(10.0)
+        self._closed = False
 
         #
         self.callbacks = set()
@@ -67,9 +69,25 @@ class XPUDPAPI(API):
             self.beacon.add_callback(self.beacon_callback)  # can only add after API.__init__() call since it creates class attributes
 
     def __del__(self):
-        for i in range(len(self.datarefs)):
-            self._request_dataref(next(iter(self.datarefs.values())), freq=0)
+        try:
+            self.close()
+        except Exception:
+            logger.debug("UDP socket cleanup failed", exc_info=True)
+
+    def __enter__(self) -> Self:
+        return self
+
+    def __exit__(self, _exc_type: type[BaseException] | None, _exc: BaseException | None, _tb: TracebackType | None) -> None:
+        self.close()
+
+    def close(self) -> None:
+        """Stop monitored datarefs and close the UDP socket."""
+        if self._closed:
+            return
+        for dataref in list(self.datarefs.values()):
+            self._request_dataref(dataref, freq=0)
         self.socket.close()
+        self._closed = True
 
     @property
     def connected(self) -> bool:

@@ -35,8 +35,8 @@ __all__ = [
 ]
 
 
-def beacon():
-    return XPBeaconMonitor()
+def beacon(**kwargs):
+    return XPBeaconMonitor(**kwargs)
 
 
 def rest_api(**kwargs):

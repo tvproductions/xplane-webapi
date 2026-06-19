@@ -1,6 +1,6 @@
 import base64
 import unittest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 
@@ -83,6 +83,19 @@ class TestAsyncXPRestAPIConnected(AsyncRestAPITestCase):
         api.session.get.return_value = mock_response(200, {"data": 1})
         self.assertTrue(await api.rest_api_reachable())
         self.assertEqual(api._unreach_count, 0)
+
+    async def test_rest_api_reachable_retries_transient_connect_error(self):
+        api = AsyncXPRestAPI(host="127.0.0.1", port=8086, api="/api", api_version="v1", retry_attempts=3, retry_backoff=0.25)
+        api.session = MagicMock()
+        api.session.get = AsyncMock(side_effect=[httpx.ConnectError("failed"), mock_response(200, {"data": 1})])
+        api.session.aclose = AsyncMock()
+        api._show_stats = False
+
+        with patch("xpwebapi.async_rest.async_sleep_before_retry", new_callable=AsyncMock) as sleep:
+            self.assertTrue(await api.rest_api_reachable())
+
+        self.assertEqual(api.session.get.await_count, 2)
+        sleep.assert_awaited_once_with(api.retry_config, 0)
 
 
 class TestAsyncXPRestAPICapabilities(AsyncRestAPITestCase):

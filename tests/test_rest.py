@@ -36,6 +36,14 @@ class RestAPITestCase(unittest.TestCase):
 
 
 class TestXPRestAPIConnected(RestAPITestCase):
+    def test_context_manager_closes_session(self):
+        api = self.make_api()
+
+        with api as active:
+            self.assertIs(active, api)
+
+        api.session.close.assert_called_once()
+
     def test_connected_returns_true_for_successful_count_probe(self):
         api = self.make_api()
         api.session.get.return_value = mock_response(200, {"data": 1})
@@ -51,6 +59,18 @@ class TestXPRestAPIConnected(RestAPITestCase):
         api = self.make_api()
         api.session.get.side_effect = httpx.ConnectError("failed")
         self.assertFalse(api.connected)
+
+    def test_rest_api_reachable_retries_transient_connect_error(self):
+        api = XPRestAPI(host="127.0.0.1", port=8086, api="/api", api_version="v1", retry_attempts=3, retry_backoff=0.25)
+        api.session = MagicMock()
+        api._show_stats = False
+        api.session.get.side_effect = [httpx.ConnectError("failed"), mock_response(200, {"data": 1})]
+
+        with patch("xpwebapi.rest.sleep_before_retry") as sleep:
+            self.assertTrue(api.connected)
+
+        self.assertEqual(api.session.get.call_count, 2)
+        sleep.assert_called_once_with(api.retry_config, 0)
 
 
 class TestXPRestAPIGetRestMeta(RestAPITestCase):

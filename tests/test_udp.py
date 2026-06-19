@@ -23,6 +23,17 @@ class UDPAPITestCase(unittest.TestCase):
 
 
 class TestXPUDPAPIWriteDataref(UDPAPITestCase):
+    def test_context_manager_stops_monitored_datarefs_and_closes_socket(self):
+        api = self.make_api()
+        api.datarefs = {0: "sim/test/value"}
+
+        with patch.object(XPUDPAPI, "connected", new_callable=PropertyMock, return_value=True):
+            with api as active:
+                self.assertIs(active, api)
+
+        api.socket.close.assert_called_once()
+        self.assertEqual(api.datarefs, {})
+
     def test_write_dataref_sends_dref_packet(self):
         api = self.make_api()
         dataref = Dataref(path="sim/test/value", api=api)

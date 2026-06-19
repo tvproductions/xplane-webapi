@@ -5,7 +5,8 @@ from __future__ import annotations
 import logging
 import base64
 from datetime import timedelta
-from typing import List, TYPE_CHECKING
+from types import TracebackType
+from typing import List, TYPE_CHECKING, Self
 from enum import Enum
 
 import httpx
@@ -24,6 +25,7 @@ from .api import (
     DatarefValueType,
     webapi_logger,
 )
+from .retry import RetryConfig, sleep_before_retry
 
 if TYPE_CHECKING:
     from .beacon import BeaconData
@@ -86,9 +88,20 @@ class XPRestAPI(API):
         [X-Plane Web API — REST API](https://developer.x-plane.com/article/x-plane-web-api/#REST_API)
     """
 
-    def __init__(self, host: str = "127.0.0.1", port: int = 8086, api: str = "/api", api_version: str = "v1", use_cache: bool = False) -> None:
+    def __init__(
+        self,
+        host: str = "127.0.0.1",
+        port: int = 8086,
+        api: str = "/api",
+        api_version: str = "v1",
+        use_cache: bool = False,
+        retry_attempts: int = 1,
+        retry_backoff: float = 0.0,
+        retry_backoff_max: float = 5.0,
+    ) -> None:
         API.__init__(self, host=host, port=port, api=api, api_version=api_version)
         self._capabilities = {}
+        self.retry_config = RetryConfig(attempts=retry_attempts, backoff=retry_backoff, max_backoff=retry_backoff_max)
 
         self._first_try = True
         self._running_time = Dataref(path=RUNNING_TIME, api=self)  # cheating, side effect, works for rest api only, do not force!
@@ -104,6 +117,16 @@ class XPRestAPI(API):
         self._dataref_by_id = {}  # {dataref-id: Dataref}
 
         self.session = httpx.Client(headers={"Accept": "application/json", "Content-Type": "application/json"})
+
+    def __enter__(self) -> Self:
+        return self
+
+    def __exit__(self, _exc_type: type[BaseException] | None, _exc: BaseException | None, _tb: TracebackType | None) -> None:
+        self.close()
+
+    def close(self) -> None:
+        """Close the underlying HTTP session."""
+        self.session.close()
 
     @property
     def use_cache(self) -> bool:
@@ -151,23 +174,29 @@ class XPRestAPI(API):
         if self._first_try:
             logger.info(f"trying to connect to {CHECK_API_URL}..")
             self._first_try = False
-        try:
-            # Relies on the fact that first version is always provided.
-            # Later verion offer alternative ot detect API
-            self.inc("get")
-            response = self.session.get(CHECK_API_URL)
-            webapi_logger.info(f"GET {CHECK_API_URL}: {response}")
-            if response.status_code == 200:
-                if self._unreach_count > 0:
-                    logger.info("rest api reachable")
-                    self._unreach_count = 0
-                self.status = CONNECTION_STATUS.REST_API_REACHABLE
-                return True
-        except httpx.ConnectError:
-            if self._warning_count % 20 == 0:
-                logger.warning("api unreachable, X-Plane may be not running")
+        for attempt in range(self.retry_config.attempts):
+            try:
+                # Relies on the fact that first version is always provided.
+                # Later version offers alternatives to detect API.
+                self.inc("get")
+                response = self.session.get(CHECK_API_URL)
+                webapi_logger.info(f"GET {CHECK_API_URL}: {response}")
+                if response.status_code == 200:
+                    if self._unreach_count > 0:
+                        logger.info("rest api reachable")
+                        self._unreach_count = 0
+                    self.status = CONNECTION_STATUS.REST_API_REACHABLE
+                    return True
+                self.status = CONNECTION_STATUS.REST_API_NOT_REACHABLE
+                self._unreach_count = self._unreach_count + 1
+            except httpx.ConnectError:
+                if self._warning_count % 20 == 0:
+                    logger.warning("api unreachable, X-Plane may be not running")
                 self.status = CONNECTION_STATUS.REST_API_NOT_REACHABLE
                 self._warning_count = self._warning_count + 1
+                self._unreach_count = self._unreach_count + 1
+            if attempt < self.retry_config.attempts - 1:
+                sleep_before_retry(self.retry_config, attempt)
         return False
 
     @property

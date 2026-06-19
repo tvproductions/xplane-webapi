@@ -10,9 +10,10 @@ from dataclasses import dataclass
 
 SOURCE_PATHS = ("xpwebapi", "tests", "tools")
 PYTHON_QUALITY_PATHS = SOURCE_PATHS
-SECRET_SCAN_PATHS = ("xpwebapi", "tests", "tools", ".github", ".codex", "pyproject.toml")
+SECRET_SCAN_PATHS = (".",)
+SECRET_BASELINE = ".secrets.baseline"
 COVERAGE_MINIMUM = "40"
-XENON_MAX_ABSOLUTE = "E"
+XENON_MAX_ABSOLUTE = "C"
 XENON_MAX_MODULES = "B"
 XENON_MAX_AVERAGE = "A"
 
@@ -21,6 +22,7 @@ XENON_MAX_AVERAGE = "A"
 class Step:
     name: str
     command: tuple[str, ...]
+    tracked_paths: tuple[str, ...] = ()
 
 
 def uv(*args: str) -> tuple[str, ...]:
@@ -39,7 +41,8 @@ COMMANDS: dict[str, tuple[Step, ...]] = {
     ),
     "security": (
         Step("bandit", uv("bandit", "-q", "-r", "xpwebapi")),
-        Step("detect-secrets", uv("detect-secrets", "scan", *SECRET_SCAN_PATHS)),
+        Step("detect-secrets baseline", uv("detect-secrets-hook", "--baseline", SECRET_BASELINE), tracked_paths=SECRET_SCAN_PATHS),
+        Step("detect-secrets report", uv("detect-secrets", "audit", "--report", SECRET_BASELINE)),
     ),
     "docs": (Step("interrogate", uv("interrogate", "-v", "-f", "40", "xpwebapi")),),
     "dead-code": (Step("vulture", uv("vulture", *PYTHON_QUALITY_PATHS, "--min-confidence", "80")),),
@@ -84,8 +87,15 @@ CHECK_STEPS = (
 
 def run_steps(steps: Sequence[Step], runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run) -> int:
     for step in steps:
-        print(f"==> {step.name}: {' '.join(step.command)}", flush=True)
-        result = runner(step.command, check=False)
+        command = step.command
+        if step.tracked_paths:
+            tracked = runner(("git", "ls-files", "--", *step.tracked_paths), check=False, capture_output=True, text=True)
+            if tracked.returncode != 0:
+                return tracked.returncode
+            command = (*command, *(line for line in tracked.stdout.splitlines() if line))
+
+        print(f"==> {step.name}: {' '.join(command)}", flush=True)
+        result = runner(command, check=False)
         if result.returncode != 0:
             return result.returncode
     return 0

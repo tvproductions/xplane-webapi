@@ -28,6 +28,7 @@ uv run python tools\quality.py check
 - `ruff format` formatting changes.
 - Ruff lint fixes that preserve behavior.
 - Bandit findings with direct mechanical replacements, such as replacing production `assert` with explicit exceptions.
+- Detect-secrets findings by removing the secret first; update `.secrets.baseline` only for reviewed false positives or intentional scan configuration changes.
 - Vulture findings only when the symbol is truly unreachable; otherwise leave it and explain why.
 - Interrogate/docstring gaps only for public or confusing surfaces; do not add empty docstring noise.
 - Xenon findings only when a local mechanical simplification can reduce complexity; otherwise report them as refactor candidates.
@@ -67,4 +68,5 @@ uv run python tools\quality.py check
 - Do not touch `examples/` unless the user explicitly asks.
 - Do not delete code solely because a tool reports it; inspect references and public API exposure first.
 - Keep generated files such as `.coverage`, `.wily/`, `.ruff_cache/`, and `.ty_cache/` out of commits.
+- Keep `.secrets.baseline` committed and auditable.
 - If a hygiene pass reveals broad design debt, report it separately instead of mixing it into mechanical cleanup.

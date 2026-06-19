@@ -35,10 +35,6 @@
 - `__enter__` / `__exit__` on `XPRestAPI`, `XPWebsocketAPI`, `XPUDPAPI`
 - Ensure socket/thread cleanup on exit
 
-### Retry logic with exponential backoff
-- Configurable retry on transient connection failures
-- Apply to `rest_api_reachable`, `connect_websocket`, `get_beacon`
-
 ## P2 — Medium
 
 ### Use `Protocol` instead of `ABC` for `API`

@@ -23,6 +23,7 @@ from .api import (
     ValueCache,
     webapi_logger,
 )
+from .retry import RetryConfig, async_sleep_before_retry
 from .rest import PROXY_TCP_PORT, REST_KW, V1_CAPABILITIES, XP_SUPER_MIN_VERSION
 
 logger = logging.getLogger(__name__)
@@ -31,7 +32,17 @@ logger = logging.getLogger(__name__)
 class AsyncXPRestAPI:
     """Opt-in asynchronous REST client for X-Plane Web API."""
 
-    def __init__(self, host: str = "127.0.0.1", port: int = 8086, api: str = "/api", api_version: str = "v1", use_cache: bool = False) -> None:
+    def __init__(
+        self,
+        host: str = "127.0.0.1",
+        port: int = 8086,
+        api: str = "/api",
+        api_version: str = "v1",
+        use_cache: bool = False,
+        retry_attempts: int = 1,
+        retry_backoff: float = 0.0,
+        retry_backoff_max: float = 5.0,
+    ) -> None:
         self.host = None
         self.port = None
         self.version = None
@@ -48,6 +59,7 @@ class AsyncXPRestAPI:
         self._stats = {}
 
         self._capabilities = {}
+        self.retry_config = RetryConfig(attempts=retry_attempts, backoff=retry_backoff, max_backoff=retry_backoff_max)
         self._first_try = True
         self._warning_count = 0
         self._unreach_count = 0
@@ -176,24 +188,27 @@ class AsyncXPRestAPI:
         if self._first_try:
             logger.info(f"trying to connect to {check_url}..")
             self._first_try = False
-        try:
-            self.inc("get")
-            response = await self.session.get(check_url)
-            webapi_logger.info(f"GET {check_url}: {response}")
-            if response.status_code == 200:
-                if self._unreach_count > 0:
-                    logger.info("rest api reachable")
-                    self._unreach_count = 0
-                self.status = CONNECTION_STATUS.REST_API_REACHABLE
-                return True
-            self.status = CONNECTION_STATUS.REST_API_NOT_REACHABLE
-            self._unreach_count = self._unreach_count + 1
-        except httpx.ConnectError:
-            if self._warning_count % 20 == 0:
-                logger.warning("api unreachable, X-Plane may be not running")
-            self.status = CONNECTION_STATUS.REST_API_NOT_REACHABLE
-            self._warning_count = self._warning_count + 1
-            self._unreach_count = self._unreach_count + 1
+        for attempt in range(self.retry_config.attempts):
+            try:
+                self.inc("get")
+                response = await self.session.get(check_url)
+                webapi_logger.info(f"GET {check_url}: {response}")
+                if response.status_code == 200:
+                    if self._unreach_count > 0:
+                        logger.info("rest api reachable")
+                        self._unreach_count = 0
+                    self.status = CONNECTION_STATUS.REST_API_REACHABLE
+                    return True
+                self.status = CONNECTION_STATUS.REST_API_NOT_REACHABLE
+                self._unreach_count = self._unreach_count + 1
+            except httpx.ConnectError:
+                if self._warning_count % 20 == 0:
+                    logger.warning("api unreachable, X-Plane may be not running")
+                self.status = CONNECTION_STATUS.REST_API_NOT_REACHABLE
+                self._warning_count = self._warning_count + 1
+                self._unreach_count = self._unreach_count + 1
+            if attempt < self.retry_config.attempts - 1:
+                await async_sleep_before_retry(self.retry_config, attempt)
         return False
 
     async def capabilities(self) -> dict:

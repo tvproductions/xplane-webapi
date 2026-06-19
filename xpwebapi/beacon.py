@@ -25,6 +25,7 @@ from dataclasses import dataclass
 import ifaddr
 
 from .exceptions import XPBeaconError, XPVersionError
+from .retry import RetryConfig, sleep_before_retry
 
 logger = logging.getLogger(__name__)
 # logger.setLevel(logging.DEBUG)
@@ -150,10 +151,11 @@ class XPBeaconMonitor:
 
     ROLES = ["none", "master", "extern visual", "IOS"]
 
-    def __init__(self):
+    def __init__(self, retry_attempts: int = 1, retry_backoff: float = 0.0, retry_backoff_max: float = 5.0):
         # Open a UDP Socket to receive on Port 49000
         self.socket = None
         self.data: BeaconData | None = None
+        self.retry_config = RetryConfig(attempts=retry_attempts, backoff=retry_backoff, max_backoff=retry_backoff_max)
 
         self.not_monitoring: threading.Event = threading.Event()
         self.not_monitoring.set()
@@ -216,6 +218,17 @@ class XPBeaconMonitor:
                     logger.warning(f"issue calling beacon callback {c}", exc_info=True)
 
     def get_beacon(self, timeout: float = BEACON_TIMEOUT) -> BeaconData | None:
+        """Attempts to capture an X-Plane beacon using configured transient retries."""
+        for attempt in range(self.retry_config.attempts):
+            try:
+                return self._get_beacon_once(timeout=timeout)
+            except XPlaneNoBeacon:
+                if attempt >= self.retry_config.attempts - 1:
+                    raise
+                sleep_before_retry(self.retry_config, attempt)
+        return None
+
+    def _get_beacon_once(self, timeout: float = BEACON_TIMEOUT) -> BeaconData | None:
         """Attemps to capture X-Plane beacon. Returns first occurence of beacon data encountered
            or None if no beacon was detected before timeout.
 

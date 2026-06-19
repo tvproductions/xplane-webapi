@@ -10,6 +10,11 @@ repos:
         language: system
         pass_filenames: false
 
+      - id: detect-secrets-baseline
+        name: detect-secrets baseline
+        entry: uv run detect-secrets-hook --baseline .secrets.baseline
+        language: system
+
       - id: lizard-report
         name: lizard report
         entry: uv run lizard xpwebapi -i -1

@@ -1,8 +1,10 @@
 import json
 import unittest
+from datetime import datetime
 from unittest.mock import MagicMock, PropertyMock, patch
 
 from xpwebapi.api import DATAREF_DATATYPE, Command, CommandMeta, Dataref, DatarefMeta
+from xpwebapi.retry import RetryConfig
 from xpwebapi.rest import REST_KW
 from xpwebapi.ws import CALLBACK_TYPE, XPWebsocketAPI
 
@@ -24,13 +26,18 @@ class WebsocketAPITestCase(unittest.TestCase):
         api._first_try = False
         api._warning_count = 0
         api._unreach_count = 0
+        api.retry_config = RetryConfig()
         api._already_warned = 0
         api.req_number = 0
         api._requests = {}
         api._dataref_by_id = {}
+        api.all_commands = None
+        api.all_datarefs = None
         api.session = MagicMock()
         api.session.get.return_value = MagicMock(status_code=503)
         api.ws = MagicMock()
+        api.should_not_connect = MagicMock()
+        api.should_not_connect.is_set.return_value = True
         api.callbacks = {callback_type.value: set() for callback_type in CALLBACK_TYPE}
         return api
 
@@ -88,6 +95,24 @@ class TestXPWebsocketAPIConnect(WebsocketAPITestCase):
         self.assertIsNone(api.ws)
         mock_connect.assert_not_called()
 
+    @patch("xpwebapi.ws.Client.connect")
+    def test_connect_websocket_retries_transient_connect_error(self, mock_connect):
+        api = self.make_api()
+        api.ws = None
+        api.retry_config = RetryConfig(attempts=3, backoff=0.25)
+        websocket = MagicMock()
+        mock_connect.side_effect = [RuntimeError("failed"), websocket]
+
+        with patch.object(XPWebsocketAPI, "rest_api_reachable", new_callable=PropertyMock, return_value=True):
+            with patch.object(XPWebsocketAPI, "reload_caches"):
+                with patch("xpwebapi.ws.sleep_before_retry") as sleep:
+                    with patch("xpwebapi.ws.logger.error"):
+                        api.connect_websocket()
+
+        self.assertIs(api.ws, websocket)
+        self.assertEqual(mock_connect.call_count, 2)
+        sleep.assert_called_once_with(api.retry_config, 0)
+
     def test_disconnect_websocket_closes_socket_and_runs_callback(self):
         api = self.make_api()
         websocket = api.ws
@@ -99,6 +124,16 @@ class TestXPWebsocketAPIConnect(WebsocketAPITestCase):
         websocket.close.assert_called_once()
         self.assertIsNone(api.ws)
         callback.assert_called_once()
+
+    def test_context_manager_disconnects_websocket_and_closes_session(self):
+        api = self.make_api()
+        websocket = api.ws
+
+        with api as active:
+            self.assertIs(active, api)
+
+        websocket.close.assert_called_once()
+        api.session.close.assert_called_once()
 
 
 class TestXPWebsocketAPICallbacks(WebsocketAPITestCase):
@@ -119,6 +154,72 @@ class TestXPWebsocketAPICallbacks(WebsocketAPITestCase):
     def test_execute_callbacks_returns_true_when_no_callbacks_registered(self):
         api = self.make_api()
         self.assertTrue(api.execute_callbacks(CALLBACK_TYPE.ON_OPEN))
+
+
+class TestXPWebsocketAPIMessageHandling(WebsocketAPITestCase):
+    def test_result_message_updates_request_and_runs_feedback_callback(self):
+        api = self.make_api()
+        callback = MagicMock()
+        api.add_callback(CALLBACK_TYPE.ON_REQUEST_FEEDBACK, callback)
+        with patch.object(XPWebsocketAPI, "connected", new_callable=PropertyMock, return_value=True):
+            req_id = api.send({"type": "test"})
+        message = json.dumps(
+            {
+                REST_KW.TYPE.value: "result",
+                REST_KW.REQID.value: req_id,
+                REST_KW.SUCCESS.value: False,
+                REST_KW.ERROR_MESSAGE.value: "boom",
+            }
+        )
+
+        api._handle_websocket_message(message, datetime.now())
+
+        self.assertFalse(api._requests[req_id].success)
+        self.assertEqual(api._requests[req_id].error, "boom")
+        callback.assert_called_once()
+
+    def test_command_active_message_runs_command_callback(self):
+        api = self.make_api()
+        callback = MagicMock()
+        api.add_callback(CALLBACK_TYPE.ON_COMMAND_ACTIVE, callback)
+        api.get_command_meta_by_id = MagicMock(return_value=CommandMeta(name="sim/test/command", description="Test", id=21))
+        message = json.dumps({REST_KW.TYPE.value: "command_update_is_active", REST_KW.DATA.value: {"21": True}})
+
+        api._handle_websocket_message(message, datetime.now())
+
+        callback.assert_called_once_with(command="sim/test/command", active=True)
+
+    def test_scalar_dataref_update_runs_dataref_callback(self):
+        api = self.make_api()
+        callback = MagicMock()
+        api.add_callback(CALLBACK_TYPE.ON_DATAREF_UPDATE, callback)
+        dataref = Dataref(path="sim/test/value", api=api)
+        dataref._cached_meta = DatarefMeta(name="sim/test/value", value_type="float", is_writable=True, id=11)
+        api._dataref_by_id[11] = dataref
+        api.changed = MagicMock(return_value=True)
+        message = json.dumps({REST_KW.TYPE.value: "dataref_update_values", REST_KW.DATA.value: {"11": 3.5}})
+
+        api._handle_websocket_message(message, datetime.now())
+
+        callback.assert_called_once_with(dataref="sim/test/value", value=3.5)
+
+    def test_array_dataref_update_runs_index_callbacks(self):
+        api = self.make_api()
+        callback = MagicMock()
+        api.add_callback(CALLBACK_TYPE.ON_DATAREF_UPDATE, callback)
+        meta = DatarefMeta(name="sim/test/array", value_type=DATAREF_DATATYPE.FLOATARRAY.value, is_writable=True, id=12)
+        meta.indices = [2, 4]
+        dataref = Dataref(path="sim/test/array[2]", api=api)
+        dataref._cached_meta = meta
+        api._dataref_by_id[12] = [dataref]
+        api.changed = MagicMock(return_value=True)
+        message = json.dumps({REST_KW.TYPE.value: "dataref_update_values", REST_KW.DATA.value: {"12": [7.5, 8.5]}})
+
+        api._handle_websocket_message(message, datetime.now())
+
+        callback.assert_any_call(dataref="sim/test/array[2]", value=7.5)
+        callback.assert_any_call(dataref="sim/test/array[4]", value=8.5)
+        self.assertEqual(callback.call_count, 2)
 
 
 class TestXPWebsocketAPIPayloads(WebsocketAPITestCase):

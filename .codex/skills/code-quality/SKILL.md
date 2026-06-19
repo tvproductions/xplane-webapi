@@ -26,10 +26,11 @@ uv run python tools\quality.py check
 - `coverage run -m unittest discover -s tests -t .`
 - `coverage report --fail-under=40`
 - `bandit -q -r xpwebapi`
-- `detect-secrets scan ...`
+- `detect-secrets-hook --baseline .secrets.baseline ...`
+- `detect-secrets audit --report .secrets.baseline`
 - `interrogate -v -f 40 xpwebapi`
 - `vulture xpwebapi tests tools --min-confidence 80`
-- `xenon --max-absolute E --max-modules B --max-average A xpwebapi`
+- `xenon --max-absolute C --max-modules B --max-average A xpwebapi`
 
 Fix in-scope failures and rerun the failed gate or the full `check`.
 
@@ -58,12 +59,13 @@ Use the Wily trend gate as an advisory or targeted refactor tool after the workt
 uv run python tools\quality.py wily
 ```
 
-The current complexity baseline is `E/B/A`: block rank `E`, module rank `B`, average rank `A`. This preserves the existing `XPWebsocketAPI.ws_listener` baseline while blocking any new `F`-rank block or worse module/average trend. Wily's git archiver requires a clean worktree.
+The current complexity baseline is `C/B/A`: block rank `C`, module rank `B`, average rank `A`. Wily's git archiver requires a clean worktree.
 
 ## Rules
 
 - Use stdlib `unittest` only.
 - Do not invoke or add other Python test frameworks.
 - Treat `tools/quality.py check` as the CI-equivalent local gate.
-- Keep generated coverage data out of commits.
+- Keep generated coverage and Wily cache data out of commits.
+- Update `.secrets.baseline` intentionally when secret-scan settings or reviewed findings change; do not regenerate it casually to hide new findings.
 - If a gate fails because a required dev tool is missing, run `uv sync` and retry once.
