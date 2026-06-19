@@ -497,11 +497,11 @@ class DatarefCache(MetaCacheBase):
 
     def get_by_name(self, name) -> DatarefMeta | None:
         """Get dataref metadata from cache by name."""
-        return self._by_name.get(name)
+        return cast(DatarefMeta | None, self._by_name.get(name))
 
     def get_by_id(self, ident: int) -> DatarefMeta | None:
         """Get dataref metadata from cache by identifier."""
-        return self._by_ids.get(ident)
+        return cast(DatarefMeta | None, self._by_ids.get(ident))
 
 
 class CommandCache(MetaCacheBase):
@@ -520,11 +520,11 @@ class CommandCache(MetaCacheBase):
 
     def get_by_name(self, name) -> CommandMeta | None:
         """Get command metadata from cache by name."""
-        return self._by_name.get(name)
+        return cast(CommandMeta | None, self._by_name.get(name))
 
     def get_by_id(self, ident: int) -> CommandMeta | None:
         """Get command metadata from cache by identifier."""
-        return self._by_ids.get(ident)
+        return cast(CommandMeta | None, self._by_ids.get(ident))
 
 
 class Cache(MetaCacheBase):

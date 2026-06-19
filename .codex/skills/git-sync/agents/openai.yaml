@@ -1,0 +1,4 @@
+interface:
+  display_name: "Git Sync"
+  short_description: "Commit, push, and verify this repo safely."
+  default_prompt: "Commit, push, and sync the current repository changes."

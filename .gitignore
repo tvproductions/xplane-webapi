@@ -144,6 +144,9 @@ venv.bak/
 # ty type checker
 .ty_cache/
 
+# wily metrics cache
+.wily/
+
 # Cython debug symbols
 cython_debug/
 

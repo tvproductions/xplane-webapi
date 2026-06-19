@@ -1,0 +1,4 @@
+interface:
+  display_name: "Code Quality"
+  short_description: "Run repo quality checks and fix failures."
+  default_prompt: "Run the repository code quality gate and fix any in-scope failures."

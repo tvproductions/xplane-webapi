@@ -1,0 +1,4 @@
+interface:
+  display_name: "Hygiene"
+  short_description: "Run mechanical repo cleanup and quality checks."
+  default_prompt: "Run a repository hygiene pass and fix safe mechanical issues."

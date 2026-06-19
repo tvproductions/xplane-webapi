@@ -182,7 +182,8 @@ class XPUDPAPI(API):
         elif vtype == "bool":
             message = struct.pack("<5sI500s", cmd, int(dataref.value), string)
 
-        assert len(message) == 509
+        if len(message) != 509:
+            raise ValueError(f"invalid DREF packet length: {len(message)}")
         self.socket.sendto(message, (self.host, self.port))
         return True
 
@@ -285,7 +286,8 @@ class XPUDPAPI(API):
         cmd = b"RREF\x00"
         string = dataref.encode()
         message = struct.pack("<5sii400s", cmd, freq, idx, string)
-        assert len(message) == 413
+        if len(message) != 413:
+            raise ValueError(f"invalid RREF packet length: {len(message)}")
         self.socket.sendto(message, (self.host, self.port))
         if self.datarefidx % 100 == 0:
             sleep(0.2)

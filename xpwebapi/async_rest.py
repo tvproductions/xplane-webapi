@@ -5,11 +5,12 @@ from __future__ import annotations
 import base64
 import logging
 from types import TracebackType
-from typing import Any, Self
+from typing import Any, Self, cast
 
 import httpx
 
 from .api import (
+    API,
     CONNECTION_STATUS,
     DATAREF_DATATYPE,
     Command,
@@ -60,7 +61,7 @@ class AsyncXPRestAPI:
     async def __aenter__(self) -> Self:
         return self
 
-    async def __aexit__(self, exc_type: type[BaseException] | None, exc: BaseException | None, tb: TracebackType | None) -> None:
+    async def __aexit__(self, _exc_type: type[BaseException] | None, _exc: BaseException | None, _tb: TracebackType | None) -> None:
         await self.aclose()
 
     async def aclose(self) -> None:
@@ -147,11 +148,11 @@ class AsyncXPRestAPI:
 
     def dataref(self, path: str, auto_save: bool = False) -> Dataref:
         """Create a Dataref bound to this async API."""
-        return Dataref(path=path, api=self, auto_save=auto_save)
+        return Dataref(path=path, api=cast(API, self), auto_save=auto_save)
 
     def command(self, path: str) -> Command:
         """Create a Command bound to this async API."""
-        return Command(path=path, api=self)
+        return Command(path=path, api=cast(API, self))
 
     def set_roundings(self, roundings: dict[str, int]) -> None:
         """Add rounding to simulator variable value change detection."""

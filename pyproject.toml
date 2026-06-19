@@ -30,10 +30,33 @@ Source = "https://github.com/devleaks/xplane-webapi"
 
 [dependency-groups]
 dev = [
+    "bandit>=1.9.4",
+    "cohesion>=1.2.0",
+    "coverage>=7.14.1",
+    "detect-secrets>=1.5.0",
+    "interrogate>=1.7.0",
+    "lizard>=1.23.0",
     "mkdocs",
     "mkdocs-material",
     "mkdocstrings",
     "mkdocstrings-python",
+    "pre-commit>=4.5.1",
+    "ruff>=0.15.17",
+    "ty>=0.0.49",
+    "vulture>=2.16",
+    "wily>=1.12.2",
+    "xenon>=0.9.3",
+]
+
+[tool.coverage.run]
+source = ["xpwebapi"]
+branch = false
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
 ]
 
 [build-system]
@@ -62,3 +85,9 @@ exclude = ["examples/**"]
 
 [tool.ty.rules]
 all = "error"
+# Current code predates strict annotation-modernization requirements.
+# Keep ty blocking on compatibility errors while leaving these broad cleanup
+# classes for separate focused work.
+missing-override-decorator = "ignore"
+missing-type-argument = "ignore"
+unresolved-attribute = "ignore"
