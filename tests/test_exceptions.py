@@ -53,5 +53,32 @@ class TestExceptionHierarchy(unittest.TestCase):
                 raise cls("test")
 
 
+class TestBackwardCompat(unittest.TestCase):
+    def test_xplane_no_beacon_is_beacon_error(self):
+        from xpwebapi.beacon import XPlaneNoBeacon
+        from xpwebapi.exceptions import XPBeaconError
+        self.assertTrue(issubclass(XPlaneNoBeacon, XPBeaconError))
+
+    def test_xplane_version_not_supported_is_version_error(self):
+        from xpwebapi.beacon import XPlaneVersionNotSupported
+        from xpwebapi.exceptions import XPVersionError
+        self.assertTrue(issubclass(XPlaneVersionNotSupported, XPVersionError))
+
+    def test_xplane_timeout_is_timeout_error(self):
+        from xpwebapi.udp import XPlaneTimeout
+        from xpwebapi.exceptions import XPTimeoutError
+        self.assertTrue(issubclass(XPlaneTimeout, XPTimeoutError))
+
+    def test_old_names_importable_from_package(self):
+        from xpwebapi import XPlaneNoBeacon, XPlaneVersionNotSupported, XPlaneTimeout
+        self.assertTrue(issubclass(XPlaneNoBeacon, Exception))
+        self.assertTrue(issubclass(XPlaneVersionNotSupported, Exception))
+        self.assertTrue(issubclass(XPlaneTimeout, Exception))
+
+    def test_new_names_importable_from_package(self):
+        from xpwebapi import XPWebAPIError, XPConnectionError, XPBeaconError, XPTimeoutError, XPVersionError  # noqa: F401
+        self.assertTrue(issubclass(XPWebAPIError, Exception))
+
+
 if __name__ == "__main__":
     unittest.main()

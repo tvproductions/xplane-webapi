@@ -1,9 +1,35 @@
-# Interface
 from .api import Dataref, Command, DatarefValueType, DATAREF_DATATYPE
 from .beacon import XPBeaconMonitor, BeaconData, XPlaneNoBeacon, XPlaneVersionNotSupported
+from .exceptions import XPWebAPIError, XPConnectionError, XPBeaconError, XPTimeoutError, XPVersionError
 from .rest import XPRestAPI
 from .ws import XPWebsocketAPI, CALLBACK_TYPE
 from .udp import XPUDPAPI, XPlaneTimeout
+
+__all__ = [
+    "Dataref",
+    "Command",
+    "DatarefValueType",
+    "DATAREF_DATATYPE",
+    "XPBeaconMonitor",
+    "BeaconData",
+    "XPlaneNoBeacon",
+    "XPlaneVersionNotSupported",
+    "XPWebAPIError",
+    "XPConnectionError",
+    "XPBeaconError",
+    "XPTimeoutError",
+    "XPVersionError",
+    "XPRestAPI",
+    "XPWebsocketAPI",
+    "CALLBACK_TYPE",
+    "XPUDPAPI",
+    "XPlaneTimeout",
+    "beacon",
+    "rest_api",
+    "ws_api",
+    "udp_api",
+    "version",
+]
 
 
 def beacon():
