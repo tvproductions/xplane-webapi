@@ -138,16 +138,11 @@ venv.bak/
 # mkdocs documentation
 /site
 
-# mypy
-.mypy_cache/
-.dmypy.json
-dmypy.json
+# ruff
+.ruff_cache/
 
-# Pyre type checker
-.pyre/
-
-# pytype static type analyzer
-.pytype/
+# ty type checker
+.ty_cache/
 
 # Cython debug symbols
 cython_debug/

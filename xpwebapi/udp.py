@@ -186,7 +186,7 @@ class XPUDPAPI(API):
         self.socket.sendto(message, (self.host, self.port))
         return True
 
-    def dataref_value(self, dataref: Dataref, raw: bool = False, **kwargs) -> DatarefValueType | bytes | None:
+    def dataref_value(self, dataref: Dataref, raw: bool = False, no_decode: bool = False) -> DatarefValueType | bytes | None:
         """Returns Dataref value from simulator
 
         Args:

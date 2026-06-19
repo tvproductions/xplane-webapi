@@ -9,7 +9,13 @@ import math
 from abc import ABC, abstractmethod
 from enum import Enum, IntEnum
 from datetime import datetime
-from typing import List, Dict, Tuple, Any
+from typing import List, Dict, Any, cast
+from typing import TYPE_CHECKING
+
+import httpx
+
+if TYPE_CHECKING:
+    from .beacon import BeaconData
 
 type DatarefValueType = bool | str | int | float
 
@@ -174,7 +180,7 @@ class ValueCache:
         if type(value) in [int, float]:
             rnd = self.get_rounding(dataref)
             if rnd is not None:
-                new_value = round(value, rnd)
+                new_value = round(value, int(rnd))
                 if new_value == self._last_value.get(dataref, math.inf):
                     return False
                 self._last_value[dataref] = new_value
@@ -202,6 +208,11 @@ class API(ABC):
 
         self._show_stats = True
         self._stats = {}
+
+        self.session: httpx.Client = httpx.Client()
+        self.use_cache: bool = False
+        self.all_datarefs: Cache | None = None
+        self.all_commands: Cache | None = None
 
         self.set_network(host=host, port=port, api=api, api_version=api_version)
 
@@ -235,7 +246,7 @@ class API(ABC):
     @abstractmethod
     def connected(self) -> bool:
         """Whether X-Plane API is reachable through this instance"""
-        return False
+        ...
 
     def set_roundings(self, roundings):
         """Add rounding to simulator variable value.
@@ -254,6 +265,9 @@ class API(ABC):
         self._stats[name] = self._stats[name] + count
         if self._show_stats and (self._stats[name] % 500 == 0 or ("/" in name and self._stats[name] % 100 == 0)):
             logger.info(f"*** web api stats: {name}: {self._stats[name]}")
+
+    def get_rest_meta(self, obj: Dataref | Command, force: bool = False) -> DatarefMeta | CommandMeta | None:
+        return None
 
     def set_network(self, host: str, port: int, api: str, api_version: str) -> bool:
         """Set network and API parameters for connection
@@ -342,19 +356,21 @@ class API(ABC):
         Returns:
             bool: Whether write operation was successful or not
         """
-        return False
+        ...
 
     @abstractmethod
-    def dataref_value(self, dataref: Dataref, raw: bool = False) -> DatarefValueType:
+    def dataref_value(self, dataref: Dataref, raw: bool = False, no_decode: bool = False) -> DatarefValueType | bytes | None:
         """Returns Dataref value from simulator
 
         Args:
             dataref (Dataref): Dataref to get the value from
+            raw (bool): Return raw value without decoding (default: `False`)
+            no_decode (bool): Skip base64 decoding for data types (default: `False`)
 
         Returns:
-            bool | str | int | float: Value of dataref
+            DatarefValueType | bytes | None: Value of dataref
         """
-        return False
+        ...
 
     @abstractmethod
     def execute_command(self, command: Command, duration: float = 0.0) -> bool | int:
@@ -367,7 +383,7 @@ class API(ABC):
         Returns:
             bool: [description]
         """
-        return False
+        ...
 
     def beacon_callback(self, connected: bool, beacon_data: "BeaconData", same_host: bool):
         """Minimal beacon callback function.
@@ -501,11 +517,11 @@ class Dataref:
             if self.api.all_datarefs is not None:
                 r = self.api.all_datarefs.get(self.path)
                 if r is not None:
-                    return r
+                    return cast(DatarefMeta, r)
                 logger.error(f"dataref {self.path} has no api meta data in cache")
             else:
                 logger.error("no cache data")
-        return self.api.get_rest_meta(self)
+        return cast(DatarefMeta | None, self.api.get_rest_meta(self))
 
     @property
     def valid(self) -> bool:
@@ -562,7 +578,7 @@ class Dataref:
             value = value.replace("\x00", "")  # remove trailing 0 (bytes with value 0)
             self._encoding = encoding
             return value
-        except:
+        except Exception:
             self.add_error()
             logger.warning(f"could not decode value {value_bytes} with encoding {encoding}", exc_info=True)
         return None
@@ -587,7 +603,7 @@ class Dataref:
         try:
             self.value = value.encode(encoding=encoding)
             self._encoding = encoding
-        except:
+        except Exception:
             self.add_error()
             logger.warning(f"could not encode string '{value}'' with encoding {encoding}", exc_info=True)
 
@@ -596,18 +612,19 @@ class Dataref:
         if self.value_type == DATAREF_DATATYPE.DATA.value:
             try:
                 return base64.b64encode(self.value).decode("ascii")
-            except:
+            except Exception:
                 logger.warning(f"could not base64 encode value {self.value}", exc_info=True)
         return None
 
     @property
     def ident(self) -> int | None:
         """Get dataref identifier meta data"""
-        if not self.valid:
+        m = self.meta
+        if m is None:
             logger.error(f"dataref {self.path} not valid")
             self.add_error()
             return None
-        return self.meta.ident
+        return m.ident
 
     @property
     def value_type(self) -> str | None:
@@ -620,20 +637,22 @@ class Dataref:
             - INTARRAY = "int_array"
             - FLOATARRAY = "float_array"
             - DATA = "data" """
-        if not self.valid:
+        m = self.meta
+        if m is None:
             logger.error(f"dataref {self.path} not valid")
             self.add_error()
             return None
-        return self.meta.value_type
+        return m.value_type
 
     @property
     def is_writable(self) -> bool:
         """Whether dataref can be written back to X-Plane"""
-        if not self.valid:
+        m = self.meta
+        if m is None:
             logger.error(f"dataref {self.path} not valid")
             self.add_error()
             return False
-        return self.meta.is_writable
+        return m.is_writable
 
     @property
     def is_array(self) -> bool:
@@ -646,13 +665,14 @@ class Dataref:
 
     @property
     def selected_indices(self) -> bool:
-        if not self.valid:
+        m = self.meta
+        if m is None:
             logger.error(f"dataref {self.path} not valid")
             self.add_error()
             return False
-        return len(self.meta.indices) > 0
+        return len(m.indices) > 0
 
-    def write(self) -> bool:
+    def write(self) -> bool | int:
         """Write new value to X-Plane through REST API
 
         Dataref value is saved locally and written to X-Plane when write() or save() is called.
@@ -695,7 +715,8 @@ class Dataref:
         return self._monitored > 0
 
     def parse_raw_value(self, raw_value):
-        if not self.valid:
+        m = self.meta
+        if m is None:
             logger.error(f"dataref {self.path} not valid")
             return None
 
@@ -706,19 +727,22 @@ class Dataref:
                 logger.warning(f"dataref array {self.name}: value: is not a list ({raw_value}, {type(raw_value)})")
                 return None
 
-            if len(self.meta.indices) == 0:
+            if len(m.indices) == 0:
                 logger.debug(f"dataref array {self.name}: no index, returning whole array")
                 return raw_value
 
             # 1.2 Single array element
-            if len(raw_value) != len(self.meta.indices):
-                logger.warning(f"dataref array {self.name} size mismatch ({len(raw_value)}/{len(self.meta.indices)})")
-                logger.warning(f"dataref array {self.name}: value: {raw_value}, indices: {self.meta.indices})")
+            if len(raw_value) != len(m.indices):
+                logger.warning(f"dataref array {self.name} size mismatch ({len(raw_value)}/{len(m.indices)})")
+                logger.warning(f"dataref array {self.name}: value: {raw_value}, indices: {m.indices})")
                 return None
 
-            idx = self.meta.indices.index(self.index)
+            if self.index is not None:
+                idx = m.indices.index(self.index)
+            else:
+                idx = -1
             if idx == -1:
-                logger.warning(f"dataref index {self.index} not found in {self.meta.indices}")
+                logger.warning(f"dataref index {self.index} not found in {m.indices}")
                 return None
 
             logger.debug(f"dataref array {self.name}: returning {self.name}[{idx}]={raw_value[idx]}")
@@ -728,10 +752,9 @@ class Dataref:
             # 2. Scalar values
             # 2.1  Bytes
             if self.value_type == "data" and type(raw_value) is str:
-                ret = raw_value
                 try:
                     return base64.b64decode(raw_value)
-                except:
+                except Exception:
                     logger.warning(f"failed to decode base64 {self.name}, {self.value_type}: {type(raw_value)} {raw_value}, returning raw value")
                 return raw_value
             # 2.1  Number
@@ -742,15 +765,17 @@ class Dataref:
 
     def monitor(self) -> bool:
         """Monitor dataref value change"""
-        if hasattr(self.api, "monitor_dataref"):
-            return self.api.monitor_dataref(dataref=self)
+        fn = getattr(self.api, "monitor_dataref", None)
+        if fn is not None:
+            return fn(dataref=self)
         logger.error(f"{self.path}: not a websocket api")
         return False
 
     def unmonitor(self) -> bool:
         """Unmonitor dataref value change"""
-        if hasattr(self.api, "unmonitor_dataref"):
-            return self.api.unmonitor_dataref(dataref=self)
+        fn = getattr(self.api, "unmonitor_dataref", None)
+        if fn is not None:
+            return fn(dataref=self)
         logger.error(f"{self.path}: not a websocket api")
         return False
 
@@ -759,7 +784,7 @@ class Command:
     """X-Plane Web API Command"""
 
     def __init__(self, api: API, path: str, duration: float = 0.0):
-        self._cached_meta = None
+        self._cached_meta: CommandMeta | None = None
         self.api = api
         self.path = path  # some/command
         self.name = path  # some/command
@@ -777,12 +802,12 @@ class Command:
             if self.api.all_commands is not None:
                 r = self.api.all_commands.get(self.path)
                 if r is not None:
-                    return r
+                    return cast(CommandMeta, r)
                 self.add_error()
                 logger.error(f"command {self.path} has no api meta data in cache")
             else:
                 logger.error("no cache data")
-        return self.api.get_rest_meta(self)
+        return cast(CommandMeta | None, self.api.get_rest_meta(self))
 
     @property
     def valid(self) -> bool:
@@ -792,19 +817,21 @@ class Command:
     @property
     def ident(self) -> int | None:
         """Get command identifier meta data"""
-        if not self.valid:
+        m = self.meta
+        if m is None:
             logger.error(f"command {self.path} not valid")
             self.add_error()
             return None
-        return self.meta.ident
+        return m.ident
 
     @property
     def description(self) -> str | None:
         """Get command description as provided by X-Plane"""
-        if not self.valid:
+        m = self.meta
+        if m is None:
             self.add_error()
             return None
-        return self.meta.description
+        return m.description
 
     def add_error(self, message: str = ""):
         self._err = self._err + 1
@@ -814,14 +841,15 @@ class Command:
     def reset_errors(self):
         self._err = 0
 
-    def execute(self, duration: float = 0.0) -> bool:
+    def execute(self, duration: float = 0.0) -> bool | int:
         """Execute command through API supplied at creation"""
         return self.api.execute_command(command=self, duration=duration)
 
     def monitor(self, on: bool = True) -> bool:
         """Monitor command activation through Websocket API"""
-        if hasattr(self.api, "register_command_is_active_event"):
-            return self.api.register_command_is_active_event(path=self.path, on=on)
+        fn = getattr(self.api, "register_command_is_active_event", None)
+        if fn is not None:
+            return fn(path=self.path, on=on)
         logger.error(f"{self.path}: not a websocket api")
         return False
 

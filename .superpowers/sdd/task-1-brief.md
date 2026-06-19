@@ -1,3 +1,20 @@
+### Task 1: Exception Hierarchy
+
+**Files:**
+- Create: `xpwebapi/exceptions.py`
+- Create: `tests/__init__.py`
+- Create: `tests/test_exceptions.py`
+
+**Interfaces:**
+- Produces: `XPWebAPIError`, `XPConnectionError`, `XPBeaconError`, `XPTimeoutError`, `XPVersionError` — all importable from `xpwebapi.exceptions`
+
+- [ ] **Step 1: Create `tests/__init__.py`**
+
+(Empty file.)
+
+- [ ] **Step 2: Write failing tests in `tests/test_exceptions.py`**
+
+```python
 import unittest
 
 from xpwebapi.exceptions import (
@@ -53,37 +70,51 @@ class TestExceptionHierarchy(unittest.TestCase):
                 raise cls("test")
 
 
-class TestBackwardCompat(unittest.TestCase):
-    def test_xplane_no_beacon_is_beacon_error(self):
-        from xpwebapi.beacon import XPlaneNoBeacon
-        from xpwebapi.exceptions import XPBeaconError
-
-        self.assertTrue(issubclass(XPlaneNoBeacon, XPBeaconError))
-
-    def test_xplane_version_not_supported_is_version_error(self):
-        from xpwebapi.beacon import XPlaneVersionNotSupported
-        from xpwebapi.exceptions import XPVersionError
-
-        self.assertTrue(issubclass(XPlaneVersionNotSupported, XPVersionError))
-
-    def test_xplane_timeout_is_timeout_error(self):
-        from xpwebapi.udp import XPlaneTimeout
-        from xpwebapi.exceptions import XPTimeoutError
-
-        self.assertTrue(issubclass(XPlaneTimeout, XPTimeoutError))
-
-    def test_old_names_importable_from_package(self):
-        from xpwebapi import XPlaneNoBeacon, XPlaneVersionNotSupported, XPlaneTimeout
-
-        self.assertTrue(issubclass(XPlaneNoBeacon, Exception))
-        self.assertTrue(issubclass(XPlaneVersionNotSupported, Exception))
-        self.assertTrue(issubclass(XPlaneTimeout, Exception))
-
-    def test_new_names_importable_from_package(self):
-        from xpwebapi import XPWebAPIError, XPConnectionError, XPBeaconError, XPTimeoutError, XPVersionError  # noqa: F401
-
-        self.assertTrue(issubclass(XPWebAPIError, Exception))
-
-
 if __name__ == "__main__":
     unittest.main()
+```
+
+- [ ] **Step 3: Run tests to verify they fail**
+
+Run: `uv run python -m unittest tests.test_exceptions -v`
+Expected: FAIL — `ModuleNotFoundError: No module named 'xpwebapi.exceptions'`
+
+- [ ] **Step 4: Create `xpwebapi/exceptions.py`**
+
+```python
+from typing import Any
+
+
+class XPWebAPIError(Exception):
+    def __init__(self, message: str = "", **context: Any):
+        self.context = context
+        super().__init__(message)
+
+
+class XPConnectionError(XPWebAPIError):
+    pass
+
+
+class XPBeaconError(XPConnectionError):
+    pass
+
+
+class XPTimeoutError(XPWebAPIError):
+    pass
+
+
+class XPVersionError(XPWebAPIError):
+    pass
+```
+
+- [ ] **Step 5: Run tests to verify they pass**
+
+Run: `uv run python -m unittest tests.test_exceptions -v`
+Expected: All 11 tests PASS
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add xpwebapi/exceptions.py tests/__init__.py tests/test_exceptions.py
+git commit -m "feat: add custom exception hierarchy (XPWebAPIError + subclasses)"
+```

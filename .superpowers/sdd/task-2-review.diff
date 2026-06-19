@@ -1,0 +1,545 @@
+diff --git a/tests/test_exceptions.py b/tests/test_exceptions.py
+index d8fcc7b..6be556c 100644
+--- a/tests/test_exceptions.py
++++ b/tests/test_exceptions.py
+@@ -46,12 +46,39 @@ class TestExceptionHierarchy(unittest.TestCase):
+     def test_version_error_context(self):
+         err = XPVersionError("unsupported", version="10.40")
+         self.assertEqual(err.context, {"version": "10.40"})
+ 
+     def test_catch_base_catches_all(self):
+         for cls in (XPConnectionError, XPBeaconError, XPTimeoutError, XPVersionError):
+             with self.assertRaises(XPWebAPIError):
+                 raise cls("test")
+ 
+ 
++class TestBackwardCompat(unittest.TestCase):
++    def test_xplane_no_beacon_is_beacon_error(self):
++        from xpwebapi.beacon import XPlaneNoBeacon
++        from xpwebapi.exceptions import XPBeaconError
++        self.assertTrue(issubclass(XPlaneNoBeacon, XPBeaconError))
++
++    def test_xplane_version_not_supported_is_version_error(self):
++        from xpwebapi.beacon import XPlaneVersionNotSupported
++        from xpwebapi.exceptions import XPVersionError
++        self.assertTrue(issubclass(XPlaneVersionNotSupported, XPVersionError))
++
++    def test_xplane_timeout_is_timeout_error(self):
++        from xpwebapi.udp import XPlaneTimeout
++        from xpwebapi.exceptions import XPTimeoutError
++        self.assertTrue(issubclass(XPlaneTimeout, XPTimeoutError))
++
++    def test_old_names_importable_from_package(self):
++        from xpwebapi import XPlaneNoBeacon, XPlaneVersionNotSupported, XPlaneTimeout
++        self.assertTrue(issubclass(XPlaneNoBeacon, Exception))
++        self.assertTrue(issubclass(XPlaneVersionNotSupported, Exception))
++        self.assertTrue(issubclass(XPlaneTimeout, Exception))
++
++    def test_new_names_importable_from_package(self):
++        from xpwebapi import XPWebAPIError, XPConnectionError, XPBeaconError, XPTimeoutError, XPVersionError  # noqa: F401
++        self.assertTrue(issubclass(XPWebAPIError, Exception))
++
++
+ if __name__ == "__main__":
+     unittest.main()
+diff --git a/xpwebapi/__init__.py b/xpwebapi/__init__.py
+index 15ada83..053d55c 100644
+--- a/xpwebapi/__init__.py
++++ b/xpwebapi/__init__.py
+@@ -1,17 +1,43 @@
+-# Interface
+ from .api import Dataref, Command, DatarefValueType, DATAREF_DATATYPE
+ from .beacon import XPBeaconMonitor, BeaconData, XPlaneNoBeacon, XPlaneVersionNotSupported
++from .exceptions import XPWebAPIError, XPConnectionError, XPBeaconError, XPTimeoutError, XPVersionError
+ from .rest import XPRestAPI
+ from .ws import XPWebsocketAPI, CALLBACK_TYPE
+ from .udp import XPUDPAPI, XPlaneTimeout
+ 
++__all__ = [
++    "Dataref",
++    "Command",
++    "DatarefValueType",
++    "DATAREF_DATATYPE",
++    "XPBeaconMonitor",
++    "BeaconData",
++    "XPlaneNoBeacon",
++    "XPlaneVersionNotSupported",
++    "XPWebAPIError",
++    "XPConnectionError",
++    "XPBeaconError",
++    "XPTimeoutError",
++    "XPVersionError",
++    "XPRestAPI",
++    "XPWebsocketAPI",
++    "CALLBACK_TYPE",
++    "XPUDPAPI",
++    "XPlaneTimeout",
++    "beacon",
++    "rest_api",
++    "ws_api",
++    "udp_api",
++    "version",
++]
++
+ 
+ def beacon():
+     return XPBeaconMonitor()
+ 
+ 
+ def rest_api(**kwargs):
+     return XPRestAPI(**kwargs)
+ 
+ 
+ def ws_api(**kwargs):
+diff --git a/xpwebapi/beacon.py b/xpwebapi/beacon.py
+index 87a7cc5..3e71431 100644
+--- a/xpwebapi/beacon.py
++++ b/xpwebapi/beacon.py
+@@ -17,31 +17,32 @@ import struct
+ import binascii
+ import platform
+ import time
+ from typing import Callable, List, Set
+ from enum import Enum, IntEnum
+ from datetime import datetime
+ from dataclasses import dataclass
+ 
+ import ifaddr
+ 
++from .exceptions import XPBeaconError, XPVersionError
++
+ logger = logging.getLogger(__name__)
+ # logger.setLevel(logging.DEBUG)
+ 
+ 
+-# XPBeaconMonitor-specific error classes
+-class XPlaneNoBeacon(Exception):
+-    args = tuple("No beacon received from any running XPlane instance in network")
++class XPlaneNoBeacon(XPBeaconError):
++    pass
+ 
+ 
+-class XPlaneVersionNotSupported(Exception):
+-    args = tuple("XPlane version not supported")
++class XPlaneVersionNotSupported(XPVersionError):
++    pass
+ 
+ 
+ def list_my_ips() -> List[str]:
+     """Utility function that list most if not all IP addresses of this host.
+ 
+     Returns:
+         List[str]: List of IP v4 addresses of this host on most, if not all interfaces (cable, wi-fi, bluetooth...)
+     """
+     r = list()
+     adapters = ifaddr.get_adapters()
+@@ -118,23 +119,25 @@ class XPBeaconMonitor:
+         _callback: (Callable | None):
+ 
+         should_not_connect (threading.Event):
+         connect_thread: (threading.Thread | None):
+ 
+ 
+     Usage;
+     ```python
+     import xpwebapi
+ 
++
+     def callback(connected: bool, beacon_data: xpwebapi.BeaconData, same_host: bool):
+         print("reachable" if connected else "unreachable")
+ 
++
+     beacon = xpwebapi.beacon()
+     beacon.set_callback(callback)
+     beacon.start_monitor()
+     ```
+ 
+     """
+ 
+     # A few parameters
+     #
+     MCAST_GRP = "239.255.1.1"
+@@ -188,75 +191,75 @@ class XPBeaconMonitor:
+ 
+     @status.setter
+     def status(self, status: BEACON_MONITOR_STATUS):
+         if self._status != status:
+             self._status = status
+             logger.info(f"Beacon monitor status is now {self.status_str}")
+ 
+     # ################################
+     # Internal functions
+     #
+-    def callback(self, connected: bool, beacon_data: BeaconData, same_host: bool):
++    def callback(self, connected: bool, beacon_data: BeaconData | None, same_host: bool | None):
+         """Execute all callback functions
+ 
+         Callback function prototype
+         ```python
+         callback(connected: bool, beacon_data: BeaconData | None, same_host: bool | None)
+         ```
+ 
+         Connected is True is beacon is detected at regular interval, False otherwise
+         """
+         if len(self._callback) > 0:
+             for c in self._callback:
+                 try:
+                     c(connected=connected, beacon_data=beacon_data, same_host=same_host)
+-                except:
++                except Exception:
+                     logger.warning(f"issue calling beacon callback {c}", exc_info=True)
+ 
+     def get_beacon(self, timeout: float = BEACON_TIMEOUT) -> BeaconData | None:
+         """Attemps to capture X-Plane beacon. Returns first occurence of beacon data encountered
+            or None if no beacon was detected before timeout.
+ 
+         It returns the first beacon it receives.
+ 
+         BeaconData is a python dataclass with the following attributes:
+ 
+         ```python
+         class BeaconData:
+             host: str
+             port: int
+             hostname: str
+             xplane_version: int
+             role: int
+-
+         ```
+ 
+         Args:
+             timeout (float): Time to wait for receiving beacon (typical range 1 to 10 seconds.)
+ 
+         Returns:
+             BeaconData | None: beacon data or None if no beacon received
+         """
+         if self.socket is not None:
+             self.socket.close()
+             self.socket = None
+         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+ 
+         self.data = None
+ 
+         # open socket for multicast group.
+         # this socker is for getting the beacon, it can be closed when beacon is found.
+         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)  # SO_REUSEPORT?
+         if platform.system() == "Windows":
++            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+             sock.bind(("", self.MCAST_PORT))
+         else:
++            sock.setsockopt(socket.SOL_SOCKET, getattr(socket, "SO_REUSEPORT"), 1)
+             sock.bind((self.MCAST_GRP, self.MCAST_PORT))
+         mreq = struct.pack("=4sl", socket.inet_aton(self.MCAST_GRP), socket.INADDR_ANY)
+         sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
+         sock.settimeout(timeout)
+ 
+         # receive data
+         try:
+             self._attempts_to_detect = self._attempts_to_detect + 1
+             packet, sender = sock.recvfrom(1472)  # blocks timeout secs.
+             logger.debug(f"XPlane Beacon: {packet.hex()}")
+@@ -302,27 +305,27 @@ class XPBeaconMonitor:
+                 ) = struct.unpack("<BBiiIH", data)
+                 hostname = packet[21:-1]  # the hostname of the computer
+                 hostname = hostname[0 : hostname.find(0)]
+                 hostname = hostname.decode()
+                 # raknet_port = data[-1]
+                 if beacon_major_version == 1 and beacon_minor_version <= 2 and application_host_id == 1:
+                     self.data = BeaconData(host=sender[0], port=port, hostname=hostname, xplane_version=xplane_version_number, role=role)
+                     logger.info(f"XPlane Beacon Version: {beacon_major_version}.{beacon_minor_version}.{application_host_id} (role: {self.ROLES[role]})")
+                 else:
+                     logger.warning(f"XPlane Beacon Version not supported: {beacon_major_version}.{beacon_minor_version}.{application_host_id}")
+-                    raise XPlaneVersionNotSupported()
++                    raise XPlaneVersionNotSupported(f"beacon version {beacon_major_version}.{beacon_minor_version}.{application_host_id}")
+ 
+         except socket.timeout:
+             self._timeout = self._timeout + 1
+             self._latest_timeout = self._latest_timeout + 1
+             logger.debug(f"XPlane beacon not received within timeout ({round(timeout, 1)} secs.).")
+-            raise XPlaneNoBeacon()
++            raise XPlaneNoBeacon("no beacon received", timeout=timeout)
+         finally:
+             sock.close()
+ 
+         return self.data
+ 
+     @property
+     def consecutive_failures(self) -> int:
+         """Returns number of recent consecutive failures
+ 
+         This can be used to detect temporary failures. When X-Plane is extremely busy, it may not send a beacon, or beacon emission can be delayed.
+@@ -382,40 +385,43 @@ class XPBeaconMonitor:
+         res = self.data is not None
+         if not res and not self._already_warned > self.MAX_WARNING:
+             if self._already_warned <= self.MAX_WARNING:
+                 logger.warning(f"no connection{'' if self._already_warned < self.MAX_WARNING else ' (last warning)'}")
+             self._already_warned = self._already_warned + 1
+         return res
+ 
+     def same_host(self) -> bool:
+         """Attempt to determine if X-Plane is running on local host (where beacon monitor runs) or remote host"""
+         if self.receiving_beacon:
+-            r = self.data.host in self.my_ips
+-            logger.debug(f"{self.data.host}{'' if r else ' not'} in {self.my_ips}")
+-            return r
++            data = self.data
++            if data is not None:
++                r = data.host in self.my_ips
++                logger.debug(f"{data.host}{'' if r else ' not'} in {self.my_ips}")
++                return r
+         return False
+ 
+     def set_callback(self, callback: Callable | None = None):
+         """Add callback function
+ 
+         Callback functions will be called whenever the status of the "connection" changes.
+ 
+         Args:
+             callback (Callable): Callback function
+                 Callback function prototype
+                 ```python
+                 callback(connected: bool, beacon_data: BeaconData | None, same_host: bool | None)
+                 ```
+ 
+         Connected is True is beacon is detected at regular interval, False otherwise
+         """
+-        self._callback.add(callback)
++        if callback is not None:
++            self._callback.add(callback)
+ 
+     def start_monitor(self):
+         """Starts beacon monitor"""
+         if self.not_monitoring.is_set():
+             self.not_monitoring.clear()  # f"{__name__}::{type(self).__name__}"
+             self._connect_thread = threading.Thread(target=self._monitor, name=f"{__name__}::monitor")
+             self._connect_thread.start()
+             logger.debug("monitor started")
+         else:
+             logger.debug("monitor already started")
+diff --git a/xpwebapi/udp.py b/xpwebapi/udp.py
+index d558167..328c52f 100644
+--- a/xpwebapi/udp.py
++++ b/xpwebapi/udp.py
+@@ -12,29 +12,29 @@ import struct
+ import binascii
+ import logging
+ import threading
+ import platform
+ 
+ from time import sleep
+ from typing import Tuple, Dict, Callable
+ 
+ from .api import API, CONNECTION_STATUS, DatarefValueType, Dataref, Command
+ from .beacon import BeaconData, BEACON_TIMEOUT
+-from xpwebapi import beacon
++from .exceptions import XPTimeoutError
+ 
+ # local logging
+ logger = logging.getLogger(__name__)
+ # logger.setLevel(logging.DEBUG)
+ 
+ 
+-class XPlaneTimeout(Exception):
+-    args = tuple("X-Plane timeout")
++class XPlaneTimeout(XPTimeoutError):
++    pass
+ 
+ 
+ class XPUDPAPI(API):
+     """
+     Get data from XPlane via network.
+     Use a class to implement RAI Pattern for the UDP socket.
+     """
+ 
+     def __init__(self, **kwargs):
+         # Prepare a UDP Socket to read/write to X-Plane
+@@ -85,25 +85,22 @@ class XPUDPAPI(API):
+ 
+         returns:
+ 
+         (bool) UPD message recieved
+ 
+         """
+         MCAST_GRP = "239.255.1.1"  # XPBeaconMonitor.MCAST_GRP
+         MCAST_PORT = 49707  # XPBeaconMonitor.MCAST_PORT
+ 
+         logger.warning("no beacon monitor, cannot test connection")
+-        socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+-        # open socket for multicast group.
+-        # this socker is for getting the beacon, it can be closed when beacon is found.
+         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)  # SO_REUSEPORT?
++        sock.setsockopt(socket.SOL_SOCKET, getattr(socket, "SO_REUSEPORT"), 1)  # SO_REUSEPORT?
+         if platform.system() == "Windows":
+             sock.bind(("", MCAST_PORT))
+         else:
+             sock.bind((MCAST_GRP, MCAST_PORT))
+         mreq = struct.pack("=4sl", socket.inet_aton(MCAST_GRP), socket.INADDR_ANY)
+         sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
+         sock.settimeout(BEACON_TIMEOUT)
+ 
+         connected = False
+         try:
+@@ -150,21 +147,21 @@ class XPUDPAPI(API):
+         bool: Whether error reported during execution
+ 
+         """
+         cbs = self.callbacks
+         if len(cbs) == 0:
+             return True
+         ret = True
+         for callback in cbs:
+             try:
+                 callback(**kwargs)
+-            except:
++            except Exception:
+                 logger.error(f"callback {callback}", exc_info=True)
+                 ret = False
+         return ret
+ 
+     def write_dataref(self, dataref: Dataref) -> bool:
+         """Write Dataref value to X-Plane if Dataref is writable
+ 
+         Args:
+             dataref (Dataref): Dataref to write
+ 
+@@ -182,21 +179,21 @@ class XPUDPAPI(API):
+             message = struct.pack("<5sf500s", cmd, float(dataref.value), string)
+         elif vtype == "int":
+             message = struct.pack("<5si500s", cmd, int(dataref.value), string)
+         elif vtype == "bool":
+             message = struct.pack("<5sI500s", cmd, int(dataref.value), string)
+ 
+         assert len(message) == 509
+         self.socket.sendto(message, (self.host, self.port))
+         return True
+ 
+-    def dataref_value(self, dataref: Dataref) -> DatarefValueType | None:
++    def dataref_value(self, dataref: Dataref, raw: bool = False, **kwargs) -> DatarefValueType | bytes | None:
+         """Returns Dataref value from simulator
+ 
+         Args:
+             dataref (Dataref): Dataref to get the value from
+ 
+         Returns:
+             bool | str | int | float: Value of dataref
+         """
+         all_values = self.read_monitored_dataref_values()
+         if dataref.path in all_values:
+@@ -219,22 +216,22 @@ class XPUDPAPI(API):
+     def _execute_command(self, command: str) -> bool:
+         """Execute command
+ 
+         Args:
+             command (str): Command to execute
+             duration (float): Duration of execution for long commands (default: `0.0`)
+ 
+         Returns:
+             bool: [description]
+         """
+-        message = struct.pack("<4sx500s", b"CMND", command.path.encode("utf-8"))
+-        self.socket.sendto(message, (self.beacon_data["IP"], self.UDP_PORT))
++        message = struct.pack("<4sx500s", b"CMND", command.encode("utf-8"))
++        self.socket.sendto(message, (self.host, self.port))
+         return True
+ 
+     def monitor_dataref(self, dataref: Dataref) -> bool | int:
+         """Starts monitoring single dataref.
+ 
+         [description]
+ 
+         Args:
+             dataref (Dataref): Dataref to monitor
+ 
+@@ -249,21 +246,26 @@ class XPUDPAPI(API):
+ 
+         [description]
+ 
+         Args:
+             datarefs (dict): {path: Dataref} dictionary of datarefs
+             reason (str | None): Documentation only string to identify call to function.
+ 
+         Returns:
+             Tuple[int | bool, Dict]: [description]
+         """
+-        return self._request_dataref(dataref=dataref.path, freq=0)
++        ret = True
++        for dataref in datarefs.values():
++            r = self._request_dataref(dataref=dataref.path, freq=0)
++            if not r:
++                ret = False
++        return ret, {}
+ 
+     def _request_dataref(self, dataref: str, freq: int | None = None) -> bool | int:
+         """Request X-Plane to send the dataref with a certain frequency.
+         You can disable a dataref by setting freq to 0.
+         """
+         if not self.connected:
+             logger.warning("not connected")
+             return False
+         idx = -9999
+         if freq is None:
+@@ -323,38 +325,38 @@ class XPUDPAPI(API):
+                 for i in range(0, numvalues):
+                     singledata = data[(5 + lenvalue * i) : (5 + lenvalue * (i + 1))]
+                     (idx, value) = struct.unpack("<if", singledata)
+                     if idx in self.datarefs.keys():
+                         # convert -0.0 values to positive 0.0
+                         if value < 0.0 and value > -0.001:
+                             value = 0.0
+                         retvalues[self.datarefs[idx]] = value
+                         self.execute_callbacks(dataref=self.datarefs[idx], value=value)
+             self.xplaneValues.update(retvalues)
+-        except:
++        except Exception:
+             if self.status != CONNECTION_STATUS.LISTENING_FOR_DATA:
+                 self.status = CONNECTION_STATUS.LISTENING_FOR_DATA
+-            raise XPlaneTimeout
++            raise XPlaneTimeout("UDP read timeout")
+         return self.xplaneValues
+ 
+     @property
+     def udp_listener_running(self) -> bool:
+         return not self.udp_lsnr_not_running.is_set()
+ 
+     def udp_listener(self):
+         logger.info("starting udp listener..")
+ 
+         self.status = CONNECTION_STATUS.UDP_LISTENER_RUNNING
+         while self.udp_listener_running:
+             try:
+-                data = self.read_monitored_dataref_values()
+-            except:
++                self.read_monitored_dataref_values()
++            except Exception:
+                 logger.warning("error", exc_info=True)
+ 
+         logger.info("..udp listener stopped")
+ 
+     def start(self, release: bool = True):
+         """Start UDP monitoring"""
+         if not self.udp_listener_running:  # Thread for X-Plane datarefs
+             self.udp_lsnr_not_running.clear()
+             self.udp_thread = threading.Thread(target=self.udp_listener, name="XPlane::UDP Listener")
+             self.udp_thread.start()
+@@ -370,18 +372,18 @@ class XPUDPAPI(API):
+                 except RuntimeError:
+                     pass
+             logger.info("..terminated")
+ 
+     def stop(self):
+         """Stop UDP monitoring"""
+         if self.udp_listener_running:
+             self.udp_lsnr_not_running.set()
+             if self.udp_thread is not None and self.udp_thread.is_alive():
+                 logger.debug("stopping udp listener..")
+-                wait = self.RECEIVE_TIMEOUT
++                wait = BEACON_TIMEOUT
+                 logger.debug(f"..asked to stop udp listener (this may last {wait} secs. for timeout)..")
+                 self.udp_thread.join(wait)
+                 if self.udp_thread.is_alive():
+                     logger.warning("..thread may hang in ws.receive()..")
+                 logger.info("..udp listener stopped")
+         else:
+             logger.debug("udp listener not running")

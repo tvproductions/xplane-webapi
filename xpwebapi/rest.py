@@ -1,15 +1,20 @@
 """X-Plane Web API access through REST API"""
 
+from __future__ import annotations
+
 import logging
 import base64
 from datetime import timedelta
-from typing import List
+from typing import List, TYPE_CHECKING
 from enum import Enum
 
-import requests
+import httpx
 from natsort import natsorted
 
 from .api import CONNECTION_STATUS, DATAREF_DATATYPE, API, Dataref, DatarefMeta, Command, CommandMeta, Cache, webapi_logger, DatarefValueType
+
+if TYPE_CHECKING:
+    from .beacon import BeaconData
 
 # local logging
 logger = logging.getLogger(__name__)
@@ -25,6 +30,8 @@ V1_CAPABILITIES = {"api": {"versions": ["v1"]}, "x-plane": {"version": "12.1.1"}
 # When accessing API from remote host, this is the default port number for the **proxy** to X-Plane standard :8086 port.
 # Can be changed when calling set_network_from_beacon_data()
 PROXY_TCP_PORT = 8080
+
+XP_SUPER_MIN_VERSION = 121010
 
 
 # REST KEYWORDS
@@ -84,12 +91,7 @@ class XPRestAPI(API):
         self._unreach_count = 0
         self._dataref_by_id = {}  # {dataref-id: Dataref}
 
-        self.session = requests.Session()
-        # Install session here:
-        # examples:
-        # self.session.auth = ('user', 'password')
-        self.session.headers["Accept"] = "application/json"
-        self.session.headers["Content-Type"] = "application/json"
+        self.session = httpx.Client(headers={"Accept": "application/json", "Content-Type": "application/json"})
 
     @property
     def use_cache(self) -> bool:
@@ -149,7 +151,7 @@ class XPRestAPI(API):
                     self._unreach_count = 0
                 self.status = CONNECTION_STATUS.REST_API_REACHABLE
                 return True
-        except requests.exceptions.ConnectionError:
+        except httpx.ConnectError:
             if self._warning_count % 20 == 0:
                 logger.warning("api unreachable, X-Plane may be not running")
                 self.status = CONNECTION_STATUS.REST_API_NOT_REACHABLE
@@ -159,12 +161,14 @@ class XPRestAPI(API):
     @property
     def has_data(self) -> bool:
         res = ""
-        d = self.all_datarefs is not None and self.all_datarefs.has_data
-        if d:
-            res = res + f"loaded {self.all_datarefs.count} datarefs metadata"
-        c = self.all_commands is not None and self.all_commands.has_data
-        if d:
-            res = res + f", loaded {self.all_commands.count} commands metadata"
+        adr = self.all_datarefs
+        d = adr is not None and adr.has_data
+        if d and adr is not None:
+            res = res + f"loaded {adr.count} datarefs metadata"
+        acm = self.all_commands
+        c = acm is not None and acm.has_data
+        if c and acm is not None:
+            res = res + f", loaded {acm.count} commands metadata"
         logger.debug(res)
         return d and c
 
@@ -193,7 +197,7 @@ class XPRestAPI(API):
                     logger.debug(f"capabilities: {self._capabilities}")
                     return self._capabilities
                 logger.error(f"capabilities at {self.rest_url + '/datarefs/count'}: response={response.status_code}")
-            except:
+            except Exception:
                 logger.error("capabilities", exc_info=True)
         else:
             logger.error("no connection")
@@ -205,7 +209,8 @@ class XPRestAPI(API):
         a = self._capabilities.get("x-plane")
         if a is None:
             return None
-        return a.get("version")
+        v = a.get("version")
+        return str(v) if v is not None else None
 
     def set_api_version(self, api_version: str | None = None):
         """Set API version
@@ -285,7 +290,8 @@ class XPRestAPI(API):
             if self._use_cache:
                 logger.info("using caches")
         logger.info(
-            f"dataref cache ({self.all_datarefs.count}) and command cache ({self.all_commands.count}) reloaded, sim uptime {str(timedelta(seconds=int(self.uptime)))}"
+            f"dataref cache ({self.all_datarefs.count}) and command cache ({self.all_commands.count})"
+            f" reloaded, sim uptime {str(timedelta(seconds=int(self.uptime)))}"
         )
 
     def invalidate_caches(self):
@@ -297,7 +303,8 @@ class XPRestAPI(API):
     def rebuild_dataref_ids(self):
         """Rebuild dataref idenfier index"""
         if len(self._dataref_by_id) > 0:
-            if self.all_datarefs.has_data:
+            adr = self.all_datarefs
+            if adr is not None and adr.has_data:
                 newdict = dict()
                 for d in self._dataref_by_id.values():
                     if type(d) is Dataref:
@@ -341,26 +348,42 @@ class XPRestAPI(API):
             metadata = respjson[REST_KW.DATA.value]
             if len(metadata) > 0:
                 m0 = metadata[0]
-                obj._cached_meta = Cache.meta(**m0)
-                return obj._cached_meta
+                m = Cache.meta(**m0)
+                if isinstance(obj, Dataref) and isinstance(m, DatarefMeta):
+                    obj._cached_meta = m
+                elif isinstance(obj, Command) and isinstance(m, CommandMeta):
+                    obj._cached_meta = m
+                return m
         logger.error(f"{obj_type} {obj.path} could not get meta data through REST API")
         return None
 
     def get_dataref_meta_by_name(self, path: str) -> DatarefMeta | None:
         """Get dataref meta data by dataref name"""
-        return self.all_datarefs.get_by_name(path) if self.all_datarefs is not None else None
+        if self.all_datarefs is not None:
+            r = self.all_datarefs.get_by_name(path)
+            return r if isinstance(r, DatarefMeta) else None
+        return None
 
     def get_dataref_meta_by_id(self, ident: int) -> DatarefMeta | None:
         """Get dataref meta data by dataref identifier"""
-        return self.all_datarefs.get_by_id(ident) if self.all_datarefs is not None else None
+        if self.all_datarefs is not None:
+            r = self.all_datarefs.get_by_id(ident)
+            return r if isinstance(r, DatarefMeta) else None
+        return None
 
     def get_command_meta_by_name(self, path: str) -> CommandMeta | None:
         """Get command meta data by command path"""
-        return self.all_commands.get_by_name(path) if self.all_commands is not None else None
+        if self.all_commands is not None:
+            r = self.all_commands.get_by_name(path)
+            return r if isinstance(r, CommandMeta) else None
+        return None
 
     def get_command_meta_by_id(self, ident: int) -> CommandMeta | None:
         """Get command meta data by command identifier"""
-        return self.all_commands.get_by_id(ident) if self.all_commands is not None else None
+        if self.all_commands is not None:
+            r = self.all_commands.get_by_id(ident)
+            return r if isinstance(r, CommandMeta) else None
+        return None
 
     def write_dataref(self, dataref: Dataref) -> bool | int:
         """Write single dataref value through REST API
@@ -396,8 +419,8 @@ class XPRestAPI(API):
             data = response.json()
             logger.debug(f"result: {data}")
             return True
-        webapi_logger.info(f"ERROR {dataref.path}: {response} {response.reason} {response.text}")
-        logger.error(f"rest_write: {response} {response.reason} {response.text}")
+        webapi_logger.info(f"ERROR {dataref.path}: {response} {response.reason_phrase} {response.text}")
+        logger.error(f"rest_write: {response} {response.reason_phrase} {response.text}")
         return False
 
     def execute_command(self, command: Command, duration: float = 0.0) -> bool | int:
@@ -424,11 +447,11 @@ class XPRestAPI(API):
         if response.status_code == 200:
             logger.debug(f"result: {data}")
             return True
-        webapi_logger.info(f"ERROR {command.path}: {response} {response.reason} {response.text}")
+        webapi_logger.info(f"ERROR {command.path}: {response} {response.reason_phrase} {response.text}")
         logger.error(f"rest_execute: {response}, {data}")
         return False
 
-    def dataref_value(self, dataref: Dataref, raw: bool = False, no_decode: bool = False) -> DatarefValueType | None:
+    def dataref_value(self, dataref: Dataref, raw: bool = False, no_decode: bool = False) -> DatarefValueType | bytes | None:
         """Get dataref value through REST API
 
         Value is not stored or cached.
@@ -448,12 +471,12 @@ class XPRestAPI(API):
             if not raw and REST_KW.DATA.value in respjson and type(respjson[REST_KW.DATA.value]) in [bytes, str]:
                 try:
                     return base64.b64decode(respjson[REST_KW.DATA.value])
-                except:
-                    logger.warning(f"cannot decode: {response} {response.reason} {response.text}", exc_info=True)
+                except Exception:
+                    logger.warning(f"cannot decode: {response} {response.reason_phrase} {response.text}", exc_info=True)
                 return respjson[REST_KW.DATA.value]
             return respjson[REST_KW.DATA.value]
-        webapi_logger.info(f"ERROR {dataref.path}: {response} {response.reason} {response.text}")
-        logger.error(f"dataref_value: {response} {response.reason} {response.text}")
+        webapi_logger.info(f"ERROR {dataref.path}: {response} {response.reason_phrase} {response.text}")
+        logger.error(f"dataref_value: {response} {response.reason_phrase} {response.text}")
         return None
 
     def dataref_meta(self, dataref, fields: List[str] | str = "all") -> DatarefMeta | None:
@@ -472,12 +495,12 @@ class XPRestAPI(API):
             data = respjson[REST_KW.DATA.value]
             try:
                 ret = Cache.meta(**data[0]) if type(data) is list and len(data) > 0 else Cache.meta(**data)
-                return ret
-            except:
+                return ret if isinstance(ret, DatarefMeta) else None
+            except Exception:
                 logger.warning(f"dataref meta invalid {data}", exc_info=True)
             return None
-        webapi_logger.info(f"ERROR {dataref.path}: {response} {response.reason} {response.text}")
-        logger.error(f"dataref_value: {response} {response.reason} {response.text}")
+        webapi_logger.info(f"ERROR {dataref.path}: {response} {response.reason_phrase} {response.text}")
+        logger.error(f"dataref_value: {response} {response.reason_phrase} {response.text}")
         return None
 
     # Meta data collection for one or more datarefs or commands
@@ -503,12 +526,12 @@ class XPRestAPI(API):
             data = respjson[REST_KW.DATA.value]
             try:
                 ret = [Cache.meta(**m) for m in data]
-                return ret
-            except:
+                return [m for m in ret if isinstance(m, DatarefMeta)]
+            except Exception:
                 logger.warning(f"dataref meta invalid {data}", exc_info=True)
             return []
-        webapi_logger.info(f"ERROR {payload}: {response} {response.reason} {response.text}")
-        logger.error(f"datarefs_meta: {response} {response.reason} {response.text}")
+        webapi_logger.info(f"ERROR {payload}: {response} {response.reason_phrase} {response.text}")
+        logger.error(f"datarefs_meta: {response} {response.reason_phrase} {response.text}")
         return []
 
     def commands_meta(self, commands: List[Command], fields: List[str] | str = "all", start: int | None = None, limit: int | None = None) -> List[CommandMeta]:
@@ -532,21 +555,18 @@ class XPRestAPI(API):
             data = respjson[REST_KW.DATA.value]
             try:
                 ret = [Cache.meta(**m) for m in data]
-                return ret
-            except:
+                return [m for m in ret if isinstance(m, CommandMeta)]
+            except Exception:
                 logger.warning(f"command meta invalid {data}", exc_info=True)
             return []
-        webapi_logger.info(f"ERROR {payload}: {response} {response.reason} {response.text}")
-        logger.error(f"commands_meta: {response} {response.reason} {response.text}")
+        webapi_logger.info(f"ERROR {payload}: {response} {response.reason_phrase} {response.text}")
+        logger.error(f"commands_meta: {response} {response.reason_phrase} {response.text}")
         return []
 
-    def set_connection_from_beacon_data(self, beacon_data: "BeaconData", same_host: bool, remote_tcp_port: int = PROXY_TCP_PORT):
+    def set_connection_from_beacon_data(self, beacon_data: BeaconData, same_host: bool, remote_tcp_port: int = PROXY_TCP_PORT):
         API_TCP_PORT = 8086
 
         XP_MIN_VERSION = 121400
-        XP_MIN_VERSION_STR = "12.1.4"
-        XP_MAX_VERSION = 121499
-        XP_MAX_VERSION_STR = "12.1.4"
 
         self.use_rest = self.use_rest and not same_host
         new_host = "127.0.0.1"
