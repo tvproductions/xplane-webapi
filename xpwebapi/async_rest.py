@@ -19,7 +19,7 @@ from .api import (
     Dataref,
     DatarefCache,
     DatarefMeta,
-    DatarefValueType,
+    DatarefReadResult,
     ValueCache,
     webapi_logger,
 )
@@ -294,7 +294,7 @@ class AsyncXPRestAPI:
             return self.all_commands.get_by_id(ident)
         return None
 
-    async def dataref_value(self, dataref: Dataref, raw: bool = False, no_decode: bool = False) -> DatarefValueType | bytes | None:
+    async def dataref_value(self, dataref: Dataref, raw: bool = False, no_decode: bool = False) -> DatarefReadResult:
         """Get dataref value through REST API."""
         if not await self.rest_api_reachable():
             logger.debug("not connected")

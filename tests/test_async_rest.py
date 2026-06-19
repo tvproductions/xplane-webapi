@@ -184,6 +184,13 @@ class TestAsyncXPRestAPIDatarefValue(AsyncRestAPITestCase):
         api.session.get.side_effect = [mock_response(200, {"data": 1}), mock_response(200, {"data": encoded})]
         self.assertEqual(await api.dataref_value(dataref, raw=True), encoded)
 
+    async def test_dataref_value_no_decode_returns_encoded_string(self):
+        api = self.make_api()
+        dataref = self.make_dataref(api, value_type=DATAREF_DATATYPE.DATA.value)
+        encoded = base64.b64encode(b"abc").decode("ascii")
+        api.session.get.side_effect = [mock_response(200, {"data": 1}), mock_response(200, {"data": encoded})]
+        self.assertEqual(await api.dataref_value(dataref, no_decode=True), encoded)
+
     async def test_dataref_value_returns_none_when_not_connected(self):
         api = self.make_api()
         dataref = self.make_dataref(api)

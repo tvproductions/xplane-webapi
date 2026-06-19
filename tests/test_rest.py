@@ -126,6 +126,14 @@ class TestXPRestAPIDatarefValue(RestAPITestCase):
         with patch.object(XPRestAPI, "connected", new_callable=PropertyMock, return_value=True):
             self.assertEqual(api.dataref_value(dataref, raw=True), encoded)
 
+    def test_dataref_value_no_decode_returns_encoded_string(self):
+        api = self.make_api()
+        dataref = self.make_dataref(api, value_type=DATAREF_DATATYPE.DATA.value)
+        encoded = base64.b64encode(b"abc").decode("ascii")
+        api.session.get.return_value = mock_response(200, {"data": encoded})
+        with patch.object(XPRestAPI, "connected", new_callable=PropertyMock, return_value=True):
+            self.assertEqual(api.dataref_value(dataref, no_decode=True), encoded)
+
     def test_dataref_value_returns_none_when_not_connected(self):
         api = self.make_api()
         dataref = self.make_dataref(api)

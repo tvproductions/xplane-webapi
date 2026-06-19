@@ -4,6 +4,7 @@ from unittest.mock import MagicMock
 
 from xpwebapi.api import (
     API,
+    APIResult,
     DATAREF_DATATYPE,
     Cache,
     CommandCache,
@@ -12,7 +13,7 @@ from xpwebapi.api import (
     DatarefCache,
     Dataref,
     DatarefMeta,
-    DatarefValueType,
+    DatarefReadResult,
     ValueCache,
 )
 
@@ -25,7 +26,7 @@ def mock_response(status_code: int, payload: dict | None = None):
 
 
 class DummyAPI(API):
-    def __init__(self, value: DatarefValueType | bytes | None = None):
+    def __init__(self, value: DatarefReadResult = None):
         self.meta_by_path = {}
         self.value_to_return = value
         self.written = []
@@ -41,14 +42,14 @@ class DummyAPI(API):
     def get_rest_meta(self, obj: Dataref | Command, force: bool = False) -> DatarefMeta | CommandMeta | None:
         return self.meta_by_path.get(obj.path)
 
-    def write_dataref(self, dataref: Dataref) -> bool | int:
+    def write_dataref(self, dataref: Dataref) -> APIResult:
         self.written.append(dataref)
         return True
 
-    def dataref_value(self, dataref: Dataref, raw: bool = False, no_decode: bool = False) -> DatarefValueType | bytes | None:
+    def dataref_value(self, dataref: Dataref, raw: bool = False, no_decode: bool = False) -> DatarefReadResult:
         return self.value_to_return
 
-    def execute_command(self, command: Command, duration: float = 0.0) -> bool | int:
+    def execute_command(self, command: Command, duration: float = 0.0) -> APIResult:
         self.executed.append((command, duration))
         return True
 
@@ -218,6 +219,11 @@ class TestDataref(unittest.TestCase):
         api = DummyAPI(value=12)
         dataref = Dataref(path="sim/test/value", api=api)
         self.assertEqual(dataref.value, 12)
+
+    def test_value_supports_array_values_from_api(self):
+        api = DummyAPI(value=[1.0, 2.0])
+        dataref = Dataref(path="sim/test/array", api=api)
+        self.assertEqual(dataref.value, [1.0, 2.0])
 
     def test_setting_value_updates_local_value_and_timestamp(self):
         api = DummyAPI()

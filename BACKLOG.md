@@ -8,10 +8,10 @@
 - Cover: `Dataref`, `Command`, `Cache`, `XPRestAPI`, `XPWebsocketAPI`, `XPUDPAPI`, `XPBeaconMonitor`
 - Add `uv run pytest` to development workflow
 
-### Fix LSP violations in `dataref_value` / `execute_command` / `write_dataref`
-- `API.dataref_value` returns `DatarefValueType | bytes | None` but `Dataref.write()` and `Command.execute()` declare `bool`
-- Standardize return types across the abstract base and all overrides
-- Remove `**kwargs` workaround from abstract method signatures
+### [x] Fix LSP violations in `dataref_value` / `execute_command` / `write_dataref`
+- [x] `API.dataref_value` returns `DatarefReadResult` with scalar, array, bytes, and `None` support
+- [x] Standardize write/execute return types with `APIResult` across the abstract base and overrides
+- [x] Verify override compatibility with the type checker
 
 ### Custom exception hierarchy
 - `XPWebAPIError(Exception)` as base

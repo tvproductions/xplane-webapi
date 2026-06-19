@@ -18,7 +18,7 @@ from types import TracebackType
 from time import sleep
 from typing import Tuple, Dict, Callable, Self
 
-from .api import API, CONNECTION_STATUS, DatarefValueType, Dataref, Command
+from .api import API, CONNECTION_STATUS, DatarefReadResult, Dataref, Command
 from .beacon import BeaconData, BEACON_TIMEOUT
 from .exceptions import XPTimeoutError
 
@@ -205,14 +205,14 @@ class XPUDPAPI(API):
         self.socket.sendto(message, (self.host, self.port))
         return True
 
-    def dataref_value(self, dataref: Dataref, raw: bool = False, no_decode: bool = False) -> DatarefValueType | bytes | None:
+    def dataref_value(self, dataref: Dataref, raw: bool = False, no_decode: bool = False) -> DatarefReadResult:
         """Returns Dataref value from simulator
 
         Args:
             dataref (Dataref): Dataref to get the value from
 
         Returns:
-            bool | str | int | float: Value of dataref
+            DatarefReadResult: Value of dataref.
         """
         all_values = self.read_monitored_dataref_values()
         if dataref.path in all_values:
@@ -220,7 +220,7 @@ class XPUDPAPI(API):
             return dataref.value
         return None
 
-    def execute_command(self, command: Command, duration: float = 0.0) -> bool | int:
+    def execute_command(self, command: Command, duration: float = 0.0) -> bool:
         """Execute command
 
         Args:

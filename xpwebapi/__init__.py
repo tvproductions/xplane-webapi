@@ -1,4 +1,4 @@
-from .api import Dataref, Command, DatarefValueType, DATAREF_DATATYPE
+from .api import APIResult, Dataref, Command, DatarefReadResult, DatarefValueType, DATAREF_DATATYPE
 from .async_rest import AsyncXPRestAPI
 from .beacon import XPBeaconMonitor, BeaconData, XPlaneNoBeacon, XPlaneVersionNotSupported
 from .exceptions import XPWebAPIError, XPConnectionError, XPBeaconError, XPTimeoutError, XPVersionError
@@ -9,6 +9,8 @@ from .udp import XPUDPAPI, XPlaneTimeout
 __all__ = [
     "Dataref",
     "Command",
+    "APIResult",
+    "DatarefReadResult",
     "DatarefValueType",
     "DATAREF_DATATYPE",
     "AsyncXPRestAPI",

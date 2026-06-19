@@ -18,7 +18,7 @@ from packaging.version import Version
 
 from simple_websocket import Client, ConnectionClosed
 
-from .api import CONNECTION_STATUS, DATAREF_DATATYPE, webapi_logger, Dataref, Command
+from .api import APIResult, CONNECTION_STATUS, DATAREF_DATATYPE, webapi_logger, Dataref, Command
 from .rest import REST_KW, XPRestAPI
 from .beacon import BeaconData
 from .retry import sleep_before_retry
@@ -1093,7 +1093,7 @@ class XPWebsocketAPI(XPRestAPI):
         ret = self.unmonitor_datarefs(datarefs={dataref.path: dataref}, reason="unmonitor_dataref")
         return ret[0]
 
-    def write_dataref(self, dataref: Dataref) -> bool | int:
+    def write_dataref(self, dataref: Dataref) -> APIResult:
         """Writes dataref value to simulator.
 
         Writing is done through REST API if use_rest is True, or Websocket API if use_rest is False and Websocket is opened.
@@ -1139,7 +1139,7 @@ class XPWebsocketAPI(XPRestAPI):
     #     # deprecated, name is too common, too simple
     #     return self.execute_command(command=command, duration=duration)
 
-    def execute_command(self, command: Command, duration: float = 0.0) -> bool | int:
+    def execute_command(self, command: Command, duration: float = 0.0) -> APIResult:
         """Execute command in simulator.
 
         Execution is done through REST API if use_rest is True, or Websocket API if use_rest is False and Websocket is opened.

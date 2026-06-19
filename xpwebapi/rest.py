@@ -16,13 +16,14 @@ from .api import (
     CONNECTION_STATUS,
     DATAREF_DATATYPE,
     API,
+    APIResult,
     Command,
     CommandCache,
     CommandMeta,
     Dataref,
     DatarefCache,
     DatarefMeta,
-    DatarefValueType,
+    DatarefReadResult,
     webapi_logger,
 )
 from .retry import RetryConfig, sleep_before_retry
@@ -423,7 +424,7 @@ class XPRestAPI(API):
             return self.all_commands.get_by_id(ident)
         return None
 
-    def write_dataref(self, dataref: Dataref) -> bool | int:
+    def write_dataref(self, dataref: Dataref) -> APIResult:
         """Write single dataref value through REST API
 
         Returns:
@@ -461,7 +462,7 @@ class XPRestAPI(API):
         logger.error(f"rest_write: {response} {response.reason_phrase} {response.text}")
         return False
 
-    def execute_command(self, command: Command, duration: float = 0.0) -> bool | int:
+    def execute_command(self, command: Command, duration: float = 0.0) -> APIResult:
         """Executes Command through REST API
 
         Returns:
@@ -489,7 +490,7 @@ class XPRestAPI(API):
         logger.error(f"rest_execute: {response}, {data}")
         return False
 
-    def dataref_value(self, dataref: Dataref, raw: bool = False, no_decode: bool = False) -> DatarefValueType | bytes | None:
+    def dataref_value(self, dataref: Dataref, raw: bool = False, no_decode: bool = False) -> DatarefReadResult:
         """Get dataref value through REST API
 
         Value is not stored or cached.
@@ -506,7 +507,13 @@ class XPRestAPI(API):
         if response.status_code == 200:
             respjson = response.json()
             webapi_logger.info(f"GET {dataref.path}: {url} = {respjson}")
-            if not raw and REST_KW.DATA.value in respjson and type(respjson[REST_KW.DATA.value]) in [bytes, str]:
+            if (
+                not raw
+                and not no_decode
+                and dataref.value_type == DATAREF_DATATYPE.DATA.value
+                and REST_KW.DATA.value in respjson
+                and type(respjson[REST_KW.DATA.value]) in [bytes, str]
+            ):
                 try:
                     return base64.b64decode(respjson[REST_KW.DATA.value])
                 except Exception:

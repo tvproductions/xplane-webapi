@@ -17,7 +17,11 @@ import httpx
 if TYPE_CHECKING:
     from .beacon import BeaconData
 
-type DatarefValueType = bool | str | int | float
+type DatarefScalarType = bool | str | int | float
+type DatarefArrayType = list[int] | list[float]
+type DatarefValueType = DatarefScalarType | DatarefArrayType
+type DatarefReadResult = DatarefValueType | bytes | None
+type APIResult = bool | int
 
 
 # local logger
@@ -347,19 +351,19 @@ class API(ABC):
         return Command(path=path, api=self)
 
     @abstractmethod
-    def write_dataref(self, dataref: Dataref) -> bool | int:
+    def write_dataref(self, dataref: Dataref) -> APIResult:
         """Write Dataref value to X-Plane if Dataref is writable
 
         Args:
             dataref (Dataref): Dataref to write
 
         Returns:
-            bool: Whether write operation was successful or not
+            APIResult: True/False for immediate APIs, or a request id for queued APIs.
         """
         ...
 
     @abstractmethod
-    def dataref_value(self, dataref: Dataref, raw: bool = False, no_decode: bool = False) -> DatarefValueType | bytes | None:
+    def dataref_value(self, dataref: Dataref, raw: bool = False, no_decode: bool = False) -> DatarefReadResult:
         """Returns Dataref value from simulator
 
         Args:
@@ -368,12 +372,12 @@ class API(ABC):
             no_decode (bool): Skip base64 decoding for data types (default: `False`)
 
         Returns:
-            DatarefValueType | bytes | None: Value of dataref
+            DatarefReadResult: Value of dataref.
         """
         ...
 
     @abstractmethod
-    def execute_command(self, command: Command, duration: float = 0.0) -> bool | int:
+    def execute_command(self, command: Command, duration: float = 0.0) -> APIResult:
         """Execute command
 
         Args:
@@ -381,7 +385,7 @@ class API(ABC):
             duration (float): Duration of execution for long commands (default: `0.0`)
 
         Returns:
-            bool: [description]
+            APIResult: True/False for immediate APIs, or a request id for queued APIs.
         """
         ...
 
@@ -738,7 +742,7 @@ class Dataref:
             return False
         return len(m.indices) > 0
 
-    def write(self) -> bool | int:
+    def write(self) -> APIResult:
         """Write new value to X-Plane through REST API
 
         Dataref value is saved locally and written to X-Plane when write() or save() is called.
@@ -907,7 +911,7 @@ class Command:
     def reset_errors(self):
         self._err = 0
 
-    def execute(self, duration: float = 0.0) -> bool | int:
+    def execute(self, duration: float = 0.0) -> APIResult:
         """Execute command through API supplied at creation"""
         return self.api.execute_command(command=self, duration=duration)
 
