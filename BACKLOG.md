@@ -2,10 +2,10 @@
 
 ## P0 — Critical
 
-### [ ] Expand unittest coverage
-- [ ] Add shared `unittest` helpers for mocking X-Plane REST/WebSocket responses
-- [ ] Fill remaining coverage gaps for `Dataref`, `Command`, `Cache`, `XPRestAPI`, `XPWebsocketAPI`, `XPUDPAPI`, `XPBeaconMonitor`
-- [ ] Keep `uv run python -m unittest discover -v` as the test workflow
+### [x] Expand unittest coverage
+- [x] Add shared `unittest` helpers for mocking X-Plane REST/WebSocket responses
+- [x] Fill remaining coverage gaps for `Dataref`, `Command`, `Cache`, `XPRestAPI`, `XPWebsocketAPI`, `XPUDPAPI`, `XPBeaconMonitor`
+- [x] Keep `uv run python -m unittest discover -v` as the test workflow
 
 ### [x] Fix LSP violations in `dataref_value` / `execute_command` / `write_dataref`
 - [x] `API.dataref_value` returns `DatarefReadResult` with scalar, array, bytes, and `None` support
