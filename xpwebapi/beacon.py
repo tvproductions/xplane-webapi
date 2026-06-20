@@ -17,7 +17,7 @@ import struct
 import binascii
 import platform
 import time
-from typing import Callable, List, Set
+from typing import Callable
 from enum import Enum, IntEnum
 from datetime import datetime
 from dataclasses import dataclass
@@ -39,11 +39,11 @@ class XPlaneVersionNotSupported(XPVersionError):
     pass
 
 
-def list_my_ips() -> List[str]:
+def list_my_ips() -> list[str]:
     """Utility function that list most if not all IP addresses of this host.
 
     Returns:
-        List[str]: List of IP v4 addresses of this host on most, if not all interfaces (cable, wi-fi, bluetooth...)
+        list[str]: List of IP v4 addresses of this host on most, if not all interfaces (cable, wi-fi, bluetooth...)
     """
     r = list()
     adapters = ifaddr.get_adapters()
@@ -114,7 +114,7 @@ class XPBeaconMonitor:
         socket (socket.socket | None): Socket to multicast listener
         status (BEACON_MONITOR_STATUS): Beacon monitor status
         data: BeaconData | None - Beacon data as broadcasted by X-Plane in its beacon. None if beacon is not received.
-        my_ips (List[str]): List of this host IP addresses
+        my_ips (list[str]): List of this host IP addresses
 
         _already_warned (bool):
         _callback: (Callable | None):
@@ -163,7 +163,7 @@ class XPBeaconMonitor:
         self._connect_thread: threading.Thread | None = None
 
         self._already_warned = 0
-        self._callback: Set[Callable] = set()
+        self._callback: set[Callable] = set()
         self.my_ips = list_my_ips()
         self._status = BEACON_MONITOR_STATUS.RUNNING  # init != first value
         self.status = BEACON_MONITOR_STATUS.NOT_RUNNING  # first value set through api

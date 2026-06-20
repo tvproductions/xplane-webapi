@@ -6,7 +6,7 @@ import logging
 import base64
 from datetime import timedelta
 from types import TracebackType
-from typing import List, TYPE_CHECKING, Self
+from typing import TYPE_CHECKING, Self
 from enum import Enum
 
 import httpx
@@ -524,10 +524,10 @@ class XPRestAPI(API):
         logger.error(f"dataref_value: {response} {response.reason_phrase} {response.text}")
         return None
 
-    def dataref_meta(self, dataref, fields: List[str] | str = "all") -> DatarefMeta | None:
+    def dataref_meta(self, dataref, fields: list[str] | str = "all") -> DatarefMeta | None:
         """Get dataref meta data through REST API
 
-        @todo: dataref_meta(self, dataref, fields:List[str]|str = "all")  # fields={id, name, value_type, all}
+        @todo: dataref_meta(self, dataref, fields:list[str]|str = "all")  # fields={id, name, value_type, all}
         """
         url = f"{self.rest_url}/datarefs/filter[name]={dataref.path}"
         if fields != "all":
@@ -549,10 +549,10 @@ class XPRestAPI(API):
 
     # Meta data collection for one or more datarefs or commands
     #
-    def datarefs_meta(self, datarefs: List[Dataref], fields: List[str] | str = "all", start: int | None = None, limit: int | None = None) -> List[DatarefMeta]:
+    def datarefs_meta(self, datarefs: list[Dataref], fields: list[str] | str = "all", start: int | None = None, limit: int | None = None) -> list[DatarefMeta]:
         """Get dataref meta data through REST API for all dataref supplied
 
-        @todo: datarefs_meta(self, dataref, fields:List[str]|str = "all", start: int|None = None, limit: int|None = None)  # fields={id, name, value_type, all}
+        @todo: datarefs_meta(self, dataref, fields:list[str]|str = "all", start: int|None = None, limit: int|None = None)  # fields={id, name, value_type, all}
         """
         payload = "&".join([f"filter[name]={d.path}" for d in datarefs])
         if fields != "all":
@@ -577,10 +577,10 @@ class XPRestAPI(API):
         logger.error(f"datarefs_meta: {response} {response.reason_phrase} {response.text}")
         return []
 
-    def commands_meta(self, commands: List[Command], fields: List[str] | str = "all", start: int | None = None, limit: int | None = None) -> List[CommandMeta]:
+    def commands_meta(self, commands: list[Command], fields: list[str] | str = "all", start: int | None = None, limit: int | None = None) -> list[CommandMeta]:
         """Get dataref meta data through REST API for all dataref supplied
 
-        @todo: commands_meta(self, dataref, fields:List[str]|str = "all", start: int|None = None, limit: int|None = None)  # fields={id, name, description, all}
+        @todo: commands_meta(self, dataref, fields:list[str]|str = "all", start: int|None = None, limit: int|None = None)  # fields={id, name, description, all}
         """
         payload = "&".join([f"filter[name]={c.path}" for c in commands])
         if fields != "all":

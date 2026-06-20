@@ -1,10 +1,13 @@
 import base64
+import inspect
 import unittest
 from tempfile import TemporaryDirectory
+from typing import Protocol
 from unittest.mock import MagicMock
 
 from tests.helpers import DummyAPI, encoded_data, make_command_meta, make_dataref_meta, mock_response
 from xpwebapi.api import (
+    API,
     DATAREF_DATATYPE,
     Cache,
     CommandCache,
@@ -15,6 +18,13 @@ from xpwebapi.api import (
     DatarefMeta,
     ValueCache,
 )
+
+
+class TestAPIProtocol(unittest.TestCase):
+    def test_api_is_structural_protocol_without_abstract_methods(self):
+        self.assertIn(Protocol, API.__mro__)
+        self.assertFalse(inspect.isabstract(API))
+        self.assertEqual(API.__abstractmethods__, frozenset())
 
 
 class TestDatarefMeta(unittest.TestCase):

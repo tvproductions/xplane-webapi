@@ -6,10 +6,10 @@ import logging
 import json
 import base64
 import math
-from abc import ABC, abstractmethod
+from abc import ABC
 from enum import Enum, IntEnum
 from datetime import datetime
-from typing import List, Dict, Any, cast
+from typing import Any, Protocol, cast
 from typing import TYPE_CHECKING
 
 import httpx
@@ -99,8 +99,8 @@ class DatarefMeta(APIObjMeta):
         self.value_type = value_type
         self.is_writable = is_writable
 
-        self.indices: List[int] = []
-        self.indices_history: List[List[int]] = []  # past lists of indices, might be useful for requests arriving after new requests
+        self.indices: list[int] = []
+        self.indices_history: list[list[int]] = []  # past lists of indices, might be useful for requests arriving after new requests
 
         self._last_req_number = 0
         self._indices_requested = False
@@ -159,7 +159,7 @@ class CommandMeta(APIObjMeta):
 class ValueCache:
     """Utility class to round a dataref value and determine if it has changed."""
 
-    def __init__(self, roundings: Dict[str, int]) -> None:
+    def __init__(self, roundings: dict[str, int]) -> None:
         self.roundings = roundings  # {dataref: int()}
         self._last_value = {}  # {dataref: Any}
 
@@ -194,8 +194,8 @@ class ValueCache:
 # #############################################
 # API
 #
-class API(ABC):
-    """API Abstract class with connection information"""
+class API(Protocol):
+    """Protocol with shared API connection helpers."""
 
     def __init__(self, host: str, port: int, api: str, api_version: str) -> None:
         self.host = None
@@ -247,7 +247,6 @@ class API(ABC):
             logger.info(f"API status is now {self.status_str}")
 
     @property
-    @abstractmethod
     def connected(self) -> bool:
         """Whether X-Plane API is reachable through this instance"""
         ...
@@ -350,7 +349,6 @@ class API(ABC):
         """
         return Command(path=path, api=self)
 
-    @abstractmethod
     def write_dataref(self, dataref: Dataref) -> APIResult:
         """Write Dataref value to X-Plane if Dataref is writable
 
@@ -362,7 +360,6 @@ class API(ABC):
         """
         ...
 
-    @abstractmethod
     def dataref_value(self, dataref: Dataref, raw: bool = False, no_decode: bool = False) -> DatarefReadResult:
         """Returns Dataref value from simulator
 
@@ -376,7 +373,6 @@ class API(ABC):
         """
         ...
 
-    @abstractmethod
     def execute_command(self, command: Command, duration: float = 0.0) -> APIResult:
         """Execute command
 

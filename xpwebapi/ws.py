@@ -10,7 +10,7 @@ import time
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Tuple, Dict, Optional, Callable, Self, cast
+from typing import Callable, Self, cast
 from enum import Enum
 
 # Packaging is used in Cockpit to check driver versions
@@ -61,9 +61,9 @@ class Request:
     r_id: int  # Request id
     body: dict  # Request body
     ts: datetime  # timestamp of submission
-    ts_ack: Optional[datetime] = None  # timestamp of reception
-    success: Optional[bool] = None  # sucess of request, None if no feedback yet
-    error: Optional[str] = None  # error message, if any
+    ts_ack: datetime | None = None  # timestamp of reception
+    success: bool | None = None  # sucess of request, None if no feedback yet
+    error: str | None = None  # error message, if any
 
 
 def now() -> datetime:
@@ -955,7 +955,7 @@ class XPWebsocketAPI(XPRestAPI):
             time.sleep(1)
         logger.debug("..connected")
 
-    def monitor_datarefs(self, datarefs: dict, reason: str | None = None) -> Tuple[int | bool, Dict]:
+    def monitor_datarefs(self, datarefs: dict, reason: str | None = None) -> tuple[int | bool, dict]:
         """Starts monitoring of supplied datarefs.
 
         [description]
@@ -965,7 +965,7 @@ class XPWebsocketAPI(XPRestAPI):
             reason (str | None): Documentation only string to identify call to function.
 
         Returns:
-            Tuple[int | bool, Dict]: [description]
+            tuple[int | bool, dict]: [description]
         """
         if not self.connected:
             logger.debug(f"would add {datarefs.keys()}")
@@ -1005,7 +1005,7 @@ class XPWebsocketAPI(XPRestAPI):
             logger.debug("no dataref to add")
         return ret, effectives
 
-    def unmonitor_datarefs(self, datarefs: dict, reason: str | None = None) -> Tuple[int | bool, Dict]:
+    def unmonitor_datarefs(self, datarefs: dict, reason: str | None = None) -> tuple[int | bool, dict]:
         """Stops monitoring supplied datarefs.
 
         [description]
@@ -1015,7 +1015,7 @@ class XPWebsocketAPI(XPRestAPI):
             reason (str | None): Documentation only string to identify call to function.
 
         Returns:
-            Tuple[int | bool, Dict]: [description]
+            tuple[int | bool, dict]: [description]
         """
         if not self.connected:
             logger.debug(f"would remove {datarefs.keys()}")

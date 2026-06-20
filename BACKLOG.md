@@ -36,14 +36,14 @@
 
 ## P2 — Medium
 
-### [ ] Use `Protocol` instead of `ABC` for `API`
-- [ ] Replace `class API(ABC)` with a `Protocol` for structural subtyping
-- [ ] Removes need for abstract method stubs that return `False`
+### [x] Use `Protocol` instead of `ABC` for `API`
+- [x] Replace `class API(ABC)` with a `Protocol` for structural subtyping
+- [x] Removes need for abstract method stubs that return `False`
 
-### [ ] Modernize type annotations
-- [ ] Replace `List`, `Dict`, `Tuple` from `typing` with built-in `list`, `dict`, `tuple`
-- [ ] Replace `Optional[X]` with `X | None`
-- [ ] Use `Self` from `typing` where appropriate
+### [x] Modernize type annotations
+- [x] Replace `List`, `Dict`, `Tuple` from `typing` with built-in `list`, `dict`, `tuple`
+- [x] Replace `Optional[X]` with `X | None`
+- [x] Use `Self` from `typing` where appropriate
 
 ### [ ] Structured logging
 - [ ] Add JSON log formatter option

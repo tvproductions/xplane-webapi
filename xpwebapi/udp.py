@@ -16,7 +16,7 @@ import platform
 
 from types import TracebackType
 from time import sleep
-from typing import Tuple, Dict, Callable, Self
+from typing import Callable, Self
 
 from .api import API, CONNECTION_STATUS, DatarefReadResult, Dataref, Command
 from .beacon import BeaconData, BEACON_TIMEOUT
@@ -263,7 +263,7 @@ class XPUDPAPI(API):
             dataref.inc_monitor()
         return ret
 
-    def unmonitor_datarefs(self, datarefs: dict, reason: str | None = None) -> Tuple[int | bool, Dict]:
+    def unmonitor_datarefs(self, datarefs: dict, reason: str | None = None) -> tuple[int | bool, dict]:
         """Stops monitoring supplied datarefs.
 
         [description]
@@ -273,7 +273,7 @@ class XPUDPAPI(API):
             reason (str | None): Documentation only string to identify call to function.
 
         Returns:
-            Tuple[int | bool, Dict]: [description]
+            tuple[int | bool, dict]: [description]
         """
         ret = True
         for dataref in datarefs.values():
