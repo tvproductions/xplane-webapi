@@ -278,8 +278,8 @@ class XPRestAPI(API):
                     logger.error("cannot determine api, api not set")
                     return
                 sorted_apis = natsorted(api_versions, reverse=True)
-                api = sorted_apis[0]  # takes the latest one, hoping it is the latest in time...
-                logger.info(f"selected api {api} ({sorted_apis})")
+                api_version = sorted_apis[0]  # takes the latest one, hoping it is the latest in time...
+                logger.info(f"selected api {api_version} ({sorted_apis})")
             if api_version in api_versions:
                 self.version = api_version
                 self._api_version = f"/{api_version}"

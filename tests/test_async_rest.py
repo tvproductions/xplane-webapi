@@ -162,6 +162,13 @@ class TestAsyncXPRestAPIDatarefValue(AsyncRestAPITestCase):
         api.session.get.side_effect = [mock_response(200, {"data": 1}), mock_response(200, {"data": 42})]
         self.assertEqual(await api.dataref_value(dataref), 42)
 
+    async def test_shared_mock_response_supports_async_rest(self):
+        api = self.make_api()
+        dataref = self.make_dataref(api)
+        api.session.get.side_effect = [mock_response(200, {"data": 1}), mock_response(200, {"data": 77})]
+
+        self.assertEqual(await api.dataref_value(dataref), 77)
+
     async def test_dataref_value_decodes_base64_string(self):
         api = self.make_api()
         dataref = self.make_dataref(api, value_type=DATAREF_DATATYPE.DATA.value)

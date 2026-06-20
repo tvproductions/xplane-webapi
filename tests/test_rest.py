@@ -5,8 +5,8 @@ from unittest.mock import MagicMock, PropertyMock, patch
 import httpx
 
 from tests.helpers import mock_response
-from xpwebapi.api import DATAREF_DATATYPE, Command, CommandMeta, Dataref, DatarefMeta
-from xpwebapi.rest import XPRestAPI
+from xpwebapi.api import DATAREF_DATATYPE, Command, CommandMeta, Dataref, DatarefCache, DatarefMeta
+from xpwebapi.rest import V1_CAPABILITIES, XPRestAPI
 
 
 class RestAPITestCase(unittest.TestCase):
@@ -65,6 +65,35 @@ class TestXPRestAPIConnected(RestAPITestCase):
         sleep.assert_called_once_with(api.retry_config, 0)
 
 
+class TestXPRestAPICapabilities(RestAPITestCase):
+    def test_capabilities_are_cached_after_successful_fetch(self):
+        api = self.make_api()
+        payload = {"api": {"versions": ["v1", "v2"]}, "x-plane": {"version": "12.2.1"}}
+        api.session.get.return_value = mock_response(200, payload)
+
+        with patch.object(XPRestAPI, "connected", new_callable=PropertyMock, return_value=True):
+            self.assertEqual(api.capabilities, payload)
+            self.assertEqual(api.capabilities, payload)
+
+        api.session.get.assert_called_once()
+
+    def test_capabilities_fall_back_to_v1_probe(self):
+        api = self.make_api()
+        api.session.get.side_effect = [mock_response(404), mock_response(200, {"data": 1})]
+
+        with patch.object(XPRestAPI, "connected", new_callable=PropertyMock, return_value=True):
+            self.assertEqual(api.capabilities, V1_CAPABILITIES)
+
+    def test_set_api_version_selects_latest_available_when_unspecified(self):
+        api = self.make_api()
+        api._capabilities = {"api": {"versions": ["v1", "v3", "v2"]}, "x-plane": {"version": "12.2.1"}}
+
+        api.set_api_version()
+
+        self.assertEqual(api.version, "v3")
+        self.assertEqual(api._api_version, "/v3")
+
+
 class TestXPRestAPIGetRestMeta(RestAPITestCase):
     def test_get_rest_meta_returns_cached_meta(self):
         api = self.make_api()
@@ -92,6 +121,14 @@ class TestXPRestAPIGetRestMeta(RestAPITestCase):
         self.assertIsInstance(meta, CommandMeta)
         self.assertEqual(meta.ident, 8)
         self.assertIs(command._cached_meta, meta)
+
+    def test_get_rest_meta_returns_none_for_empty_metadata(self):
+        api = self.make_api()
+        dataref = Dataref(path="sim/test/value", api=api)
+        api.session.get.return_value = mock_response(200, {"data": []})
+
+        with patch.object(XPRestAPI, "connected", new_callable=PropertyMock, return_value=True):
+            self.assertIsNone(api.get_rest_meta(dataref))
 
 
 class TestXPRestAPIDatarefValue(RestAPITestCase):
@@ -158,6 +195,28 @@ class TestXPRestAPIWriteDataref(RestAPITestCase):
             self.assertFalse(api.write_dataref(dataref))
         api.session.patch.assert_not_called()
 
+    def test_write_dataref_rejects_missing_new_value(self):
+        api = self.make_api()
+        dataref = self.make_dataref(api)
+
+        with patch.object(XPRestAPI, "connected", new_callable=PropertyMock, return_value=True):
+            self.assertFalse(api.write_dataref(dataref))
+
+        api.session.patch.assert_not_called()
+
+    def test_write_dataref_selected_array_element_adds_index_to_url(self):
+        api = self.make_api()
+        dataref = Dataref(path="sim/test/array[2]", api=api)
+        dataref._cached_meta = DatarefMeta(name=dataref.path, value_type=DATAREF_DATATYPE.FLOATARRAY.value, is_writable=True, id=31)
+        dataref.value = 8.5
+        api.session.patch.return_value = mock_response(200, {"result": "ok"})
+
+        with patch.object(XPRestAPI, "connected", new_callable=PropertyMock, return_value=True):
+            self.assertTrue(api.write_dataref(dataref))
+
+        url = api.session.patch.call_args.args[0]
+        self.assertTrue(url.endswith("/datarefs/31/value?index=2"))
+
     def test_write_dataref_returns_false_when_not_connected(self):
         api = self.make_api()
         dataref = self.make_dataref(api)
@@ -204,6 +263,24 @@ class TestXPRestAPIExecuteCommand(RestAPITestCase):
         api.session.post.return_value = mock_response(500, {"error": "boom"})
         with patch.object(XPRestAPI, "connected", new_callable=PropertyMock, return_value=True):
             self.assertFalse(api.execute_command(command))
+
+
+class TestXPRestAPICaches(RestAPITestCase):
+    def test_invalidate_caches_clears_loaded_caches(self):
+        api = self.make_api()
+        api.all_datarefs = DatarefCache(api)
+        api.all_commands = MagicMock()
+
+        api.invalidate_caches()
+
+        self.assertIsNone(api.all_datarefs)
+        self.assertIsNone(api.all_commands)
+
+    def test_get_dataref_meta_by_id_returns_none_without_cache(self):
+        api = self.make_api()
+
+        self.assertIsNone(api.get_dataref_meta_by_id(99))
+        self.assertIsNone(api.get_dataref_meta_by_name("sim/test/value"))
 
 
 if __name__ == "__main__":
