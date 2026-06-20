@@ -1,16 +1,10 @@
 import socket
-import struct
 import unittest
 from unittest.mock import MagicMock, patch
 
 import xpwebapi
+from tests.helpers import make_beacon_packet
 from xpwebapi.beacon import BeaconData, XPBeaconMonitor, XPlaneNoBeacon, XPlaneVersionNotSupported
-
-
-def make_beacon_packet(hostname="testhost", port=49000, xplane_version=121400, role=1, major=1, minor=2, app_id=1):
-    header = b"BECN\x00"
-    data = struct.pack("<BBiiIH", major, minor, app_id, xplane_version, role, port)
-    return header + data + hostname.encode("utf-8") + b"\x00\x00"
 
 
 class BeaconMonitorTestCase(unittest.TestCase):

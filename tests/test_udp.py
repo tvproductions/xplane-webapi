@@ -1,17 +1,10 @@
-import struct
 import unittest
 from unittest.mock import MagicMock, PropertyMock, patch
 
+from tests.helpers import make_rref_packet
 from xpwebapi.api import Command, Dataref
 from xpwebapi.exceptions import XPPacketError
 from xpwebapi.udp import XPUDPAPI, XPlaneTimeout
-
-
-def make_rref_packet(values):
-    packet = b"RREF,"
-    for ident, value in values:
-        packet += struct.pack("<if", ident, value)
-    return packet
 
 
 class UDPAPITestCase(unittest.TestCase):

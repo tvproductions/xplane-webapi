@@ -2,9 +2,8 @@ import base64
 import unittest
 from unittest.mock import MagicMock
 
+from tests.helpers import DummyAPI, mock_response
 from xpwebapi.api import (
-    API,
-    APIResult,
     DATAREF_DATATYPE,
     Cache,
     CommandCache,
@@ -13,57 +12,8 @@ from xpwebapi.api import (
     DatarefCache,
     Dataref,
     DatarefMeta,
-    DatarefReadResult,
     ValueCache,
 )
-
-
-def mock_response(status_code: int, payload: dict | None = None):
-    response = MagicMock()
-    response.status_code = status_code
-    response.json.return_value = payload or {}
-    return response
-
-
-class DummyAPI(API):
-    def __init__(self, value: DatarefReadResult = None):
-        self.meta_by_path = {}
-        self.value_to_return = value
-        self.written = []
-        self.executed = []
-        self.monitored_datarefs = []
-        self.command_events = []
-        super().__init__(host="127.0.0.1", port=8086, api="/api", api_version="v1")
-
-    @property
-    def connected(self) -> bool:
-        return True
-
-    def get_rest_meta(self, obj: Dataref | Command, force: bool = False) -> DatarefMeta | CommandMeta | None:
-        return self.meta_by_path.get(obj.path)
-
-    def write_dataref(self, dataref: Dataref) -> APIResult:
-        self.written.append(dataref)
-        return True
-
-    def dataref_value(self, dataref: Dataref, raw: bool = False, no_decode: bool = False) -> DatarefReadResult:
-        return self.value_to_return
-
-    def execute_command(self, command: Command, duration: float = 0.0) -> APIResult:
-        self.executed.append((command, duration))
-        return True
-
-    def monitor_dataref(self, dataref: Dataref) -> bool:
-        self.monitored_datarefs.append(("monitor", dataref))
-        return True
-
-    def unmonitor_dataref(self, dataref: Dataref) -> bool:
-        self.monitored_datarefs.append(("unmonitor", dataref))
-        return True
-
-    def register_command_is_active_event(self, path: str, on: bool = True) -> bool:
-        self.command_events.append((path, on))
-        return True
 
 
 class TestDatarefMeta(unittest.TestCase):

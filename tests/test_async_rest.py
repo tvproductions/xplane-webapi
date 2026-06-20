@@ -5,18 +5,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 
 import xpwebapi
+from tests.helpers import mock_response
 from xpwebapi.api import CONNECTION_STATUS, DATAREF_DATATYPE, Command, CommandMeta, Dataref, DatarefMeta
 from xpwebapi.async_rest import AsyncXPRestAPI
 from xpwebapi.rest import V1_CAPABILITIES, XPRestAPI
-
-
-def mock_response(status_code: int, payload: dict | None = None):
-    response = MagicMock()
-    response.status_code = status_code
-    response.reason_phrase = "OK" if status_code == 200 else "Error"
-    response.text = ""
-    response.json.return_value = payload or {}
-    return response
 
 
 class AsyncRestAPITestCase(unittest.IsolatedAsyncioTestCase):

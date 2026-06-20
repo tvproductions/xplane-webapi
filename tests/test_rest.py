@@ -4,17 +4,9 @@ from unittest.mock import MagicMock, PropertyMock, patch
 
 import httpx
 
+from tests.helpers import mock_response
 from xpwebapi.api import DATAREF_DATATYPE, Command, CommandMeta, Dataref, DatarefMeta
 from xpwebapi.rest import XPRestAPI
-
-
-def mock_response(status_code: int, payload: dict | None = None):
-    response = MagicMock()
-    response.status_code = status_code
-    response.reason_phrase = "OK" if status_code == 200 else "Error"
-    response.text = ""
-    response.json.return_value = payload or {}
-    return response
 
 
 class RestAPITestCase(unittest.TestCase):
