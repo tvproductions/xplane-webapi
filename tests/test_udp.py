@@ -189,6 +189,37 @@ class TestXPUDPAPIRequestDataref(UDPAPITestCase):
         self.assertEqual(effectives, {})
         self.assertEqual(dataref.monitored_count, 0)
 
+    def test_unmonitor_datarefs_decrements_nested_monitor_before_unsubscribe(self):
+        api = self.make_api()
+        dataref = Dataref(path="sim/test/value", api=api)
+
+        with patch.object(XPUDPAPI, "connected", new_callable=PropertyMock, return_value=True):
+            api.monitor_dataref(dataref)
+            api.monitor_dataref(dataref)
+
+            api.socket.sendto.reset_mock()
+            result, effectives = api.unmonitor_datarefs({dataref.path: dataref})
+
+            self.assertTrue(result)
+            self.assertEqual(effectives, {})
+            self.assertEqual(dataref.monitored_count, 1)
+            self.assertTrue(dataref.is_monitored)
+            self.assertIn(dataref.path, api.datarefs.values())
+            api.socket.sendto.assert_not_called()
+
+            result, effectives = api.unmonitor_datarefs({dataref.path: dataref})
+
+        self.assertTrue(result)
+        self.assertEqual(effectives, {})
+        self.assertEqual(dataref.monitored_count, 0)
+        self.assertFalse(dataref.is_monitored)
+        self.assertNotIn(dataref.path, api.datarefs.values())
+        api.socket.sendto.assert_called_once()
+
+        message, address = api.socket.sendto.call_args.args
+        self.assertEqual(address, ("127.0.0.1", 49000))
+        self.assertTrue(message.startswith(b"RREF\x00"))
+
 
 if __name__ == "__main__":
     unittest.main()
