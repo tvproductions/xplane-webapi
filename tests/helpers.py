@@ -1,5 +1,6 @@
 import base64
 import struct
+import unittest
 from unittest.mock import MagicMock
 
 from xpwebapi.api import API, APIResult, Command, CommandMeta, Dataref, DatarefMeta, DatarefReadResult
@@ -12,6 +13,22 @@ def mock_response(status_code: int, payload: dict | None = None) -> MagicMock:
     response.text = ""
     response.json.return_value = payload or {}
     return response
+
+
+class TestHelpersSmoke(unittest.TestCase):
+    def test_helpers_are_importable(self):
+        helpers = (
+            mock_response,
+            make_dataref_meta,
+            make_command_meta,
+            encoded_data,
+            make_rref_packet,
+            make_beacon_packet,
+            DummyAPI,
+        )
+
+        for helper in helpers:
+            self.assertIsNotNone(helper)
 
 
 def make_dataref_meta(name: str = "sim/test/value", value_type: str = "int", is_writable: bool = True, ident: int = 10) -> DatarefMeta:
