@@ -3,6 +3,7 @@ import unittest
 from unittest.mock import MagicMock, PropertyMock, patch
 
 from xpwebapi.api import Command, Dataref
+from xpwebapi.exceptions import XPPacketError
 from xpwebapi.udp import XPUDPAPI, XPlaneTimeout
 
 
@@ -46,6 +47,20 @@ class TestXPUDPAPIWriteDataref(UDPAPITestCase):
         self.assertTrue(message.startswith(b"DREF\x00"))
         self.assertEqual(len(message), 509)
 
+    def test_write_dataref_raises_packet_error_for_invalid_dref_length(self):
+        api = self.make_api()
+        dataref = Dataref(path="sim/test/value", api=api)
+        dataref.value = 3.5
+
+        with patch("xpwebapi.udp.struct.pack", return_value=b"bad"):
+            with self.assertRaises(XPPacketError) as caught:
+                api.write_dataref(dataref)
+
+        self.assertEqual(str(caught.exception), "invalid DREF packet length")
+        self.assertEqual(caught.exception.context["packet_type"], "DREF")
+        self.assertEqual(caught.exception.context["expected"], 509)
+        self.assertEqual(caught.exception.context["actual"], 3)
+
 
 class TestXPUDPAPIExecuteCommand(UDPAPITestCase):
     def test_execute_command_sends_cmnd_packet(self):
@@ -83,8 +98,11 @@ class TestXPUDPAPIReadValues(UDPAPITestCase):
         api = self.make_api()
         api.socket.recvfrom.side_effect = OSError("timeout")
 
-        with self.assertRaises(XPlaneTimeout):
+        with self.assertRaises(XPlaneTimeout) as caught:
             api.read_monitored_dataref_values()
+
+        self.assertEqual(caught.exception.context["host"], "127.0.0.1")
+        self.assertEqual(caught.exception.context["port"], 49000)
 
     def test_dataref_value_reads_latest_monitored_value(self):
         api = self.make_api()
@@ -106,6 +124,18 @@ class TestXPUDPAPIRequestDataref(UDPAPITestCase):
         self.assertEqual(address, ("127.0.0.1", 49000))
         self.assertTrue(message.startswith(b"RREF\x00"))
         self.assertIn("sim/test/value", api.datarefs.values())
+
+    def test_request_dataref_raises_packet_error_for_invalid_rref_length(self):
+        api = self.make_api()
+        with patch.object(XPUDPAPI, "connected", new_callable=PropertyMock, return_value=True):
+            with patch("xpwebapi.udp.struct.pack", return_value=b"bad"):
+                with self.assertRaises(XPPacketError) as caught:
+                    api._request_dataref("sim/test/value", freq=2)
+
+        self.assertEqual(str(caught.exception), "invalid RREF packet length")
+        self.assertEqual(caught.exception.context["packet_type"], "RREF")
+        self.assertEqual(caught.exception.context["expected"], 413)
+        self.assertEqual(caught.exception.context["actual"], 3)
 
     def test_request_dataref_returns_false_when_not_connected(self):
         api = self.make_api()

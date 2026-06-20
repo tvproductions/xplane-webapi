@@ -20,7 +20,7 @@ from typing import Tuple, Dict, Callable, Self
 
 from .api import API, CONNECTION_STATUS, DatarefReadResult, Dataref, Command
 from .beacon import BeaconData, BEACON_TIMEOUT
-from .exceptions import XPTimeoutError
+from .exceptions import XPPacketError, XPTimeoutError
 
 # local logging
 logger = logging.getLogger(__name__)
@@ -201,7 +201,7 @@ class XPUDPAPI(API):
             message = struct.pack("<5sI500s", cmd, int(dataref.value), string)
 
         if len(message) != 509:
-            raise ValueError(f"invalid DREF packet length: {len(message)}")
+            raise XPPacketError("invalid DREF packet length", packet_type="DREF", expected=509, actual=len(message))
         self.socket.sendto(message, (self.host, self.port))
         return True
 
@@ -305,7 +305,7 @@ class XPUDPAPI(API):
         string = dataref.encode()
         message = struct.pack("<5sii400s", cmd, freq, idx, string)
         if len(message) != 413:
-            raise ValueError(f"invalid RREF packet length: {len(message)}")
+            raise XPPacketError("invalid RREF packet length", packet_type="RREF", expected=413, actual=len(message))
         self.socket.sendto(message, (self.host, self.port))
         if self.datarefidx % 100 == 0:
             sleep(0.2)
@@ -355,7 +355,7 @@ class XPUDPAPI(API):
         except Exception:
             if self.status != CONNECTION_STATUS.LISTENING_FOR_DATA:
                 self.status = CONNECTION_STATUS.LISTENING_FOR_DATA
-            raise XPlaneTimeout("UDP read timeout")
+            raise XPlaneTimeout("UDP read timeout", host=self.host, port=self.port)
         return self.xplaneValues
 
     @property

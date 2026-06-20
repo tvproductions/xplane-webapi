@@ -1,7 +1,7 @@
 from .api import APIResult, Dataref, Command, DatarefReadResult, DatarefValueType, DATAREF_DATATYPE
 from .async_rest import AsyncXPRestAPI
 from .beacon import XPBeaconMonitor, BeaconData, XPlaneNoBeacon, XPlaneVersionNotSupported
-from .exceptions import XPWebAPIError, XPConnectionError, XPBeaconError, XPTimeoutError, XPVersionError
+from .exceptions import XPWebAPIError, XPConnectionError, XPBeaconError, XPPacketError, XPTimeoutError, XPVersionError
 from .rest import XPRestAPI
 from .ws import XPWebsocketAPI, CALLBACK_TYPE
 from .udp import XPUDPAPI, XPlaneTimeout
@@ -21,6 +21,7 @@ __all__ = [
     "XPWebAPIError",
     "XPConnectionError",
     "XPBeaconError",
+    "XPPacketError",
     "XPTimeoutError",
     "XPVersionError",
     "XPRestAPI",

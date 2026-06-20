@@ -4,6 +4,7 @@ from xpwebapi.exceptions import (
     XPWebAPIError,
     XPConnectionError,
     XPBeaconError,
+    XPPacketError,
     XPTimeoutError,
     XPVersionError,
 )
@@ -21,6 +22,9 @@ class TestExceptionHierarchy(unittest.TestCase):
 
     def test_timeout_error_is_xpwebapi_error(self):
         self.assertTrue(issubclass(XPTimeoutError, XPWebAPIError))
+
+    def test_packet_error_is_xpwebapi_error(self):
+        self.assertTrue(issubclass(XPPacketError, XPWebAPIError))
 
     def test_version_error_is_xpwebapi_error(self):
         self.assertTrue(issubclass(XPVersionError, XPWebAPIError))
@@ -43,12 +47,17 @@ class TestExceptionHierarchy(unittest.TestCase):
         err = XPTimeoutError("timed out", host="10.0.0.1")
         self.assertEqual(err.context, {"host": "10.0.0.1"})
 
+    def test_packet_error_context(self):
+        err = XPPacketError("invalid DREF packet length", packet_type="DREF", expected=509, actual=12)
+        self.assertEqual(str(err), "invalid DREF packet length")
+        self.assertEqual(err.context, {"packet_type": "DREF", "expected": 509, "actual": 12})
+
     def test_version_error_context(self):
         err = XPVersionError("unsupported", version="10.40")
         self.assertEqual(err.context, {"version": "10.40"})
 
     def test_catch_base_catches_all(self):
-        for cls in (XPConnectionError, XPBeaconError, XPTimeoutError, XPVersionError):
+        for cls in (XPConnectionError, XPBeaconError, XPPacketError, XPTimeoutError, XPVersionError):
             with self.assertRaises(XPWebAPIError):
                 raise cls("test")
 
@@ -80,9 +89,10 @@ class TestBackwardCompat(unittest.TestCase):
         self.assertTrue(issubclass(XPlaneTimeout, Exception))
 
     def test_new_names_importable_from_package(self):
-        from xpwebapi import XPWebAPIError, XPConnectionError, XPBeaconError, XPTimeoutError, XPVersionError  # noqa: F401
+        from xpwebapi import XPWebAPIError, XPConnectionError, XPBeaconError, XPPacketError, XPTimeoutError, XPVersionError  # noqa: F401
 
         self.assertTrue(issubclass(XPWebAPIError, Exception))
+        self.assertTrue(issubclass(XPPacketError, Exception))
 
 
 if __name__ == "__main__":

@@ -15,6 +15,10 @@ class XPBeaconError(XPConnectionError):
     pass
 
 
+class XPPacketError(XPWebAPIError):
+    pass
+
+
 class XPTimeoutError(XPWebAPIError):
     pass
 
