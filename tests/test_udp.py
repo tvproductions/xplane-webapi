@@ -165,6 +165,16 @@ class TestXPUDPAPIRequestDataref(UDPAPITestCase):
         self.assertEqual(dataref.monitored_count, 1)
         self.assertTrue(dataref.is_monitored)
 
+    def test_monitor_dataref_treats_zero_request_id_as_success(self):
+        api = self.make_api()
+        dataref = Dataref(path="sim/test/value", api=api)
+
+        with patch.object(api, "_request_dataref", return_value=0):
+            self.assertEqual(api.monitor_dataref(dataref), 0)
+
+        self.assertEqual(dataref.monitored_count, 1)
+        self.assertTrue(dataref.is_monitored)
+
     def test_unmonitor_datarefs_sends_zero_frequency_request(self):
         api = self.make_api()
         dataref = Dataref(path="sim/test/value", api=api)
@@ -188,6 +198,19 @@ class TestXPUDPAPIRequestDataref(UDPAPITestCase):
         self.assertTrue(result)
         self.assertEqual(effectives, {})
         self.assertEqual(dataref.monitored_count, 0)
+
+    def test_unmonitor_datarefs_treats_zero_request_id_as_success(self):
+        api = self.make_api()
+        dataref = Dataref(path="sim/test/value", api=api)
+        dataref.inc_monitor()
+
+        with patch.object(api, "_request_dataref", return_value=0):
+            result, effectives = api.unmonitor_datarefs({dataref.path: dataref})
+
+        self.assertTrue(result)
+        self.assertEqual(effectives, {})
+        self.assertEqual(dataref.monitored_count, 0)
+        self.assertFalse(dataref.is_monitored)
 
     def test_unmonitor_datarefs_decrements_nested_monitor_before_unsubscribe(self):
         api = self.make_api()

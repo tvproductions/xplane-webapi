@@ -259,7 +259,7 @@ class XPUDPAPI(API):
             request id if succeeded
         """
         ret = self._request_dataref(dataref=dataref.path, freq=1)
-        if ret:
+        if ret is not False:
             dataref.inc_monitor()
         return ret
 
@@ -281,9 +281,9 @@ class XPUDPAPI(API):
                 dataref.dec_monitor()
                 continue
             r = self._request_dataref(dataref=dataref.path, freq=0)
-            if r and dataref.is_monitored:
+            if r is not False and dataref.is_monitored:
                 dataref.dec_monitor()
-            if not r:
+            if r is False:
                 ret = False
         return ret, {}
 
