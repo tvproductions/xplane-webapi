@@ -1,0 +1,2582 @@
+# Review package: 986830398dc96bfb2d3666a28cab0853a05e68e3..1668387
+
+## Commits
+1668387 docs: mark p0 coverage complete
+70d78cb test: expand beacon coverage
+afab0b9 test: cover nested udp unmonitor
+222a568 fix: track udp monitor counters
+283379a test: expand websocket coverage
+db21c3a test: quiet package logging during tests
+15c8945 fix: cover rest api version selection
+61e4b42 test: expand core object coverage
+d0df027 test: reuse shared test helpers
+4ced326 test: make helper smoke pass
+00fb94c test: add shared unittest helpers
+1318e69 Add P0 unittest coverage plan
+6bd6204 Add vNext product design spec
+
+## Files changed
+ BACKLOG.md                                         |    8 +-
+ .../plans/2026-06-20-p0-unittest-coverage.md       | 1020 ++++++++++++++++++++
+ ...026-06-20-xplane-webapi-vnext-product-design.md |  419 ++++++++
+ tests/__init__.py                                  |   12 +
+ tests/helpers.py                                   |  105 ++
+ tests/test_api.py                                  |  143 ++-
+ tests/test_async_rest.py                           |   17 +-
+ tests/test_beacon.py                               |   42 +-
+ tests/test_rest.py                                 |   91 +-
+ tests/test_udp.py                                  |   80 +-
+ tests/test_ws.py                                   |   55 ++
+ xpwebapi/rest.py                                   |    4 +-
+ xpwebapi/udp.py                                    |   10 +-
+ 13 files changed, 1912 insertions(+), 94 deletions(-)
+
+## Diff
+diff --git a/BACKLOG.md b/BACKLOG.md
+index e3e27db..8d25323 100644
+--- a/BACKLOG.md
++++ b/BACKLOG.md
+@@ -1,18 +1,18 @@
+ # Backlog
+ 
+ ## P0 — Critical
+ 
+-### [ ] Expand unittest coverage
+-- [ ] Add shared `unittest` helpers for mocking X-Plane REST/WebSocket responses
+-- [ ] Fill remaining coverage gaps for `Dataref`, `Command`, `Cache`, `XPRestAPI`, `XPWebsocketAPI`, `XPUDPAPI`, `XPBeaconMonitor`
+-- [ ] Keep `uv run python -m unittest discover -v` as the test workflow
++### [x] Expand unittest coverage
++- [x] Add shared `unittest` helpers for mocking X-Plane REST/WebSocket responses
++- [x] Fill remaining coverage gaps for `Dataref`, `Command`, `Cache`, `XPRestAPI`, `XPWebsocketAPI`, `XPUDPAPI`, `XPBeaconMonitor`
++- [x] Keep `uv run python -m unittest discover -v` as the test workflow
+ 
+ ### [x] Fix LSP violations in `dataref_value` / `execute_command` / `write_dataref`
+ - [x] `API.dataref_value` returns `DatarefReadResult` with scalar, array, bytes, and `None` support
+ - [x] Standardize write/execute return types with `APIResult` across the abstract base and overrides
+ - [x] Verify override compatibility with the type checker
+ 
+ ### [x] Custom exception hierarchy
+ - [x] `XPWebAPIError(Exception)` as base
+ - [x] `XPConnectionError`, `XPTimeoutError`, `XPVersionError`, `XPBeaconError`
+ - [x] Replace bare `raise XPlaneNoBeacon()` / `raise XPlaneTimeout` with typed exceptions carrying context
+diff --git a/docs/superpowers/plans/2026-06-20-p0-unittest-coverage.md b/docs/superpowers/plans/2026-06-20-p0-unittest-coverage.md
+new file mode 100644
+index 0000000..d3f64f3
+--- /dev/null
++++ b/docs/superpowers/plans/2026-06-20-p0-unittest-coverage.md
+@@ -0,0 +1,1020 @@
++# P0 Unittest Coverage Implementation Plan
++
++> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
++
++**Goal:** Complete the remaining P0 coverage tranche from `BACKLOG.md` by adding shared `unittest` helpers and focused behavior coverage across core objects, caches, REST, async REST, WebSocket, UDP, and beacon workflows.
++
++**Architecture:** This is the first executable slice of `docs/superpowers/specs/2026-06-20-xplane-webapi-vnext-product-design.md`. The change is test-first and keeps production code unchanged unless a new test exposes an actual behavioral defect; shared test setup moves to `tests/helpers.py` so transport tests stay readable.
++
++**Tech Stack:** Python 3.12, stdlib `unittest`, stdlib `unittest.mock`, `httpx`, `simple-websocket`, `uv`, `ruff`.
++
++## Global Constraints
++
++- Python version is `>=3.12,<3.13`.
++- Use stdlib `unittest`; do not add or invoke another Python test framework.
++- Keep the test workflow as `uv run python -m unittest discover -v`.
++- Keep `examples/` untouched.
++- Preserve existing public entry points and legacy exception aliases.
++- Do not require a live X-Plane instance for tests.
++- Required final checks:
++  - `uv run python -m unittest discover -v`
++  - `uv run ruff check xpwebapi tests`
++  - `uv run ruff format --check xpwebapi tests`
++
++---
++
++## Scope Check
++
++The approved vNext product spec covers multiple roadmap bands. This plan implements only the current P0 item, `Expand unittest coverage`, because it is the next critical slice and creates the confidence needed for later P1-P3 plans.
++
++Follow-on implementation plans should cover:
++
++- P1 async REST parity gaps if any remain after this test pass.
++- P1 context manager support gaps.
++- P2 structured logging.
++- P3 docs and CI.
++
++---
++
++## File Structure
++
++- Create `tests/helpers.py`: shared mock response builders, metadata factories, dummy API, UDP packet helper, and beacon packet helper.
++- Modify `tests/test_api.py`: consume helper fixtures and add `Dataref`, `Command`, and cache edge coverage.
++- Modify `tests/test_rest.py`: consume helper fixtures and add capabilities, API version, cache lifecycle, metadata miss, selected array write, and missing value coverage.
++- Modify `tests/test_async_rest.py`: consume helper fixtures and add a small parity check that uses the shared helpers.
++- Modify `tests/test_ws.py`: add bulk monitor/unmonitor and callback registration coverage.
++- Modify `tests/test_udp.py`: consume helper packet builder and add disconnected write/execute and monitor counter coverage.
++- Modify `tests/test_beacon.py`: consume helper beacon builder and add monitor lifecycle/status counter coverage.
++- Modify `BACKLOG.md`: mark P0 `Expand unittest coverage` complete only after all validation passes.
++
++---
++
++### Task 1: Create Shared Test Helpers
++
++**Files:**
++- Create: `tests/helpers.py`
++
++**Interfaces:**
++- Produces: `mock_response(status_code: int, payload: dict | None = None) -> MagicMock`
++- Produces: `make_dataref_meta(...) -> DatarefMeta`
++- Produces: `make_command_meta(...) -> CommandMeta`
++- Produces: `DummyAPI(API)`
++- Produces: `make_rref_packet(values: list[tuple[int, float]]) -> bytes`
++- Produces: `make_beacon_packet(...) -> bytes`
++
++- [ ] **Step 1: Create `tests/helpers.py` with shared fixtures**
++
++```python
++import base64
++import struct
++from unittest.mock import MagicMock
++
++from xpwebapi.api import API, APIResult, Command, CommandMeta, Dataref, DatarefMeta, DatarefReadResult
++
++
++def mock_response(status_code: int, payload: dict | None = None) -> MagicMock:
++    response = MagicMock()
++    response.status_code = status_code
++    response.reason_phrase = "OK" if status_code == 200 else "Error"
++    response.text = ""
++    response.json.return_value = payload or {}
++    return response
++
++
++def make_dataref_meta(name: str = "sim/test/value", value_type: str = "int", is_writable: bool = True, ident: int = 10) -> DatarefMeta:
++    return DatarefMeta(name=name, value_type=value_type, is_writable=is_writable, id=ident)
++
++
++def make_command_meta(name: str = "sim/test/command", description: str = "Test command", ident: int = 20) -> CommandMeta:
++    return CommandMeta(name=name, description=description, id=ident)
++
++
++def encoded_data(value: bytes = b"abc") -> str:
++    return base64.b64encode(value).decode("ascii")
++
++
++def make_rref_packet(values: list[tuple[int, float]]) -> bytes:
++    packet = b"RREF,"
++    for ident, value in values:
++        packet += struct.pack("<if", ident, value)
++    return packet
++
++
++def make_beacon_packet(
++    hostname: str = "testhost",
++    port: int = 49000,
++    xplane_version: int = 121400,
++    role: int = 1,
++    major: int = 1,
++    minor: int = 2,
++    app_id: int = 1,
++) -> bytes:
++    header = b"BECN\x00"
++    data = struct.pack("<BBiiIH", major, minor, app_id, xplane_version, role, port)
++    return header + data + hostname.encode("utf-8") + b"\x00\x00"
++
++
++class DummyAPI(API):
++    def __init__(self, value: DatarefReadResult = None):
++        self.meta_by_path = {}
++        self.value_to_return = value
++        self.written = []
++        self.executed = []
++        self.monitored_datarefs = []
++        self.command_events = []
++        super().__init__(host="127.0.0.1", port=8086, api="/api", api_version="v1")
++
++    @property
++    def connected(self) -> bool:
++        return True
++
++    def get_rest_meta(self, obj: Dataref | Command, force: bool = False) -> DatarefMeta | CommandMeta | None:
++        return self.meta_by_path.get(obj.path)
++
++    def write_dataref(self, dataref: Dataref) -> APIResult:
++        self.written.append(dataref)
++        return True
++
++    def dataref_value(self, dataref: Dataref, raw: bool = False, no_decode: bool = False) -> DatarefReadResult:
++        return self.value_to_return
++
++    def execute_command(self, command: Command, duration: float = 0.0) -> APIResult:
++        self.executed.append((command, duration))
++        return True
++
++    def monitor_dataref(self, dataref: Dataref) -> bool:
++        self.monitored_datarefs.append(("monitor", dataref))
++        return True
++
++    def unmonitor_dataref(self, dataref: Dataref) -> bool:
++        self.monitored_datarefs.append(("unmonitor", dataref))
++        return True
++
++    def register_command_is_active_event(self, path: str, on: bool = True) -> bool:
++        self.command_events.append((path, on))
++        return True
++```
++
++- [ ] **Step 2: Run helper import smoke test**
++
++Run: `uv run python -m unittest tests.helpers -v`
++
++Expected: command imports the module and reports `Ran 0 tests`.
++
++- [ ] **Step 3: Commit helper scaffold**
++
++```powershell
++git add tests/helpers.py
++git commit -m "test: add shared unittest helpers"
++```
++
++---
++
++### Task 2: Refactor Existing Tests To Use Helpers
++
++**Files:**
++- Modify: `tests/test_api.py`
++- Modify: `tests/test_rest.py`
++- Modify: `tests/test_async_rest.py`
++- Modify: `tests/test_udp.py`
++- Modify: `tests/test_beacon.py`
++
++**Interfaces:**
++- Consumes: `tests.helpers.mock_response`
++- Consumes: `tests.helpers.DummyAPI`
++- Consumes: `tests.helpers.make_rref_packet`
++- Consumes: `tests.helpers.make_beacon_packet`
++- Consumes: `tests.helpers.make_dataref_meta`
++- Consumes: `tests.helpers.make_command_meta`
++- Consumes: `tests.helpers.encoded_data`
++- Produces: existing tests with duplicated helper code removed
++
++- [ ] **Step 1: Update `tests/test_api.py` imports**
++
++Replace the local `MagicMock` import and local helper definitions with:
++
++```python
++import base64
++import unittest
++
++from tests.helpers import DummyAPI, mock_response
++from xpwebapi.api import (
++    DATAREF_DATATYPE,
++    Cache,
++    CommandCache,
++    Command,
++    CommandMeta,
++    DatarefCache,
++    Dataref,
++    DatarefMeta,
++    ValueCache,
++)
++```
++
++Delete the local `mock_response` function and `DummyAPI` class from `tests/test_api.py`.
++
++- [ ] **Step 2: Update `tests/test_rest.py` imports**
++
++Replace the local `mock_response` function with the shared helper:
++
++```python
++import base64
++import unittest
++from unittest.mock import MagicMock, PropertyMock, patch
++
++import httpx
++
++from tests.helpers import mock_response
++from xpwebapi.api import DATAREF_DATATYPE, Command, CommandMeta, Dataref, DatarefMeta
++from xpwebapi.rest import XPRestAPI
++```
++
++- [ ] **Step 3: Update `tests/test_async_rest.py` imports**
++
++Replace the local `mock_response` function with:
++
++```python
++from tests.helpers import mock_response
++```
++
++Keep `AsyncMock`, `MagicMock`, and existing async test classes unchanged.
++
++- [ ] **Step 4: Update `tests/test_udp.py` imports**
++
++Replace local `struct` usage and local `make_rref_packet` with:
++
++```python
++import unittest
++from unittest.mock import MagicMock, PropertyMock, patch
++
++from tests.helpers import make_rref_packet
++from xpwebapi.api import Command, Dataref
++from xpwebapi.exceptions import XPPacketError
++from xpwebapi.udp import XPUDPAPI, XPlaneTimeout
++```
++
++- [ ] **Step 5: Update `tests/test_beacon.py` imports**
++
++Replace local `struct` usage and local `make_beacon_packet` with:
++
++```python
++import socket
++import unittest
++from unittest.mock import MagicMock, patch
++
++import xpwebapi
++from tests.helpers import make_beacon_packet
++from xpwebapi.beacon import BeaconData, XPBeaconMonitor, XPlaneNoBeacon, XPlaneVersionNotSupported
++```
++
++- [ ] **Step 6: Run the existing test suite**
++
++Run: `uv run python -m unittest discover -v`
++
++Expected: all existing tests pass with the same behavior as before the helper refactor.
++
++- [ ] **Step 7: Commit helper refactor**
++
++```powershell
++git add tests/test_api.py tests/test_rest.py tests/test_async_rest.py tests/test_udp.py tests/test_beacon.py
++git commit -m "test: reuse shared test helpers"
++```
++
++---
++
++### Task 3: Expand Core Object And Cache Coverage
++
++**Files:**
++- Modify: `tests/test_api.py`
++
++**Interfaces:**
++- Consumes: `DummyAPI`
++- Consumes: `make_dataref_meta`
++- Consumes: `make_command_meta`
++- Produces: additional `Dataref`, `Command`, and cache edge-case tests
++
++- [ ] **Step 1: Add imports from helpers**
++
++Ensure `tests/test_api.py` imports:
++
++```python
++from tests.helpers import DummyAPI, encoded_data, make_command_meta, make_dataref_meta, mock_response
++```
++
++- [ ] **Step 2: Add `Dataref` indexed path and string tests**
++
++Add these methods to `TestDataref`:
++
++```python
++def test_indexed_path_parses_base_path_and_index(self):
++    api = DummyAPI()
++    dataref = Dataref(path="sim/test/array[4]", api=api)
++
++    self.assertEqual(dataref.name, "sim/test/array[4]")
++    self.assertEqual(dataref.path, "sim/test/array")
++    self.assertEqual(dataref.index, 4)
++
++
++def test_string_representation_includes_index_and_value(self):
++    api = DummyAPI()
++    dataref = Dataref(path="sim/test/array[4]", api=api)
++    dataref.value = 12.5
++
++    self.assertEqual(str(dataref), "sim/test/array[4]=12.5")
++
++
++def test_get_string_value_decodes_data_bytes_and_strips_nulls(self):
++    api = DummyAPI(value=b"ABC\x00\x00")
++    api.meta_by_path["sim/test/data"] = make_dataref_meta(name="sim/test/data", value_type=DATAREF_DATATYPE.DATA.value)
++    dataref = Dataref(path="sim/test/data", api=api)
++
++    self.assertEqual(dataref.get_string_value("ascii"), "ABC")
++
++
++def test_set_string_value_encodes_data_value(self):
++    api = DummyAPI()
++    api.meta_by_path["sim/test/data"] = make_dataref_meta(name="sim/test/data", value_type=DATAREF_DATATYPE.DATA.value)
++    dataref = Dataref(path="sim/test/data", api=api)
++
++    dataref.set_string_value("ABC", "ascii")
++
++    self.assertEqual(dataref.value, b"ABC")
++    self.assertEqual(dataref.b64encoded, encoded_data(b"ABC"))
++```
++
++- [ ] **Step 3: Add invalid metadata and monitor counter tests**
++
++Add these methods to `TestDataref`:
++
++```python
++def test_invalid_meta_properties_record_errors(self):
++    api = DummyAPI()
++    dataref = Dataref(path="sim/test/missing", api=api)
++
++    self.assertFalse(dataref.valid)
++    self.assertIsNone(dataref.ident)
++    self.assertIsNone(dataref.value_type)
++    self.assertFalse(dataref.is_writable)
++    self.assertGreaterEqual(dataref._err, 3)
++
++
++def test_monitor_counter_tracks_nested_monitoring(self):
++    api = DummyAPI()
++    dataref = Dataref(path="sim/test/value", api=api)
++
++    dataref.inc_monitor()
++    dataref.inc_monitor()
++
++    self.assertTrue(dataref.is_monitored)
++    self.assertEqual(dataref.monitored_count, 2)
++    self.assertTrue(dataref.dec_monitor())
++    self.assertFalse(dataref.dec_monitor())
++    self.assertEqual(dataref.monitored_count, 0)
++```
++
++- [ ] **Step 4: Add `Command` metadata tests**
++
++Add these methods to `TestCommand`:
++
++```python
++def test_command_metadata_properties_use_cached_meta(self):
++    api = DummyAPI()
++    api.meta_by_path["sim/test/command"] = make_command_meta(ident=44)
++    command = Command(path="sim/test/command", api=api)
++
++    self.assertTrue(command.valid)
++    self.assertEqual(command.ident, 44)
++    self.assertEqual(command.description, "Test command")
++
++
++def test_command_invalid_metadata_records_errors(self):
++    api = DummyAPI()
++    command = Command(path="sim/test/missing", api=api)
++
++    self.assertFalse(command.valid)
++    self.assertIsNone(command.ident)
++    self.assertIsNone(command.description)
++    self.assertGreaterEqual(command._err, 2)
++```
++
++- [ ] **Step 5: Add cache save behavior test**
++
++Add this import:
++
++```python
++from tempfile import TemporaryDirectory
++```
++
++Add this method to `TestDatarefCache`:
++
++```python
++def test_save_writes_loaded_metadata_json(self):
++    api = DummyAPI()
++    cache = DatarefCache(api)
++    meta = make_dataref_meta(name="sim/test/value", ident=7)
++    cache._raw = [{"name": meta.name, "value_type": meta.value_type, "is_writable": meta.is_writable, "id": meta.ident}]
++    cache._by_name = {meta.name: meta}
++    cache._by_ids = {meta.ident: meta}
++
++    with TemporaryDirectory() as tmpdir:
++        filename = f"{tmpdir}/datarefs.json"
++        cache.save(filename)
++        with open(filename, encoding="utf-8") as handle:
++            content = handle.read()
++
++    self.assertIn("sim/test/value", content)
++    self.assertIn('"id": 7', content)
++```
++
++- [ ] **Step 6: Run targeted core tests**
++
++Run: `uv run python -m unittest tests.test_api -v`
++
++Expected: all `tests.test_api` tests pass.
++
++- [ ] **Step 7: Commit core coverage**
++
++```powershell
++git add tests/test_api.py
++git commit -m "test: expand core object coverage"
++```
++
++---
++
++### Task 4: Expand REST And Async REST Coverage
++
++**Files:**
++- Modify: `xpwebapi/rest.py`
++- Modify: `tests/test_rest.py`
++- Modify: `tests/test_async_rest.py`
++
++**Interfaces:**
++- Consumes: `mock_response`
++- Consumes: existing `RestAPITestCase.make_api`
++- Consumes: existing `AsyncRestAPITestCase.make_api`
++- Produces: additional REST lifecycle, capabilities, version, cache, and parity tests
++- Produces: fixed `XPRestAPI.set_api_version(None)` latest-version selection
++
++- [ ] **Step 1: Import REST constants and caches in `tests/test_rest.py`**
++
++Update the imports:
++
++```python
++from xpwebapi.api import DATAREF_DATATYPE, Command, CommandMeta, Dataref, DatarefCache, DatarefMeta
++from xpwebapi.rest import V1_CAPABILITIES, XPRestAPI
++```
++
++- [ ] **Step 2: Add capabilities and API version tests**
++
++Add this class after `TestXPRestAPIConnected`:
++
++```python
++class TestXPRestAPICapabilities(RestAPITestCase):
++    def test_capabilities_are_cached_after_successful_fetch(self):
++        api = self.make_api()
++        payload = {"api": {"versions": ["v1", "v2"]}, "x-plane": {"version": "12.2.1"}}
++        api.session.get.return_value = mock_response(200, payload)
++
++        with patch.object(XPRestAPI, "connected", new_callable=PropertyMock, return_value=True):
++            self.assertEqual(api.capabilities, payload)
++            self.assertEqual(api.capabilities, payload)
++
++        api.session.get.assert_called_once()
++
++    def test_capabilities_fall_back_to_v1_probe(self):
++        api = self.make_api()
++        api.session.get.side_effect = [mock_response(404), mock_response(200, {"data": 1})]
++
++        with patch.object(XPRestAPI, "connected", new_callable=PropertyMock, return_value=True):
++            self.assertEqual(api.capabilities, V1_CAPABILITIES)
++
++    def test_set_api_version_selects_latest_available_when_unspecified(self):
++        api = self.make_api()
++        api._capabilities = {"api": {"versions": ["v1", "v3", "v2"]}, "x-plane": {"version": "12.2.1"}}
++
++        api.set_api_version()
++
++        self.assertEqual(api.version, "v3")
++        self.assertEqual(api._api_version, "/v3")
++```
++
++- [ ] **Step 3: Run latest-version test to verify it exposes the current defect**
++
++Run: `uv run python -m unittest tests.test_rest.TestXPRestAPICapabilities.test_set_api_version_selects_latest_available_when_unspecified -v`
++
++Expected: FAIL because `set_api_version(None)` logs the selected version but does not assign it to `api_version`.
++
++- [ ] **Step 4: Fix latest-version assignment in `xpwebapi/rest.py`**
++
++Replace this block inside `XPRestAPI.set_api_version`:
++
++```python
++if api_version is None:
++    if api_versions is None:
++        logger.error("cannot determine api, api not set")
++        return
++    sorted_apis = natsorted(api_versions, reverse=True)
++    api = sorted_apis[0]  # takes the latest one, hoping it is the latest in time...
++    logger.info(f"selected api {api} ({sorted_apis})")
++```
++
++with:
++
++```python
++if api_version is None:
++    if api_versions is None:
++        logger.error("cannot determine api, api not set")
++        return
++    sorted_apis = natsorted(api_versions, reverse=True)
++    api_version = sorted_apis[0]  # takes the latest one, hoping it is the latest in time...
++    logger.info(f"selected api {api_version} ({sorted_apis})")
++```
++
++- [ ] **Step 5: Re-run latest-version test**
++
++Run: `uv run python -m unittest tests.test_rest.TestXPRestAPICapabilities.test_set_api_version_selects_latest_available_when_unspecified -v`
++
++Expected: PASS.
++
++- [ ] **Step 6: Add REST metadata miss and selected array write tests**
++
++Add to `TestXPRestAPIGetRestMeta`:
++
++```python
++def test_get_rest_meta_returns_none_for_empty_metadata(self):
++    api = self.make_api()
++    dataref = Dataref(path="sim/test/value", api=api)
++    api.session.get.return_value = mock_response(200, {"data": []})
++
++    with patch.object(XPRestAPI, "connected", new_callable=PropertyMock, return_value=True):
++        self.assertIsNone(api.get_rest_meta(dataref))
++```
++
++Add to `TestXPRestAPIWriteDataref`:
++
++```python
++def test_write_dataref_rejects_missing_new_value(self):
++    api = self.make_api()
++    dataref = self.make_dataref(api)
++
++    with patch.object(XPRestAPI, "connected", new_callable=PropertyMock, return_value=True):
++        self.assertFalse(api.write_dataref(dataref))
++
++    api.session.patch.assert_not_called()
++
++
++def test_write_dataref_selected_array_element_adds_index_to_url(self):
++    api = self.make_api()
++    dataref = Dataref(path="sim/test/array[2]", api=api)
++    dataref._cached_meta = DatarefMeta(name=dataref.path, value_type=DATAREF_DATATYPE.FLOATARRAY.value, is_writable=True, id=31)
++    dataref.value = 8.5
++    api.session.patch.return_value = mock_response(200, {"result": "ok"})
++
++    with patch.object(XPRestAPI, "connected", new_callable=PropertyMock, return_value=True):
++        self.assertTrue(api.write_dataref(dataref))
++
++    url = api.session.patch.call_args.args[0]
++    self.assertTrue(url.endswith("/datarefs/31/value?index=2"))
++```
++
++- [ ] **Step 7: Add cache lifecycle tests**
++
++Add this class:
++
++```python
++class TestXPRestAPICaches(RestAPITestCase):
++    def test_invalidate_caches_clears_loaded_caches(self):
++        api = self.make_api()
++        api.all_datarefs = DatarefCache(api)
++        api.all_commands = MagicMock()
++
++        api.invalidate_caches()
++
++        self.assertIsNone(api.all_datarefs)
++        self.assertIsNone(api.all_commands)
++
++    def test_get_dataref_meta_by_id_returns_none_without_cache(self):
++        api = self.make_api()
++
++        self.assertIsNone(api.get_dataref_meta_by_id(99))
++        self.assertIsNone(api.get_dataref_meta_by_name("sim/test/value"))
++```
++
++- [ ] **Step 8: Add async REST helper parity smoke test**
++
++Add this method to `TestAsyncXPRestAPIDatarefValue`:
++
++```python
++async def test_shared_mock_response_supports_async_rest(self):
++    api = self.make_api()
++    dataref = self.make_dataref(api)
++    api.session.get.side_effect = [mock_response(200, {"data": 1}), mock_response(200, {"data": 77})]
++
++    self.assertEqual(await api.dataref_value(dataref), 77)
++```
++
++- [ ] **Step 9: Run targeted REST tests**
++
++Run: `uv run python -m unittest tests.test_rest tests.test_async_rest -v`
++
++Expected: all REST and async REST tests pass.
++
++- [ ] **Step 10: Commit REST coverage and latest-version fix**
++
++```powershell
++git add xpwebapi/rest.py tests/test_rest.py tests/test_async_rest.py
++git commit -m "fix: cover rest api version selection"
++```
++
++---
++
++### Task 5: Expand WebSocket Coverage
++
++**Files:**
++- Modify: `tests/test_ws.py`
++
++**Interfaces:**
++- Consumes: existing `WebsocketAPITestCase.make_api`
++- Produces: additional bulk monitor, duplicate monitor, unmonitor, and callback registration coverage
++
++- [ ] **Step 1: Add bulk monitor tests**
++
++Add this class after `TestXPWebsocketAPIMessageHandling`:
++
++```python
++class TestXPWebsocketAPIMonitoring(WebsocketAPITestCase):
++    def test_monitor_datarefs_subscribes_only_unmonitored_datarefs(self):
++        api = self.make_api()
++        first = Dataref(path="sim/test/first", api=api)
++        first._cached_meta = DatarefMeta(name=first.path, value_type="float", is_writable=True, id=101)
++        second = Dataref(path="sim/test/second", api=api)
++        second._cached_meta = DatarefMeta(name=second.path, value_type="float", is_writable=True, id=102)
++        second.inc_monitor()
++        api.register_bulk_dataref_value_event = MagicMock(return_value=7)
++
++        with patch.object(XPWebsocketAPI, "connected", new_callable=PropertyMock, return_value=True):
++            result, effectives = api.monitor_datarefs({first.path: first, second.path: second}, reason="test")
++
++        self.assertEqual(result, 7)
++        self.assertEqual(set(effectives), {first.name, second.name})
++        api.register_bulk_dataref_value_event.assert_called_once()
++        bulk = api.register_bulk_dataref_value_event.call_args.kwargs["datarefs"]
++        self.assertEqual(list(bulk), [101])
++        self.assertEqual(first.monitored_count, 1)
++        self.assertEqual(second.monitored_count, 2)
++
++    def test_unmonitor_datarefs_skips_datarefs_still_monitored_elsewhere(self):
++        api = self.make_api()
++        dataref = Dataref(path="sim/test/value", api=api)
++        dataref._cached_meta = DatarefMeta(name=dataref.path, value_type="float", is_writable=True, id=103)
++        dataref.inc_monitor()
++        dataref.inc_monitor()
++        api.register_bulk_dataref_value_event = MagicMock(return_value=9)
++
++        with patch.object(XPWebsocketAPI, "connected", new_callable=PropertyMock, return_value=True):
++            result, effectives = api.unmonitor_datarefs({dataref.path: dataref}, reason="test")
++
++        self.assertEqual(result, 0)
++        self.assertEqual(effectives, {dataref.name: dataref})
++        api.register_bulk_dataref_value_event.assert_not_called()
++        self.assertEqual(dataref.monitored_count, 1)
++
++    def test_monitor_datarefs_returns_false_when_disconnected(self):
++        api = self.make_api()
++        dataref = Dataref(path="sim/test/value", api=api)
++
++        with patch.object(XPWebsocketAPI, "connected", new_callable=PropertyMock, return_value=False):
++            self.assertEqual(api.monitor_datarefs({dataref.path: dataref}), (False, {}))
++```
++
++- [ ] **Step 2: Add callback set behavior test**
++
++Add this method to `TestXPWebsocketAPICallbacks`:
++
++```python
++def test_add_callback_deduplicates_same_callable(self):
++    api = self.make_api()
++    callback = MagicMock()
++
++    api.add_callback(CALLBACK_TYPE.ON_OPEN, callback)
++    api.add_callback(CALLBACK_TYPE.ON_OPEN, callback)
++    api.execute_callbacks(CALLBACK_TYPE.ON_OPEN)
++
++    callback.assert_called_once()
++```
++
++- [ ] **Step 3: Run targeted WebSocket tests**
++
++Run: `uv run python -m unittest tests.test_ws -v`
++
++Expected: all WebSocket tests pass.
++
++- [ ] **Step 4: Commit WebSocket coverage**
++
++```powershell
++git add tests/test_ws.py
++git commit -m "test: expand websocket coverage"
++```
++
++---
++
++### Task 6: Expand UDP Coverage
++
++**Files:**
++- Modify: `xpwebapi/udp.py`
++- Modify: `tests/test_udp.py`
++
++**Interfaces:**
++- Consumes: `make_rref_packet`
++- Consumes: existing `UDPAPITestCase.make_api`
++- Produces: additional disconnected, command, and monitor counter coverage
++- Produces: UDP monitor/unmonitor counter parity with `Dataref.is_monitored`
++
++- [ ] **Step 1: Add disconnected write and command tests**
++
++Add to `TestXPUDPAPIWriteDataref`:
++
++```python
++def test_write_dataref_sends_packet_without_connection_probe(self):
++    api = self.make_api()
++    dataref = Dataref(path="sim/test/value", api=api)
++    dataref.value = 1.25
++
++    self.assertTrue(api.write_dataref(dataref))
++    api.socket.sendto.assert_called_once()
++```
++
++Add to `TestXPUDPAPIExecuteCommand`:
++
++```python
++def test_execute_command_ignores_duration_for_udp_packet(self):
++    api = self.make_api()
++    command = Command(path="sim/test/command", api=api)
++
++    self.assertTrue(api.execute_command(command, duration=2.0))
++
++    message, _address = api.socket.sendto.call_args.args
++    self.assertTrue(message.startswith(b"CMND\x00"))
++    self.assertIn(b"sim/test/command", message)
++```
++
++- [ ] **Step 2: Add monitor counter tests**
++
++Add to `TestXPUDPAPIRequestDataref`:
++
++```python
++def test_monitor_dataref_increments_dataref_monitor_count(self):
++    api = self.make_api()
++    dataref = Dataref(path="sim/test/value", api=api)
++
++    with patch.object(XPUDPAPI, "connected", new_callable=PropertyMock, return_value=True):
++        self.assertTrue(api.monitor_dataref(dataref))
++
++    self.assertEqual(dataref.monitored_count, 1)
++    self.assertTrue(dataref.is_monitored)
++
++
++def test_unmonitor_datarefs_decrements_dataref_monitor_count(self):
++    api = self.make_api()
++    dataref = Dataref(path="sim/test/value", api=api)
++
++    with patch.object(XPUDPAPI, "connected", new_callable=PropertyMock, return_value=True):
++        api.monitor_dataref(dataref)
++        result, effectives = api.unmonitor_datarefs({dataref.path: dataref})
++
++    self.assertTrue(result)
++    self.assertEqual(effectives, {})
++    self.assertEqual(dataref.monitored_count, 0)
++```
++
++- [ ] **Step 3: Run UDP monitor counter tests to verify they expose the current defect**
++
++Run: `uv run python -m unittest tests.test_udp.TestXPUDPAPIRequestDataref.test_monitor_dataref_increments_dataref_monitor_count tests.test_udp.TestXPUDPAPIRequestDataref.test_unmonitor_datarefs_decrements_dataref_monitor_count -v`
++
++Expected: FAIL because `XPUDPAPI.monitor_dataref()` and `XPUDPAPI.unmonitor_datarefs()` do not currently update the `Dataref` monitor counter.
++
++- [ ] **Step 4: Fix UDP monitor counter updates**
++
++In `xpwebapi/udp.py`, replace `monitor_dataref` with:
++
++```python
++def monitor_dataref(self, dataref: Dataref) -> bool | int:
++    """Starts monitoring single dataref.
++
++    [description]
++
++    Args:
++        dataref (Dataref): Dataref to monitor
++
++    Returns:
++        bool if fails
++        request id if succeeded
++    """
++    ret = self._request_dataref(dataref=dataref.path, freq=1)
++    if ret:
++        dataref.inc_monitor()
++    return ret
++```
++
++Replace `unmonitor_datarefs` with:
++
++```python
++def unmonitor_datarefs(self, datarefs: dict, reason: str | None = None) -> Tuple[int | bool, Dict]:
++    """Stops monitoring supplied datarefs.
++
++    [description]
++
++    Args:
++        datarefs (dict): {path: Dataref} dictionary of datarefs
++        reason (str | None): Documentation only string to identify call to function.
++
++    Returns:
++        Tuple[int | bool, Dict]: [description]
++    """
++    ret = True
++    for dataref in datarefs.values():
++        if dataref.monitored_count > 1:
++            dataref.dec_monitor()
++            continue
++        r = self._request_dataref(dataref=dataref.path, freq=0)
++        if r and dataref.is_monitored:
++            dataref.dec_monitor()
++        if not r:
++            ret = False
++    return ret, {}
++```
++
++- [ ] **Step 5: Re-run UDP monitor counter tests**
++
++Run: `uv run python -m unittest tests.test_udp.TestXPUDPAPIRequestDataref.test_monitor_dataref_increments_dataref_monitor_count tests.test_udp.TestXPUDPAPIRequestDataref.test_unmonitor_datarefs_decrements_dataref_monitor_count -v`
++
++Expected: PASS.
++
++- [ ] **Step 6: Run targeted UDP tests**
++
++Run: `uv run python -m unittest tests.test_udp -v`
++
++Expected: all UDP tests pass.
++
++- [ ] **Step 7: Commit UDP coverage and counter fix**
++
++```powershell
++git add xpwebapi/udp.py tests/test_udp.py
++git commit -m "fix: track udp monitor counters"
++```
++
++---
++
++### Task 7: Expand Beacon Coverage
++
++**Files:**
++- Modify: `tests/test_beacon.py`
++
++**Interfaces:**
++- Consumes: `make_beacon_packet`
++- Consumes: existing `BeaconMonitorTestCase.make_monitor`
++- Produces: additional receiving beacon, status, callback, and monitor lifecycle tests
++
++- [ ] **Step 1: Import status enum**
++
++Update imports:
++
++```python
++from xpwebapi.beacon import BEACON_MONITOR_STATUS, BeaconData, XPBeaconMonitor, XPlaneNoBeacon, XPlaneVersionNotSupported
++```
++
++- [ ] **Step 2: Add receiving beacon warning behavior tests**
++
++Add this class after `TestXPBeaconMonitorSameHost`:
++
++```python
++class TestXPBeaconMonitorStatus(BeaconMonitorTestCase):
++    def test_receiving_beacon_returns_true_when_data_exists(self):
++        monitor = self.make_monitor()
++        monitor.data = BeaconData(host="127.0.0.1", port=49000, hostname="xp", xplane_version=121400, role=1)
++
++        self.assertTrue(monitor.receiving_beacon)
++
++    def test_receiving_beacon_increments_warning_counter_when_no_data(self):
++        monitor = self.make_monitor()
++
++        with patch("xpwebapi.beacon.logger.warning"):
++            self.assertFalse(monitor.receiving_beacon)
++
++        self.assertEqual(monitor._already_warned, 1)
++
++    def test_stop_monitor_marks_status_not_running_when_already_stopped(self):
++        monitor = self.make_monitor()
++
++        with patch("xpwebapi.beacon.logger.warning"):
++            monitor.stop_monitor()
++
++        self.assertEqual(monitor.status, BEACON_MONITOR_STATUS.NOT_RUNNING)
++```
++
++- [ ] **Step 3: Add callback no-op test**
++
++Add this method to `TestXPBeaconMonitorCallbacks`:
++
++```python
++def test_set_callback_ignores_none(self):
++    monitor = self.make_monitor()
++
++    monitor.set_callback(None)
++    monitor.callback(connected=False, beacon_data=None, same_host=None)
++
++    self.assertEqual(monitor._callback, set())
++```
++
++- [ ] **Step 4: Run targeted beacon tests**
++
++Run: `uv run python -m unittest tests.test_beacon -v`
++
++Expected: all beacon tests pass.
++
++- [ ] **Step 5: Commit beacon coverage**
++
++```powershell
++git add tests/test_beacon.py
++git commit -m "test: expand beacon coverage"
++```
++
++---
++
++### Task 8: Validate P0 Coverage Tranche And Update Backlog
++
++**Files:**
++- Modify: `BACKLOG.md`
++
++**Interfaces:**
++- Consumes: all tests added in Tasks 1-7
++- Produces: P0 `Expand unittest coverage` marked complete after validation
++
++- [ ] **Step 1: Run full test suite**
++
++Run: `uv run python -m unittest discover -v`
++
++Expected: all tests pass.
++
++- [ ] **Step 2: Run lint**
++
++Run: `uv run ruff check xpwebapi tests`
++
++Expected: `All checks passed!`
++
++- [ ] **Step 3: Run format check**
++
++Run: `uv run ruff format --check xpwebapi tests`
++
++Expected: all files already formatted.
++
++- [ ] **Step 4: Update `BACKLOG.md` P0 coverage checkboxes**
++
++Change:
++
++```markdown
++### [ ] Expand unittest coverage
++- [ ] Add shared `unittest` helpers for mocking X-Plane REST/WebSocket responses
++- [ ] Fill remaining coverage gaps for `Dataref`, `Command`, `Cache`, `XPRestAPI`, `XPWebsocketAPI`, `XPUDPAPI`, `XPBeaconMonitor`
++- [ ] Keep `uv run python -m unittest discover -v` as the test workflow
++```
++
++to:
++
++```markdown
++### [x] Expand unittest coverage
++- [x] Add shared `unittest` helpers for mocking X-Plane REST/WebSocket responses
++- [x] Fill remaining coverage gaps for `Dataref`, `Command`, `Cache`, `XPRestAPI`, `XPWebsocketAPI`, `XPUDPAPI`, `XPBeaconMonitor`
++- [x] Keep `uv run python -m unittest discover -v` as the test workflow
++```
++
++- [ ] **Step 5: Commit backlog update**
++
++```powershell
++git add BACKLOG.md
++git commit -m "docs: mark p0 coverage complete"
++```
++
++- [ ] **Step 6: Final verification**
++
++Run:
++
++```powershell
++git status -sb
++git log --oneline -5
++```
++
++Expected:
++
++- No unstaged or staged changes from the P0 coverage tranche.
++- Recent commits include the helper, coverage, and backlog commits.
++
++---
++
++## Self-Review Notes
++
++- Spec coverage: this plan implements the remaining P0 product requirement from `2026-06-20-xplane-webapi-vnext-product-design.md`.
++- Scope: P1-P3 work is intentionally not included because the approved spec spans multiple roadmap bands.
++- Test framework: all commands and examples use stdlib `unittest`.
++- Live simulator dependency: every test uses mocks or deterministic packet builders.
++- Public API: no public entry points are removed or renamed.
+diff --git a/docs/superpowers/specs/2026-06-20-xplane-webapi-vnext-product-design.md b/docs/superpowers/specs/2026-06-20-xplane-webapi-vnext-product-design.md
+new file mode 100644
+index 0000000..b756e30
+--- /dev/null
++++ b/docs/superpowers/specs/2026-06-20-xplane-webapi-vnext-product-design.md
+@@ -0,0 +1,419 @@
++# xplane-webapi vNext Product Design
++
++**Date:** 2026-06-20
++**Scope:** Whole-app vNext product spec for `xplane-webapi`
++**Status:** Draft for review
++**Approach:** Stabilize and evolve the existing SDK without breaking current public entry points.
++
++---
++
++## Product Direction
++
++`xplane-webapi` vNext is a Python 3.12 SDK for building X-Plane automation, monitoring, training, analytics, and cockpit tooling without forcing users to care which simulator transport is underneath.
++
++The library exposes a coherent object model around `Dataref`, `Command`, metadata, and connection clients while supporting the simulator transports users need:
++
++- Synchronous REST for direct request/response operations.
++- Async REST for event-loop based applications.
++- WebSocket for event monitoring and subscription workflows.
++- UDP for simulator-native packet monitoring and command/dataref operations.
++- Beacon discovery for finding X-Plane and identifying local vs remote simulator instances.
++
++The main product promise is:
++
++> A user can discover X-Plane, read and write datarefs, execute commands, monitor simulator state, and cleanly manage connections with predictable errors, typed metadata, documented lifecycle rules, and tests that prove behavior without requiring a live simulator.
++
++vNext preserves existing public entry points:
++
++- `xpwebapi.rest_api()`
++- `xpwebapi.async_rest_api()`
++- `xpwebapi.ws_api()`
++- `xpwebapi.udp_api()`
++- `xpwebapi.beacon()`
++- `Dataref`
++- `Command`
++- existing custom exceptions and legacy exception aliases
++
++The roadmap tightens behavior and documentation behind those entry points instead of replacing the public API.
++
++---
++
++## Users
++
++### Primary Users
++
++- Python developers building X-Plane companion tools.
++- Simulator cockpit, training, and monitoring tool authors.
++- Data logging and analytics developers.
++- Automation users who need to read datarefs, write datarefs, or execute commands without implementing X-Plane protocols directly.
++
++### Secondary Users
++
++- Contributors maintaining transport behavior, examples, and docs.
++- Advanced users building high-frequency monitoring workflows.
++- Users migrating from simple REST scripts to async or WebSocket applications.
++
++---
++
++## Product Pillars
++
++### 1. Stable Core SDK
++
++The shared SDK model remains centered on:
++
++- `Dataref`
++- `Command`
++- `DatarefMeta`
++- `CommandMeta`
++- dataref value parsing and encoding
++- command duration handling
++- metadata caches
++- shared result and value types
++
++Public factories remain the preferred entry points. Internals can evolve, but callers should not need to rewrite basic code for vNext.
++
++### 2. Transport Parity
++
++Each transport has a distinct role:
++
++- REST owns simple direct read/write/execute operations.
++- Async REST mirrors REST semantics for event-loop applications.
++- WebSocket owns event subscription and callback-oriented monitoring.
++- UDP owns packet-level simulator monitoring and command/dataref operations.
++- Beacon discovery provides simulator location and reachability context.
++
++Transport parity does not mean every transport exposes every feature. It means shared workflows have consistent naming, return semantics, lifecycle expectations, and error behavior where the underlying protocol supports them.
++
++### 3. Reliability And Observability
++
++The SDK should fail predictably:
++
++- Library-originated failures use the custom exception hierarchy.
++- Legacy exception names remain importable and catchable.
++- Exceptions carry useful context such as host, port, timeout, packet type, expected length, and actual length.
++- Connection status remains visible through client state.
++- Logging separates user-facing application logs from request/response traffic where practical.
++- Structured logging becomes available as an opt-in P2 feature.
++
++### 4. Developer Confidence
++
++The test suite should support safe evolution of every public workflow without a live X-Plane dependency.
++
++The approved workflow remains:
++
++```powershell
++uv run python -m unittest discover -v
++uv run ruff check xpwebapi tests
++uv run ruff format --check xpwebapi tests
++```
++
++Shared test helpers should reduce duplicated mock setup for:
++
++- REST responses
++- async REST responses
++- WebSocket messages
++- UDP packets and sockets
++- beacon packets and sockets
++- metadata fixtures
++
++### 5. Documentation And Examples
++
++Docs should explain which transport to use:
++
++- REST: one-off reads, writes, and command execution.
++- Async REST: applications already running an event loop.
++- WebSocket: subscriptions, callbacks, and event monitoring.
++- UDP: simulator-native packet flows and lightweight data monitoring.
++- Beacon: discovery and UDP setup.
++
++Examples should map to real workflows such as simple REST reads, WebSocket monitoring, UDP monitoring, beacon discovery, flight data recording, and analytics.
++
++---
++
++## Architecture
++
++### Package Surface
++
++`xpwebapi.__init__` remains the public aggregation point for stable factories, classes, exceptions, and value types.
++
++The public package should continue to export:
++
++- domain objects: `Dataref`, `Command`
++- metadata and value types
++- client classes: `XPRestAPI`, `AsyncXPRestAPI`, `XPWebsocketAPI`, `XPUDPAPI`, `XPBeaconMonitor`
++- callback enum: `CALLBACK_TYPE`
++- exception hierarchy and legacy aliases
++- factories: `rest_api`, `async_rest_api`, `ws_api`, `udp_api`, `beacon`
++
++### Domain Objects
++
++`Dataref` and `Command` are the cross-transport handles users work with.
++
++`Dataref` owns:
++
++- path and optional selected array index parsing
++- local value staging
++- dataref metadata lookup
++- value parsing and base64/data encoding
++- monitor counters
++- convenience delegation to the active API
++
++`Command` owns:
++
++- path and duration
++- metadata lookup
++- command execution delegation
++- command monitoring delegation where supported
++
++### Transport Clients
++
++Transport clients remain separate because they have different I/O models.
++
++`XPRestAPI` owns:
++
++- synchronous HTTP session lifecycle
++- capabilities lookup
++- metadata fetches
++- direct dataref read/write
++- command execution
++- sync cache loading
++
++`AsyncXPRestAPI` owns:
++
++- async HTTP session lifecycle
++- async capabilities lookup
++- async metadata fetches
++- async dataref read/write
++- async command execution
++- async context manager cleanup
++
++`XPWebsocketAPI` owns:
++
++- WebSocket connection lifecycle
++- listener thread lifecycle
++- callback dispatch
++- event subscription payloads
++- monitored dataref and command-active workflows
++- REST fallback when configured
++
++`XPUDPAPI` owns:
++
++- UDP socket lifecycle
++- dataref write and command packet generation
++- monitored dataref requests
++- RREF packet decoding
++- timeout and malformed packet errors
++
++`XPBeaconMonitor` owns:
++
++- multicast beacon listening
++- same-host detection
++- retry behavior
++- beacon callbacks
++- monitor thread lifecycle
++
++### Metadata Caches
++
++`DatarefCache` and `CommandCache` are the typed cache model for vNext.
++
++The product direction is to prefer typed caches everywhere internal code knows whether it is handling datarefs or commands. The older generic `Cache` behavior can remain for compatibility, but new code should not depend on heuristic metadata construction.
++
++---
++
++## Priority Roadmap
++
++The existing P0-P3 backlog model remains the product planning framework.
++
++### P0 Critical
++
++P0 work is required to trust the SDK's behavior and safely evolve it.
++
++Current P0:
++
++- Expand `unittest` coverage.
++
++Completed P0 foundations:
++
++- Fixed LSP return contract issues for `dataref_value`, `execute_command`, and `write_dataref`.
++- Added the custom exception hierarchy.
++
++Product definition of done for the remaining P0:
++
++- Shared `unittest` helpers exist for REST, async REST, WebSocket, UDP, beacon, and metadata fixtures.
++- Core object coverage includes `Dataref`, `Command`, cache behavior, value parsing, encoding, metadata failures, and monitor counters.
++- Transport coverage includes success, disconnected, malformed response/packet, timeout, and cleanup paths.
++- Tests remain independent from a live X-Plane instance.
++- The approved local quality workflow passes.
++
++### P1 High
++
++P1 work materially improves SDK usefulness without requiring a breaking redesign.
++
++P1 roadmap:
++
++- Async REST support via `httpx.AsyncClient`.
++- Separate `DatarefCache` and `CommandCache`.
++- Context manager support for lifecycle-owning clients.
++
++Product definition of done:
++
++- Async REST mirrors sync REST behavior where practical.
++- Typed caches are used internally for dataref and command metadata.
++- REST, async REST, WebSocket, UDP, and beacon clients have explicit cleanup behavior.
++- Public examples show sync and async lifecycle patterns.
++
++### P2 Medium
++
++P2 work improves maintainability, typing, and diagnostics.
++
++P2 roadmap:
++
++- Use `Protocol` instead of `ABC` for the API contract if it reduces friction without destabilizing current clients.
++- Modernize type annotations.
++- Add structured logging.
++- Evaluate `websockets` as a replacement for `simple-websocket`.
++
++Product definition of done:
++
++- Type contracts are clearer for contributors and downstream users.
++- Logging can be consumed by applications without parsing free-form text.
++- WebSocket dependency decisions are backed by compatibility and maintenance evidence.
++
++### P3 Low
++
++P3 work improves polish, adoption, automation, and performance.
++
++P3 roadmap:
++
++- CI/CD pipeline.
++- Documentation improvements.
++- Batch dataref request optimization.
++- Connection pooling.
++
++Product definition of done:
++
++- CI runs lint, format check, type checking, and `unittest`.
++- Docs explain transport choice and lifecycle patterns.
++- Batch monitoring helpers reduce repeated round trips where protocols support it.
++- Connection pooling improves repeated REST usage without changing default behavior unexpectedly.
++
++---
++
++## User Workflows
++
++### Discover Simulator
++
++Users should be able to create a beacon monitor, wait for X-Plane, inspect beacon data, and pass discovery results into UDP workflows.
++
++Success means discovery errors are typed, retries are configurable, and examples show same-host vs remote behavior.
++
++### Read Simulator State
++
++Users should be able to read datarefs through REST or async REST for direct operations and through WebSocket or UDP for monitored values.
++
++Success means scalar, array, bytes/data, and `None` results are documented and tested.
++
++### Write Simulator State
++
++Users should be able to stage a `Dataref` value and write it through the selected transport when supported.
++
++Success means unwritable datarefs, missing metadata, missing staged values, selected array indices, and data/base64 values behave consistently and are tested.
++
++### Execute Commands
++
++Users should be able to create `Command` objects and execute them with explicit or default durations.
++
++Success means duration precedence and transport-specific payloads are documented and tested.
++
++### Monitor Events
++
++Users should be able to subscribe to dataref updates and command-active events through WebSocket, and monitor dataref values through UDP.
++
++Success means callback behavior, duplicate monitor counts, unmonitor behavior, and disconnected behavior are predictable and tested.
++
++### Clean Up Reliably
++
++Users should be able to close sessions, disconnect sockets, stop listener threads, and stop beacon monitors explicitly or with context managers where supported.
++
++Success means cleanup is idempotent enough for normal application use and examples use the preferred lifecycle style.
++
++---
++
++## Non-Goals
++
++vNext does not require:
++
++- A full transport rewrite.
++- Removal of existing factory functions.
++- Removal of legacy exception names.
++- A forced migration from sync REST to async REST.
++- A live X-Plane dependency for tests.
++- A new testing framework.
++- A broad example rewrite outside docs-focused work.
++- A breaking public API change unless a future major-version plan explicitly approves it.
++
++---
++
++## Success Criteria
++
++vNext succeeds when:
++
++- The public API is easy to explain from the docs alone.
++- Each transport has clear lifecycle, error, and return behavior.
++- The remaining P0 coverage work is complete.
++- P1 features are implemented or have current accepted specs and plans.
++- New contributors can run one local quality workflow and trust the result.
++- Examples and docs make transport selection obvious.
++- Existing public entry points continue to work.
++- The priority backlog remains the source of truth for roadmap sequencing.
++
++---
++
++## Product Risks
++
++### Transport Semantics Diverge
++
++REST, async REST, WebSocket, and UDP cannot be perfectly identical. The product should document transport differences instead of hiding them behind weak abstractions.
++
++### Compatibility Slows Cleanup
++
++Legacy factories, aliases, and cache behavior are valuable for users but can preserve internal complexity. vNext should prefer compatibility with clear internal migration steps.
++
++### Tests Become Over-Mocked
++
++No live simulator dependency is correct for local validation, but tests must still assert real protocol payloads, packet shapes, URLs, and callback behavior. Shared helpers should reduce setup without hiding behavior under opaque fixtures.
++
++### Scope Creep
++
++The backlog includes quality, architecture, docs, and performance work. The P0-P3 model should keep sequencing explicit so vNext does not become a rewrite.
++
++---
++
++## Documentation Requirements
++
++Docs should include:
++
++- Transport selection guide.
++- Connection lifecycle guide.
++- Sync REST quickstart.
++- Async REST quickstart.
++- WebSocket monitoring guide.
++- UDP and beacon guide.
++- Error handling guide.
++- Testing and contribution workflow.
++
++Each guide should use the current public factories and should prefer short, working examples.
++
++---
++
++## Quality Workflow
++
++The project quality workflow remains:
++
++```powershell
++uv run python -m unittest discover -v
++uv run ruff check xpwebapi tests
++uv run ruff format --check xpwebapi tests
++```
++
++Future CI should run the same checks before adding publishing or release automation.
+diff --git a/tests/__init__.py b/tests/__init__.py
+index e69de29..fcb9ea1 100644
+--- a/tests/__init__.py
++++ b/tests/__init__.py
+@@ -0,0 +1,12 @@
++import logging
++
++
++def _silence_test_logger(name: str) -> None:
++    logger = logging.getLogger(name)
++    logger.handlers.clear()
++    logger.addHandler(logging.NullHandler())
++    logger.propagate = False
++
++
++for _logger_name in ("xpwebapi", "webapi"):
++    _silence_test_logger(_logger_name)
+diff --git a/tests/helpers.py b/tests/helpers.py
+new file mode 100644
+index 0000000..ac0aeba
+--- /dev/null
++++ b/tests/helpers.py
+@@ -0,0 +1,105 @@
++import base64
++import struct
++import unittest
++from unittest.mock import MagicMock
++
++from xpwebapi.api import API, APIResult, Command, CommandMeta, Dataref, DatarefMeta, DatarefReadResult
++
++
++def mock_response(status_code: int, payload: dict | None = None) -> MagicMock:
++    response = MagicMock()
++    response.status_code = status_code
++    response.reason_phrase = "OK" if status_code == 200 else "Error"
++    response.text = ""
++    response.json.return_value = payload or {}
++    return response
++
++
++class TestHelpersSmoke(unittest.TestCase):
++    def test_helpers_are_importable(self):
++        helpers = (
++            mock_response,
++            make_dataref_meta,
++            make_command_meta,
++            encoded_data,
++            make_rref_packet,
++            make_beacon_packet,
++            DummyAPI,
++        )
++
++        for helper in helpers:
++            self.assertIsNotNone(helper)
++
++
++def make_dataref_meta(name: str = "sim/test/value", value_type: str = "int", is_writable: bool = True, ident: int = 10) -> DatarefMeta:
++    return DatarefMeta(name=name, value_type=value_type, is_writable=is_writable, id=ident)
++
++
++def make_command_meta(name: str = "sim/test/command", description: str = "Test command", ident: int = 20) -> CommandMeta:
++    return CommandMeta(name=name, description=description, id=ident)
++
++
++def encoded_data(value: bytes = b"abc") -> str:
++    return base64.b64encode(value).decode("ascii")
++
++
++def make_rref_packet(values: list[tuple[int, float]]) -> bytes:
++    packet = b"RREF,"
++    for ident, value in values:
++        packet += struct.pack("<if", ident, value)
++    return packet
++
++
++def make_beacon_packet(
++    hostname: str = "testhost",
++    port: int = 49000,
++    xplane_version: int = 121400,
++    role: int = 1,
++    major: int = 1,
++    minor: int = 2,
++    app_id: int = 1,
++) -> bytes:
++    header = b"BECN\x00"
++    data = struct.pack("<BBiiIH", major, minor, app_id, xplane_version, role, port)
++    return header + data + hostname.encode("utf-8") + b"\x00\x00"
++
++
++class DummyAPI(API):
++    def __init__(self, value: DatarefReadResult = None):
++        self.meta_by_path = {}
++        self.value_to_return = value
++        self.written = []
++        self.executed = []
++        self.monitored_datarefs = []
++        self.command_events = []
++        super().__init__(host="127.0.0.1", port=8086, api="/api", api_version="v1")
++
++    @property
++    def connected(self) -> bool:
++        return True
++
++    def get_rest_meta(self, obj: Dataref | Command, force: bool = False) -> DatarefMeta | CommandMeta | None:
++        return self.meta_by_path.get(obj.path)
++
++    def write_dataref(self, dataref: Dataref) -> APIResult:
++        self.written.append(dataref)
++        return True
++
++    def dataref_value(self, dataref: Dataref, raw: bool = False, no_decode: bool = False) -> DatarefReadResult:
++        return self.value_to_return
++
++    def execute_command(self, command: Command, duration: float = 0.0) -> APIResult:
++        self.executed.append((command, duration))
++        return True
++
++    def monitor_dataref(self, dataref: Dataref) -> bool:
++        self.monitored_datarefs.append(("monitor", dataref))
++        return True
++
++    def unmonitor_dataref(self, dataref: Dataref) -> bool:
++        self.monitored_datarefs.append(("unmonitor", dataref))
++        return True
++
++    def register_command_is_active_event(self, path: str, on: bool = True) -> bool:
++        self.command_events.append((path, on))
++        return True
+diff --git a/tests/test_api.py b/tests/test_api.py
+index 1dd1b38..d99b076 100644
+--- a/tests/test_api.py
++++ b/tests/test_api.py
+@@ -1,78 +1,29 @@
+ import base64
+ import unittest
++from tempfile import TemporaryDirectory
+ from unittest.mock import MagicMock
+ 
++from tests.helpers import DummyAPI, encoded_data, make_command_meta, make_dataref_meta, mock_response
+ from xpwebapi.api import (
+-    API,
+-    APIResult,
+     DATAREF_DATATYPE,
+     Cache,
+     CommandCache,
+     Command,
+     CommandMeta,
+     DatarefCache,
+     Dataref,
+     DatarefMeta,
+-    DatarefReadResult,
+     ValueCache,
+ )
+ 
+ 
+-def mock_response(status_code: int, payload: dict | None = None):
+-    response = MagicMock()
+-    response.status_code = status_code
+-    response.json.return_value = payload or {}
+-    return response
+-
+-
+-class DummyAPI(API):
+-    def __init__(self, value: DatarefReadResult = None):
+-        self.meta_by_path = {}
+-        self.value_to_return = value
+-        self.written = []
+-        self.executed = []
+-        self.monitored_datarefs = []
+-        self.command_events = []
+-        super().__init__(host="127.0.0.1", port=8086, api="/api", api_version="v1")
+-
+-    @property
+-    def connected(self) -> bool:
+-        return True
+-
+-    def get_rest_meta(self, obj: Dataref | Command, force: bool = False) -> DatarefMeta | CommandMeta | None:
+-        return self.meta_by_path.get(obj.path)
+-
+-    def write_dataref(self, dataref: Dataref) -> APIResult:
+-        self.written.append(dataref)
+-        return True
+-
+-    def dataref_value(self, dataref: Dataref, raw: bool = False, no_decode: bool = False) -> DatarefReadResult:
+-        return self.value_to_return
+-
+-    def execute_command(self, command: Command, duration: float = 0.0) -> APIResult:
+-        self.executed.append((command, duration))
+-        return True
+-
+-    def monitor_dataref(self, dataref: Dataref) -> bool:
+-        self.monitored_datarefs.append(("monitor", dataref))
+-        return True
+-
+-    def unmonitor_dataref(self, dataref: Dataref) -> bool:
+-        self.monitored_datarefs.append(("unmonitor", dataref))
+-        return True
+-
+-    def register_command_is_active_event(self, path: str, on: bool = True) -> bool:
+-        self.command_events.append((path, on))
+-        return True
+-
+-
+ class TestDatarefMeta(unittest.TestCase):
+     def test_construction(self):
+         meta = DatarefMeta(name="sim/test/value", value_type="int", is_writable=True, id=42)
+         self.assertEqual(meta.name, "sim/test/value")
+         self.assertEqual(meta.value_type, "int")
+         self.assertTrue(meta.is_writable)
+         self.assertEqual(meta.ident, 42)
+ 
+     def test_is_array_for_array_types(self):
+         int_array = DatarefMeta(name="sim/test/int_array", value_type=DATAREF_DATATYPE.INTARRAY.value, is_writable=False, id=1)
+@@ -156,20 +107,37 @@ class TestDatarefCache(unittest.TestCase):
+ 
+     def test_failed_load_leaves_cache_empty(self):
+         api = DummyAPI()
+         api.session = MagicMock()
+         api.session.get.return_value = mock_response(500)
+         cache = DatarefCache(api)
+         cache.load()
+         self.assertEqual(cache.count, 0)
+         self.assertFalse(cache.has_data)
+ 
++    def test_save_writes_loaded_metadata_json(self):
++        api = DummyAPI()
++        cache = DatarefCache(api)
++        meta = make_dataref_meta(name="sim/test/value", ident=7)
++        cache._raw = [{"name": meta.name, "value_type": meta.value_type, "is_writable": meta.is_writable, "id": meta.ident}]
++        cache._by_name = {meta.name: meta}
++        cache._by_ids = {meta.ident: meta}
++
++        with TemporaryDirectory() as tmpdir:
++            filename = f"{tmpdir}/datarefs.json"
++            cache.save(filename)
++            with open(filename, encoding="utf-8") as handle:
++                content = handle.read()
++
++        self.assertIn("sim/test/value", content)
++        self.assertIn('"id": 7', content)
++
+ 
+ class TestCommandCache(unittest.TestCase):
+     def test_meta_factory_creates_command_meta(self):
+         meta = CommandCache.meta(name="sim/test/command", description="Test command", id=2)
+         self.assertIsInstance(meta, CommandMeta)
+         self.assertEqual(meta.name, "sim/test/command")
+         self.assertEqual(meta.description, "Test command")
+ 
+     def test_lookup_by_name_and_id(self):
+         cache = CommandCache(DummyAPI())
+@@ -208,20 +176,52 @@ class TestCacheCompatibility(unittest.TestCase):
+         api = DummyAPI()
+         api.session = MagicMock()
+         api.session.get.return_value = mock_response(200, {"data": [{"name": "sim/test/value", "value_type": "int", "is_writable": True, "id": 7}]})
+         cache = Cache(api)
+         cache.load("/datarefs")
+         api.session.get.assert_called_once_with(f"{api.rest_url}/datarefs")
+         self.assertIsInstance(cache.get_by_name("sim/test/value"), DatarefMeta)
+ 
+ 
+ class TestDataref(unittest.TestCase):
++    def test_indexed_path_parses_base_path_and_index(self):
++        api = DummyAPI()
++        dataref = Dataref(path="sim/test/array[4]", api=api)
++
++        self.assertEqual(dataref.name, "sim/test/array[4]")
++        self.assertEqual(dataref.path, "sim/test/array")
++        self.assertEqual(dataref.index, 4)
++
++    def test_string_representation_includes_index_and_value(self):
++        api = DummyAPI()
++        dataref = Dataref(path="sim/test/array[4]", api=api)
++        dataref.value = 12.5
++
++        self.assertEqual(str(dataref), "sim/test/array[4]=12.5")
++
++    def test_get_string_value_decodes_data_bytes_and_strips_nulls(self):
++        api = DummyAPI(value=b"ABC\x00\x00")
++        api.meta_by_path["sim/test/data"] = make_dataref_meta(name="sim/test/data", value_type=DATAREF_DATATYPE.DATA.value)
++        dataref = Dataref(path="sim/test/data", api=api)
++
++        self.assertEqual(dataref.get_string_value("ascii"), "ABC")
++
++    def test_set_string_value_encodes_data_value(self):
++        api = DummyAPI()
++        api.meta_by_path["sim/test/data"] = make_dataref_meta(name="sim/test/data", value_type=DATAREF_DATATYPE.DATA.value)
++        dataref = Dataref(path="sim/test/data", api=api)
++
++        dataref.set_string_value("ABC", "ascii")
++
++        self.assertEqual(dataref.value, b"ABC")
++        self.assertEqual(dataref.b64encoded, encoded_data(b"ABC"))
++
+     def test_value_reads_from_api_when_no_local_value_exists(self):
+         api = DummyAPI(value=12)
+         dataref = Dataref(path="sim/test/value", api=api)
+         self.assertEqual(dataref.value, 12)
+ 
+     def test_value_supports_array_values_from_api(self):
+         api = DummyAPI(value=[1.0, 2.0])
+         dataref = Dataref(path="sim/test/array", api=api)
+         self.assertEqual(dataref.value, [1.0, 2.0])
+ 
+@@ -269,22 +269,63 @@ class TestDataref(unittest.TestCase):
+ 
+     def test_write_monitor_and_unmonitor_delegate_to_api(self):
+         api = DummyAPI()
+         dataref = Dataref(path="sim/test/value", api=api)
+         self.assertTrue(dataref.write())
+         self.assertTrue(dataref.monitor())
+         self.assertTrue(dataref.unmonitor())
+         self.assertEqual(api.written, [dataref])
+         self.assertEqual(api.monitored_datarefs, [("monitor", dataref), ("unmonitor", dataref)])
+ 
++    def test_invalid_meta_properties_record_errors(self):
++        api = DummyAPI()
++        dataref = Dataref(path="sim/test/missing", api=api)
++
++        self.assertFalse(dataref.valid)
++        self.assertIsNone(dataref.ident)
++        self.assertIsNone(dataref.value_type)
++        self.assertFalse(dataref.is_writable)
++        self.assertGreaterEqual(dataref._err, 3)
++
++    def test_monitor_counter_tracks_nested_monitoring(self):
++        api = DummyAPI()
++        dataref = Dataref(path="sim/test/value", api=api)
++
++        dataref.inc_monitor()
++        dataref.inc_monitor()
++
++        self.assertTrue(dataref.is_monitored)
++        self.assertEqual(dataref.monitored_count, 2)
++        self.assertTrue(dataref.dec_monitor())
++        self.assertFalse(dataref.dec_monitor())
++        self.assertEqual(dataref.monitored_count, 0)
++
+ 
+ class TestCommand(unittest.TestCase):
++    def test_command_metadata_properties_use_cached_meta(self):
++        api = DummyAPI()
++        api.meta_by_path["sim/test/command"] = make_command_meta(ident=44)
++        command = Command(path="sim/test/command", api=api)
++
++        self.assertTrue(command.valid)
++        self.assertEqual(command.ident, 44)
++        self.assertEqual(command.description, "Test command")
++
++    def test_command_invalid_metadata_records_errors(self):
++        api = DummyAPI()
++        command = Command(path="sim/test/missing", api=api)
++
++        self.assertFalse(command.valid)
++        self.assertIsNone(command.ident)
++        self.assertIsNone(command.description)
++        self.assertGreaterEqual(command._err, 2)
++
+     def test_execute_delegates_to_api(self):
+         api = DummyAPI()
+         command = Command(path="sim/test/command", api=api)
+         self.assertTrue(command.execute(duration=1.5))
+         self.assertEqual(api.executed, [(command, 1.5)])
+ 
+     def test_monitor_and_unmonitor_delegate_to_api(self):
+         api = DummyAPI()
+         command = Command(path="sim/test/command", api=api)
+         self.assertTrue(command.monitor())
+diff --git a/tests/test_async_rest.py b/tests/test_async_rest.py
+index 5c4e79c..f25385f 100644
+--- a/tests/test_async_rest.py
++++ b/tests/test_async_rest.py
+@@ -1,31 +1,23 @@
+ import base64
+ import unittest
+ from unittest.mock import AsyncMock, MagicMock, patch
+ 
+ import httpx
+ 
+ import xpwebapi
++from tests.helpers import mock_response
+ from xpwebapi.api import CONNECTION_STATUS, DATAREF_DATATYPE, Command, CommandMeta, Dataref, DatarefMeta
+ from xpwebapi.async_rest import AsyncXPRestAPI
+ from xpwebapi.rest import V1_CAPABILITIES, XPRestAPI
+ 
+ 
+-def mock_response(status_code: int, payload: dict | None = None):
+-    response = MagicMock()
+-    response.status_code = status_code
+-    response.reason_phrase = "OK" if status_code == 200 else "Error"
+-    response.text = ""
+-    response.json.return_value = payload or {}
+-    return response
+-
+-
+ class AsyncRestAPITestCase(unittest.IsolatedAsyncioTestCase):
+     def make_api(self):
+         api = AsyncXPRestAPI(host="127.0.0.1", port=8086, api="/api", api_version="v1")
+         api.session = MagicMock()
+         api.session.get = AsyncMock()
+         api.session.post = AsyncMock()
+         api.session.patch = AsyncMock()
+         api.session.aclose = AsyncMock()
+         api._show_stats = False
+         return api
+@@ -163,20 +155,27 @@ class TestAsyncXPRestAPIGetRestMeta(AsyncRestAPITestCase):
+         self.assertIsNone(await api.get_rest_meta(dataref))
+ 
+ 
+ class TestAsyncXPRestAPIDatarefValue(AsyncRestAPITestCase):
+     async def test_dataref_value_returns_scalar(self):
+         api = self.make_api()
+         dataref = self.make_dataref(api)
+         api.session.get.side_effect = [mock_response(200, {"data": 1}), mock_response(200, {"data": 42})]
+         self.assertEqual(await api.dataref_value(dataref), 42)
+ 
++    async def test_shared_mock_response_supports_async_rest(self):
++        api = self.make_api()
++        dataref = self.make_dataref(api)
++        api.session.get.side_effect = [mock_response(200, {"data": 1}), mock_response(200, {"data": 77})]
++
++        self.assertEqual(await api.dataref_value(dataref), 77)
++
+     async def test_dataref_value_decodes_base64_string(self):
+         api = self.make_api()
+         dataref = self.make_dataref(api, value_type=DATAREF_DATATYPE.DATA.value)
+         encoded = base64.b64encode(b"abc").decode("ascii")
+         api.session.get.side_effect = [mock_response(200, {"data": 1}), mock_response(200, {"data": encoded})]
+         self.assertEqual(await api.dataref_value(dataref), b"abc")
+ 
+     async def test_dataref_value_raw_returns_encoded_string(self):
+         api = self.make_api()
+         dataref = self.make_dataref(api, value_type=DATAREF_DATATYPE.DATA.value)
+diff --git a/tests/test_beacon.py b/tests/test_beacon.py
+index 8c809fa..98e520b 100644
+--- a/tests/test_beacon.py
++++ b/tests/test_beacon.py
+@@ -1,23 +1,17 @@
+ import socket
+-import struct
+ import unittest
+ from unittest.mock import MagicMock, patch
+ 
+ import xpwebapi
+-from xpwebapi.beacon import BeaconData, XPBeaconMonitor, XPlaneNoBeacon, XPlaneVersionNotSupported
+-
+-
+-def make_beacon_packet(hostname="testhost", port=49000, xplane_version=121400, role=1, major=1, minor=2, app_id=1):
+-    header = b"BECN\x00"
+-    data = struct.pack("<BBiiIH", major, minor, app_id, xplane_version, role, port)
+-    return header + data + hostname.encode("utf-8") + b"\x00\x00"
++from tests.helpers import make_beacon_packet
++from xpwebapi.beacon import BEACON_MONITOR_STATUS, BeaconData, XPBeaconMonitor, XPlaneNoBeacon, XPlaneVersionNotSupported
+ 
+ 
+ class BeaconMonitorTestCase(unittest.TestCase):
+     def make_monitor(self):
+         with patch("xpwebapi.beacon.list_my_ips", return_value=[]):
+             return XPBeaconMonitor()
+ 
+     def mock_sockets(self, recvfrom):
+         monitor_socket = MagicMock()
+         beacon_socket = MagicMock()
+@@ -127,20 +121,44 @@ class TestXPBeaconMonitorSameHost(BeaconMonitorTestCase):
+         with patch("xpwebapi.beacon.logger.warning"):
+             self.assertFalse(monitor.same_host())
+ 
+     def test_same_host_returns_false_for_remote_host(self):
+         monitor = self.make_monitor()
+         monitor.data = BeaconData(host="192.168.1.50", port=49000, hostname="xp", xplane_version=121400, role=1)
+         monitor.my_ips = ["127.0.0.1"]
+         self.assertFalse(monitor.same_host())
+ 
+ 
++class TestXPBeaconMonitorStatus(BeaconMonitorTestCase):
++    def test_receiving_beacon_returns_true_when_data_exists(self):
++        monitor = self.make_monitor()
++        monitor.data = BeaconData(host="127.0.0.1", port=49000, hostname="xp", xplane_version=121400, role=1)
++
++        self.assertTrue(monitor.receiving_beacon)
++
++    def test_receiving_beacon_increments_warning_counter_when_no_data(self):
++        monitor = self.make_monitor()
++
++        with patch("xpwebapi.beacon.logger.warning"):
++            self.assertFalse(monitor.receiving_beacon)
++
++        self.assertEqual(monitor._already_warned, 1)
++
++    def test_stop_monitor_marks_status_not_running_when_already_stopped(self):
++        monitor = self.make_monitor()
++
++        with patch("xpwebapi.beacon.logger.warning"):
++            monitor.stop_monitor()
++
++        self.assertEqual(monitor.status, BEACON_MONITOR_STATUS.NOT_RUNNING)
++
++
+ class TestXPBeaconMonitorCallbacks(BeaconMonitorTestCase):
+     def test_callback_executes_registered_callbacks(self):
+         monitor = self.make_monitor()
+         callback = MagicMock()
+         data = BeaconData(host="127.0.0.1", port=49000, hostname="xp", xplane_version=121400, role=1)
+         monitor.set_callback(callback)
+ 
+         monitor.callback(connected=True, beacon_data=data, same_host=True)
+ 
+         callback.assert_called_once_with(connected=True, beacon_data=data, same_host=True)
+@@ -160,13 +178,21 @@ class TestXPBeaconMonitorCallbacks(BeaconMonitorTestCase):
+         first = MagicMock()
+         second = MagicMock()
+         monitor.set_callback(first)
+         monitor.set_callback(second)
+ 
+         monitor.callback(connected=False, beacon_data=None, same_host=False)
+ 
+         first.assert_called_once()
+         second.assert_called_once()
+ 
++    def test_set_callback_ignores_none(self):
++        monitor = self.make_monitor()
++
++        monitor.set_callback(None)
++        monitor.callback(connected=False, beacon_data=None, same_host=None)
++
++        self.assertEqual(monitor._callback, set())
++
+ 
+ if __name__ == "__main__":
+     unittest.main()
+diff --git a/tests/test_rest.py b/tests/test_rest.py
+index 83e5685..1a045b7 100644
+--- a/tests/test_rest.py
++++ b/tests/test_rest.py
+@@ -1,27 +1,19 @@
+ import base64
+ import unittest
+ from unittest.mock import MagicMock, PropertyMock, patch
+ 
+ import httpx
+ 
+-from xpwebapi.api import DATAREF_DATATYPE, Command, CommandMeta, Dataref, DatarefMeta
+-from xpwebapi.rest import XPRestAPI
+-
+-
+-def mock_response(status_code: int, payload: dict | None = None):
+-    response = MagicMock()
+-    response.status_code = status_code
+-    response.reason_phrase = "OK" if status_code == 200 else "Error"
+-    response.text = ""
+-    response.json.return_value = payload or {}
+-    return response
++from tests.helpers import mock_response
++from xpwebapi.api import DATAREF_DATATYPE, Command, CommandMeta, Dataref, DatarefCache, DatarefMeta
++from xpwebapi.rest import V1_CAPABILITIES, XPRestAPI
+ 
+ 
+ class RestAPITestCase(unittest.TestCase):
+     def make_api(self):
+         api = XPRestAPI(host="127.0.0.1", port=8086, api="/api", api_version="v1")
+         api.session = MagicMock()
+         api._show_stats = False
+         return api
+ 
+     def make_dataref(self, api, value_type="int", is_writable=True, ident=10):
+@@ -66,20 +58,49 @@ class TestXPRestAPIConnected(RestAPITestCase):
+         api._show_stats = False
+         api.session.get.side_effect = [httpx.ConnectError("failed"), mock_response(200, {"data": 1})]
+ 
+         with patch("xpwebapi.rest.sleep_before_retry") as sleep:
+             self.assertTrue(api.connected)
+ 
+         self.assertEqual(api.session.get.call_count, 2)
+         sleep.assert_called_once_with(api.retry_config, 0)
+ 
+ 
++class TestXPRestAPICapabilities(RestAPITestCase):
++    def test_capabilities_are_cached_after_successful_fetch(self):
++        api = self.make_api()
++        payload = {"api": {"versions": ["v1", "v2"]}, "x-plane": {"version": "12.2.1"}}
++        api.session.get.return_value = mock_response(200, payload)
++
++        with patch.object(XPRestAPI, "connected", new_callable=PropertyMock, return_value=True):
++            self.assertEqual(api.capabilities, payload)
++            self.assertEqual(api.capabilities, payload)
++
++        api.session.get.assert_called_once()
++
++    def test_capabilities_fall_back_to_v1_probe(self):
++        api = self.make_api()
++        api.session.get.side_effect = [mock_response(404), mock_response(200, {"data": 1})]
++
++        with patch.object(XPRestAPI, "connected", new_callable=PropertyMock, return_value=True):
++            self.assertEqual(api.capabilities, V1_CAPABILITIES)
++
++    def test_set_api_version_selects_latest_available_when_unspecified(self):
++        api = self.make_api()
++        api._capabilities = {"api": {"versions": ["v1", "v3", "v2"]}, "x-plane": {"version": "12.2.1"}}
++
++        api.set_api_version()
++
++        self.assertEqual(api.version, "v3")
++        self.assertEqual(api._api_version, "/v3")
++
++
+ class TestXPRestAPIGetRestMeta(RestAPITestCase):
+     def test_get_rest_meta_returns_cached_meta(self):
+         api = self.make_api()
+         dataref = self.make_dataref(api)
+         with patch.object(XPRestAPI, "connected", new_callable=PropertyMock, return_value=True):
+             self.assertIs(api.get_rest_meta(dataref), dataref._cached_meta)
+         api.session.get.assert_not_called()
+ 
+     def test_get_rest_meta_fetches_dataref_meta(self):
+         api = self.make_api()
+@@ -94,20 +115,28 @@ class TestXPRestAPIGetRestMeta(RestAPITestCase):
+     def test_get_rest_meta_fetches_command_meta(self):
+         api = self.make_api()
+         command = Command(path="sim/test/command", api=api)
+         api.session.get.return_value = mock_response(200, {"data": [{"name": command.path, "description": "Test command", "id": 8}]})
+         with patch.object(XPRestAPI, "connected", new_callable=PropertyMock, return_value=True):
+             meta = api.get_rest_meta(command)
+         self.assertIsInstance(meta, CommandMeta)
+         self.assertEqual(meta.ident, 8)
+         self.assertIs(command._cached_meta, meta)
+ 
++    def test_get_rest_meta_returns_none_for_empty_metadata(self):
++        api = self.make_api()
++        dataref = Dataref(path="sim/test/value", api=api)
++        api.session.get.return_value = mock_response(200, {"data": []})
++
++        with patch.object(XPRestAPI, "connected", new_callable=PropertyMock, return_value=True):
++            self.assertIsNone(api.get_rest_meta(dataref))
++
+ 
+ class TestXPRestAPIDatarefValue(RestAPITestCase):
+     def test_dataref_value_returns_scalar(self):
+         api = self.make_api()
+         dataref = self.make_dataref(api)
+         api.session.get.return_value = mock_response(200, {"data": 42})
+         with patch.object(XPRestAPI, "connected", new_callable=PropertyMock, return_value=True):
+             self.assertEqual(api.dataref_value(dataref), 42)
+ 
+     def test_dataref_value_decodes_base64_string(self):
+@@ -159,20 +188,42 @@ class TestXPRestAPIWriteDataref(RestAPITestCase):
+         api.session.patch.assert_called_once()
+ 
+     def test_write_dataref_rejects_unwritable_dataref(self):
+         api = self.make_api()
+         dataref = self.make_dataref(api, is_writable=False)
+         dataref.value = 99
+         with patch.object(XPRestAPI, "connected", new_callable=PropertyMock, return_value=True):
+             self.assertFalse(api.write_dataref(dataref))
+         api.session.patch.assert_not_called()
+ 
++    def test_write_dataref_rejects_missing_new_value(self):
++        api = self.make_api()
++        dataref = self.make_dataref(api)
++
++        with patch.object(XPRestAPI, "connected", new_callable=PropertyMock, return_value=True):
++            self.assertFalse(api.write_dataref(dataref))
++
++        api.session.patch.assert_not_called()
++
++    def test_write_dataref_selected_array_element_adds_index_to_url(self):
++        api = self.make_api()
++        dataref = Dataref(path="sim/test/array[2]", api=api)
++        dataref._cached_meta = DatarefMeta(name=dataref.path, value_type=DATAREF_DATATYPE.FLOATARRAY.value, is_writable=True, id=31)
++        dataref.value = 8.5
++        api.session.patch.return_value = mock_response(200, {"result": "ok"})
++
++        with patch.object(XPRestAPI, "connected", new_callable=PropertyMock, return_value=True):
++            self.assertTrue(api.write_dataref(dataref))
++
++        url = api.session.patch.call_args.args[0]
++        self.assertTrue(url.endswith("/datarefs/31/value?index=2"))
++
+     def test_write_dataref_returns_false_when_not_connected(self):
+         api = self.make_api()
+         dataref = self.make_dataref(api)
+         with patch.object(XPRestAPI, "connected", new_callable=PropertyMock, return_value=False):
+             self.assertFalse(api.write_dataref(dataref))
+ 
+     def test_write_dataref_returns_false_for_error_response(self):
+         api = self.make_api()
+         dataref = self.make_dataref(api)
+         dataref.value = 99
+@@ -207,12 +258,30 @@ class TestXPRestAPIExecuteCommand(RestAPITestCase):
+             self.assertFalse(api.execute_command(command))
+ 
+     def test_execute_command_returns_false_for_error_response(self):
+         api = self.make_api()
+         command = self.make_command(api)
+         api.session.post.return_value = mock_response(500, {"error": "boom"})
+         with patch.object(XPRestAPI, "connected", new_callable=PropertyMock, return_value=True):
+             self.assertFalse(api.execute_command(command))
+ 
+ 
++class TestXPRestAPICaches(RestAPITestCase):
++    def test_invalidate_caches_clears_loaded_caches(self):
++        api = self.make_api()
++        api.all_datarefs = DatarefCache(api)
++        api.all_commands = MagicMock()
++
++        api.invalidate_caches()
++
++        self.assertIsNone(api.all_datarefs)
++        self.assertIsNone(api.all_commands)
++
++    def test_get_dataref_meta_by_id_returns_none_without_cache(self):
++        api = self.make_api()
++
++        self.assertIsNone(api.get_dataref_meta_by_id(99))
++        self.assertIsNone(api.get_dataref_meta_by_name("sim/test/value"))
++
++
+ if __name__ == "__main__":
+     unittest.main()
+diff --git a/tests/test_udp.py b/tests/test_udp.py
+index b0a727b..8d2dc85 100644
+--- a/tests/test_udp.py
++++ b/tests/test_udp.py
+@@ -1,26 +1,19 @@
+-import struct
+ import unittest
+ from unittest.mock import MagicMock, PropertyMock, patch
+ 
++from tests.helpers import make_rref_packet
+ from xpwebapi.api import Command, Dataref
+ from xpwebapi.exceptions import XPPacketError
+ from xpwebapi.udp import XPUDPAPI, XPlaneTimeout
+ 
+ 
+-def make_rref_packet(values):
+-    packet = b"RREF,"
+-    for ident, value in values:
+-        packet += struct.pack("<if", ident, value)
+-    return packet
+-
+-
+ class UDPAPITestCase(unittest.TestCase):
+     def make_api(self):
+         with patch("xpwebapi.udp.socket.socket"):
+             api = XPUDPAPI(host="127.0.0.1", port=49000)
+         api.socket = MagicMock()
+         self.addCleanup(lambda api=api: api.datarefs.clear())
+         return api
+ 
+ 
+ class TestXPUDPAPIWriteDataref(UDPAPITestCase):
+@@ -40,20 +33,28 @@ class TestXPUDPAPIWriteDataref(UDPAPITestCase):
+         dataref = Dataref(path="sim/test/value", api=api)
+         dataref.value = 3.5
+ 
+         self.assertTrue(api.write_dataref(dataref))
+ 
+         message, address = api.socket.sendto.call_args.args
+         self.assertEqual(address, ("127.0.0.1", 49000))
+         self.assertTrue(message.startswith(b"DREF\x00"))
+         self.assertEqual(len(message), 509)
+ 
++    def test_write_dataref_sends_packet_without_connection_probe(self):
++        api = self.make_api()
++        dataref = Dataref(path="sim/test/value", api=api)
++        dataref.value = 1.25
++
++        self.assertTrue(api.write_dataref(dataref))
++        api.socket.sendto.assert_called_once()
++
+     def test_write_dataref_raises_packet_error_for_invalid_dref_length(self):
+         api = self.make_api()
+         dataref = Dataref(path="sim/test/value", api=api)
+         dataref.value = 3.5
+ 
+         with patch("xpwebapi.udp.struct.pack", return_value=b"bad"):
+             with self.assertRaises(XPPacketError) as caught:
+                 api.write_dataref(dataref)
+ 
+         self.assertEqual(str(caught.exception), "invalid DREF packet length")
+@@ -66,20 +67,30 @@ class TestXPUDPAPIExecuteCommand(UDPAPITestCase):
+     def test_execute_command_sends_cmnd_packet(self):
+         api = self.make_api()
+         command = Command(path="sim/test/command", api=api)
+ 
+         self.assertTrue(api.execute_command(command))
+ 
+         message, address = api.socket.sendto.call_args.args
+         self.assertEqual(address, ("127.0.0.1", 49000))
+         self.assertTrue(message.startswith(b"CMND\x00"))
+ 
++    def test_execute_command_ignores_duration_for_udp_packet(self):
++        api = self.make_api()
++        command = Command(path="sim/test/command", api=api)
++
++        self.assertTrue(api.execute_command(command, duration=2.0))
++
++        message, _address = api.socket.sendto.call_args.args
++        self.assertTrue(message.startswith(b"CMND\x00"))
++        self.assertIn(b"sim/test/command", message)
++
+ 
+ class TestXPUDPAPIReadValues(UDPAPITestCase):
+     def test_read_monitored_dataref_values_decodes_rref_packet(self):
+         api = self.make_api()
+         api.datarefs = {0: "sim/test/altitude", 1: "sim/test/speed"}
+         api.socket.recvfrom.return_value = (make_rref_packet([(0, 5000.0), (1, 120.5)]), ("127.0.0.1", 49000))
+ 
+         values = api.read_monitored_dataref_values()
+ 
+         self.assertEqual(values["sim/test/altitude"], 5000.0)
+@@ -137,25 +148,78 @@ class TestXPUDPAPIRequestDataref(UDPAPITestCase):
+         self.assertEqual(caught.exception.context["expected"], 413)
+         self.assertEqual(caught.exception.context["actual"], 3)
+ 
+     def test_request_dataref_returns_false_when_not_connected(self):
+         api = self.make_api()
+         with patch.object(XPUDPAPI, "connected", new_callable=PropertyMock, return_value=False):
+             self.assertFalse(api._request_dataref("sim/test/value", freq=2))
+ 
+         api.socket.sendto.assert_not_called()
+ 
++    def test_monitor_dataref_increments_dataref_monitor_count(self):
++        api = self.make_api()
++        dataref = Dataref(path="sim/test/value", api=api)
++
++        with patch.object(XPUDPAPI, "connected", new_callable=PropertyMock, return_value=True):
++            self.assertTrue(api.monitor_dataref(dataref))
++
++        self.assertEqual(dataref.monitored_count, 1)
++        self.assertTrue(dataref.is_monitored)
++
+     def test_unmonitor_datarefs_sends_zero_frequency_request(self):
+         api = self.make_api()
+         dataref = Dataref(path="sim/test/value", api=api)
+ 
+         with patch.object(XPUDPAPI, "connected", new_callable=PropertyMock, return_value=True):
+             api._request_dataref(dataref.path, freq=1)
+             result, effectives = api.unmonitor_datarefs({dataref.path: dataref})
+ 
+         self.assertTrue(result)
+         self.assertEqual(effectives, {})
+         self.assertNotIn(dataref.path, api.datarefs.values())
+ 
++    def test_unmonitor_datarefs_decrements_dataref_monitor_count(self):
++        api = self.make_api()
++        dataref = Dataref(path="sim/test/value", api=api)
++
++        with patch.object(XPUDPAPI, "connected", new_callable=PropertyMock, return_value=True):
++            api.monitor_dataref(dataref)
++            result, effectives = api.unmonitor_datarefs({dataref.path: dataref})
++
++        self.assertTrue(result)
++        self.assertEqual(effectives, {})
++        self.assertEqual(dataref.monitored_count, 0)
++
++    def test_unmonitor_datarefs_decrements_nested_monitor_before_unsubscribe(self):
++        api = self.make_api()
++        dataref = Dataref(path="sim/test/value", api=api)
++
++        with patch.object(XPUDPAPI, "connected", new_callable=PropertyMock, return_value=True):
++            api.monitor_dataref(dataref)
++            api.monitor_dataref(dataref)
++
++            api.socket.sendto.reset_mock()
++            result, effectives = api.unmonitor_datarefs({dataref.path: dataref})
++
++            self.assertTrue(result)
++            self.assertEqual(effectives, {})
++            self.assertEqual(dataref.monitored_count, 1)
++            self.assertTrue(dataref.is_monitored)
++            self.assertIn(dataref.path, api.datarefs.values())
++            api.socket.sendto.assert_not_called()
++
++            result, effectives = api.unmonitor_datarefs({dataref.path: dataref})
++
++        self.assertTrue(result)
++        self.assertEqual(effectives, {})
++        self.assertEqual(dataref.monitored_count, 0)
++        self.assertFalse(dataref.is_monitored)
++        self.assertNotIn(dataref.path, api.datarefs.values())
++        api.socket.sendto.assert_called_once()
++
++        message, address = api.socket.sendto.call_args.args
++        self.assertEqual(address, ("127.0.0.1", 49000))
++        self.assertTrue(message.startswith(b"RREF\x00"))
++
+ 
+ if __name__ == "__main__":
+     unittest.main()
+diff --git a/tests/test_ws.py b/tests/test_ws.py
+index 3154e41..1114a2d 100644
+--- a/tests/test_ws.py
++++ b/tests/test_ws.py
+@@ -130,20 +130,30 @@ class TestXPWebsocketAPIConnect(WebsocketAPITestCase):
+         websocket = api.ws
+ 
+         with api as active:
+             self.assertIs(active, api)
+ 
+         websocket.close.assert_called_once()
+         api.session.close.assert_called_once()
+ 
+ 
+ class TestXPWebsocketAPICallbacks(WebsocketAPITestCase):
++    def test_add_callback_deduplicates_same_callable(self):
++        api = self.make_api()
++        callback = MagicMock()
++
++        api.add_callback(CALLBACK_TYPE.ON_OPEN, callback)
++        api.add_callback(CALLBACK_TYPE.ON_OPEN, callback)
++        api.execute_callbacks(CALLBACK_TYPE.ON_OPEN)
++
++        callback.assert_called_once()
++
+     def test_execute_callbacks_runs_registered_callbacks(self):
+         api = self.make_api()
+         callback = MagicMock()
+         api.add_callback(CALLBACK_TYPE.ON_OPEN, callback)
+         self.assertTrue(api.execute_callbacks(CALLBACK_TYPE.ON_OPEN))
+         callback.assert_called_once()
+ 
+     def test_execute_callbacks_returns_false_when_callback_raises(self):
+         api = self.make_api()
+         callback = MagicMock(side_effect=RuntimeError("boom"))
+@@ -215,20 +225,65 @@ class TestXPWebsocketAPIMessageHandling(WebsocketAPITestCase):
+         api.changed = MagicMock(return_value=True)
+         message = json.dumps({REST_KW.TYPE.value: "dataref_update_values", REST_KW.DATA.value: {"12": [7.5, 8.5]}})
+ 
+         api._handle_websocket_message(message, datetime.now())
+ 
+         callback.assert_any_call(dataref="sim/test/array[2]", value=7.5)
+         callback.assert_any_call(dataref="sim/test/array[4]", value=8.5)
+         self.assertEqual(callback.call_count, 2)
+ 
+ 
++class TestXPWebsocketAPIMonitoring(WebsocketAPITestCase):
++    def test_monitor_datarefs_subscribes_only_unmonitored_datarefs(self):
++        api = self.make_api()
++        first = Dataref(path="sim/test/first", api=api)
++        first._cached_meta = DatarefMeta(name=first.path, value_type="float", is_writable=True, id=101)
++        second = Dataref(path="sim/test/second", api=api)
++        second._cached_meta = DatarefMeta(name=second.path, value_type="float", is_writable=True, id=102)
++        second.inc_monitor()
++        api.register_bulk_dataref_value_event = MagicMock(return_value=7)
++
++        with patch.object(XPWebsocketAPI, "connected", new_callable=PropertyMock, return_value=True):
++            result, effectives = api.monitor_datarefs({first.path: first, second.path: second}, reason="test")
++
++        self.assertEqual(result, 7)
++        self.assertEqual(set(effectives), {first.name, second.name})
++        api.register_bulk_dataref_value_event.assert_called_once()
++        bulk = api.register_bulk_dataref_value_event.call_args.kwargs["datarefs"]
++        self.assertEqual(list(bulk), [101])
++        self.assertEqual(first.monitored_count, 1)
++        self.assertEqual(second.monitored_count, 2)
++
++    def test_unmonitor_datarefs_skips_datarefs_still_monitored_elsewhere(self):
++        api = self.make_api()
++        dataref = Dataref(path="sim/test/value", api=api)
++        dataref._cached_meta = DatarefMeta(name=dataref.path, value_type="float", is_writable=True, id=103)
++        dataref.inc_monitor()
++        dataref.inc_monitor()
++        api.register_bulk_dataref_value_event = MagicMock(return_value=9)
++
++        with patch.object(XPWebsocketAPI, "connected", new_callable=PropertyMock, return_value=True):
++            result, effectives = api.unmonitor_datarefs({dataref.path: dataref}, reason="test")
++
++        self.assertEqual(result, 0)
++        self.assertEqual(effectives, {dataref.name: dataref})
++        api.register_bulk_dataref_value_event.assert_not_called()
++        self.assertEqual(dataref.monitored_count, 1)
++
++    def test_monitor_datarefs_returns_false_when_disconnected(self):
++        api = self.make_api()
++        dataref = Dataref(path="sim/test/value", api=api)
++
++        with patch.object(XPWebsocketAPI, "connected", new_callable=PropertyMock, return_value=False):
++            self.assertEqual(api.monitor_datarefs({dataref.path: dataref}), (False, {}))
++
++
+ class TestXPWebsocketAPIPayloads(WebsocketAPITestCase):
+     def test_set_dataref_value_sends_scalar_payload(self):
+         api = self.make_api()
+         meta = DatarefMeta(name="sim/test/value", value_type="float", is_writable=True, id=11)
+         api.get_dataref_meta_by_name = MagicMock(return_value=meta)
+         api.send = MagicMock(return_value=1)
+ 
+         self.assertEqual(api.set_dataref_value("sim/test/value", 3.5), 1)
+ 
+         payload = api.send.call_args.args[0]
+diff --git a/xpwebapi/rest.py b/xpwebapi/rest.py
+index a6fac39..d4d3763 100644
+--- a/xpwebapi/rest.py
++++ b/xpwebapi/rest.py
+@@ -271,22 +271,22 @@ class XPRestAPI(API):
+             logger.info(f"set api {api_version} without verification")
+             return
+         api_details = capabilities.get("api")
+         if api_details is not None:
+             api_versions = api_details.get("versions")
+             if api_version is None:
+                 if api_versions is None:
+                     logger.error("cannot determine api, api not set")
+                     return
+                 sorted_apis = natsorted(api_versions, reverse=True)
+-                api = sorted_apis[0]  # takes the latest one, hoping it is the latest in time...
+-                logger.info(f"selected api {api} ({sorted_apis})")
++                api_version = sorted_apis[0]  # takes the latest one, hoping it is the latest in time...
++                logger.info(f"selected api {api_version} ({sorted_apis})")
+             if api_version in api_versions:
+                 self.version = api_version
+                 self._api_version = f"/{api_version}"
+                 logger.info(f"set api {api_version}, xp {self.xp_version}")
+             else:
+                 logger.warning(f"no api {api_version} in {api_versions}, api not set")
+             return
+         logger.warning(f"could not check api {api_version} in {capabilities}, api not set")
+ 
+     # Cache
+diff --git a/xpwebapi/udp.py b/xpwebapi/udp.py
+index 5d88e60..023d77e 100644
+--- a/xpwebapi/udp.py
++++ b/xpwebapi/udp.py
+@@ -251,37 +251,45 @@ class XPUDPAPI(API):
+ 
+         [description]
+ 
+         Args:
+             dataref (Dataref): Dataref to monitor
+ 
+         Returns:
+             bool if fails
+             request id if succeeded
+         """
+-        return self._request_dataref(dataref=dataref.path, freq=1)
++        ret = self._request_dataref(dataref=dataref.path, freq=1)
++        if ret:
++            dataref.inc_monitor()
++        return ret
+ 
+     def unmonitor_datarefs(self, datarefs: dict, reason: str | None = None) -> Tuple[int | bool, Dict]:
+         """Stops monitoring supplied datarefs.
+ 
+         [description]
+ 
+         Args:
+             datarefs (dict): {path: Dataref} dictionary of datarefs
+             reason (str | None): Documentation only string to identify call to function.
+ 
+         Returns:
+             Tuple[int | bool, Dict]: [description]
+         """
+         ret = True
+         for dataref in datarefs.values():
++            if dataref.monitored_count > 1:
++                dataref.dec_monitor()
++                continue
+             r = self._request_dataref(dataref=dataref.path, freq=0)
++            if r and dataref.is_monitored:
++                dataref.dec_monitor()
+             if not r:
+                 ret = False
+         return ret, {}
+ 
+     def _request_dataref(self, dataref: str, freq: int | None = None) -> bool | int:
+         """Request X-Plane to send the dataref with a certain frequency.
+         You can disable a dataref by setting freq to 0.
+         """
+         if not self.connected:
+             logger.warning("not connected")

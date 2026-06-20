@@ -10,7 +10,7 @@ import time
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Tuple, Dict, Optional, Callable, cast
+from typing import Tuple, Dict, Optional, Callable, Self, cast
 from enum import Enum
 
 # Packaging is used in Cockpit to check driver versions
@@ -152,6 +152,10 @@ class XPWebsocketAPI(XPRestAPI):
         self.on_request_feedback = (
             self._on_request_feedback
         )  # Called on command request feedback, for each indivudua feedback, prototype: `func(request_id:int, payload: dict)`
+
+    def __enter__(self) -> Self:
+        self.connect()
+        return self
 
     @property
     def ws_url(self) -> str:

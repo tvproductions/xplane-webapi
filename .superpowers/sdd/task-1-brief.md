@@ -1,120 +1,121 @@
-### Task 1: Exception Hierarchy
+### Task 1: Create Shared Test Helpers
 
 **Files:**
-- Create: `xpwebapi/exceptions.py`
-- Create: `tests/__init__.py`
-- Create: `tests/test_exceptions.py`
+- Create: `tests/helpers.py`
 
 **Interfaces:**
-- Produces: `XPWebAPIError`, `XPConnectionError`, `XPBeaconError`, `XPTimeoutError`, `XPVersionError` — all importable from `xpwebapi.exceptions`
+- Produces: `mock_response(status_code: int, payload: dict | None = None) -> MagicMock`
+- Produces: `make_dataref_meta(...) -> DatarefMeta`
+- Produces: `make_command_meta(...) -> CommandMeta`
+- Produces: `DummyAPI(API)`
+- Produces: `make_rref_packet(values: list[tuple[int, float]]) -> bytes`
+- Produces: `make_beacon_packet(...) -> bytes`
 
-- [ ] **Step 1: Create `tests/__init__.py`**
-
-(Empty file.)
-
-- [ ] **Step 2: Write failing tests in `tests/test_exceptions.py`**
-
-```python
-import unittest
-
-from xpwebapi.exceptions import (
-    XPWebAPIError,
-    XPConnectionError,
-    XPBeaconError,
-    XPTimeoutError,
-    XPVersionError,
-)
-
-
-class TestExceptionHierarchy(unittest.TestCase):
-    def test_base_is_exception(self):
-        self.assertTrue(issubclass(XPWebAPIError, Exception))
-
-    def test_connection_error_is_xpwebapi_error(self):
-        self.assertTrue(issubclass(XPConnectionError, XPWebAPIError))
-
-    def test_beacon_error_is_connection_error(self):
-        self.assertTrue(issubclass(XPBeaconError, XPConnectionError))
-
-    def test_timeout_error_is_xpwebapi_error(self):
-        self.assertTrue(issubclass(XPTimeoutError, XPWebAPIError))
-
-    def test_version_error_is_xpwebapi_error(self):
-        self.assertTrue(issubclass(XPVersionError, XPWebAPIError))
-
-    def test_context_kwargs(self):
-        err = XPWebAPIError("boom", host="127.0.0.1", port=8086)
-        self.assertEqual(str(err), "boom")
-        self.assertEqual(err.context, {"host": "127.0.0.1", "port": 8086})
-
-    def test_context_empty_by_default(self):
-        err = XPWebAPIError("oops")
-        self.assertEqual(err.context, {})
-
-    def test_beacon_error_context(self):
-        err = XPBeaconError("no beacon", timeout=3.0)
-        self.assertEqual(err.context, {"timeout": 3.0})
-        self.assertIsInstance(err, XPConnectionError)
-
-    def test_timeout_error_context(self):
-        err = XPTimeoutError("timed out", host="10.0.0.1")
-        self.assertEqual(err.context, {"host": "10.0.0.1"})
-
-    def test_version_error_context(self):
-        err = XPVersionError("unsupported", version="10.40")
-        self.assertEqual(err.context, {"version": "10.40"})
-
-    def test_catch_base_catches_all(self):
-        for cls in (XPConnectionError, XPBeaconError, XPTimeoutError, XPVersionError):
-            with self.assertRaises(XPWebAPIError):
-                raise cls("test")
-
-
-if __name__ == "__main__":
-    unittest.main()
-```
-
-- [ ] **Step 3: Run tests to verify they fail**
-
-Run: `uv run python -m unittest tests.test_exceptions -v`
-Expected: FAIL — `ModuleNotFoundError: No module named 'xpwebapi.exceptions'`
-
-- [ ] **Step 4: Create `xpwebapi/exceptions.py`**
+- [ ] **Step 1: Create `tests/helpers.py` with shared fixtures**
 
 ```python
-from typing import Any
+import base64
+import struct
+from unittest.mock import MagicMock
+
+from xpwebapi.api import API, APIResult, Command, CommandMeta, Dataref, DatarefMeta, DatarefReadResult
 
 
-class XPWebAPIError(Exception):
-    def __init__(self, message: str = "", **context: Any):
-        self.context = context
-        super().__init__(message)
+def mock_response(status_code: int, payload: dict | None = None) -> MagicMock:
+    response = MagicMock()
+    response.status_code = status_code
+    response.reason_phrase = "OK" if status_code == 200 else "Error"
+    response.text = ""
+    response.json.return_value = payload or {}
+    return response
 
 
-class XPConnectionError(XPWebAPIError):
-    pass
+def make_dataref_meta(name: str = "sim/test/value", value_type: str = "int", is_writable: bool = True, ident: int = 10) -> DatarefMeta:
+    return DatarefMeta(name=name, value_type=value_type, is_writable=is_writable, id=ident)
 
 
-class XPBeaconError(XPConnectionError):
-    pass
+def make_command_meta(name: str = "sim/test/command", description: str = "Test command", ident: int = 20) -> CommandMeta:
+    return CommandMeta(name=name, description=description, id=ident)
 
 
-class XPTimeoutError(XPWebAPIError):
-    pass
+def encoded_data(value: bytes = b"abc") -> str:
+    return base64.b64encode(value).decode("ascii")
 
 
-class XPVersionError(XPWebAPIError):
-    pass
+def make_rref_packet(values: list[tuple[int, float]]) -> bytes:
+    packet = b"RREF,"
+    for ident, value in values:
+        packet += struct.pack("<if", ident, value)
+    return packet
+
+
+def make_beacon_packet(
+    hostname: str = "testhost",
+    port: int = 49000,
+    xplane_version: int = 121400,
+    role: int = 1,
+    major: int = 1,
+    minor: int = 2,
+    app_id: int = 1,
+) -> bytes:
+    header = b"BECN\x00"
+    data = struct.pack("<BBiiIH", major, minor, app_id, xplane_version, role, port)
+    return header + data + hostname.encode("utf-8") + b"\x00\x00"
+
+
+class DummyAPI(API):
+    def __init__(self, value: DatarefReadResult = None):
+        self.meta_by_path = {}
+        self.value_to_return = value
+        self.written = []
+        self.executed = []
+        self.monitored_datarefs = []
+        self.command_events = []
+        super().__init__(host="127.0.0.1", port=8086, api="/api", api_version="v1")
+
+    @property
+    def connected(self) -> bool:
+        return True
+
+    def get_rest_meta(self, obj: Dataref | Command, force: bool = False) -> DatarefMeta | CommandMeta | None:
+        return self.meta_by_path.get(obj.path)
+
+    def write_dataref(self, dataref: Dataref) -> APIResult:
+        self.written.append(dataref)
+        return True
+
+    def dataref_value(self, dataref: Dataref, raw: bool = False, no_decode: bool = False) -> DatarefReadResult:
+        return self.value_to_return
+
+    def execute_command(self, command: Command, duration: float = 0.0) -> APIResult:
+        self.executed.append((command, duration))
+        return True
+
+    def monitor_dataref(self, dataref: Dataref) -> bool:
+        self.monitored_datarefs.append(("monitor", dataref))
+        return True
+
+    def unmonitor_dataref(self, dataref: Dataref) -> bool:
+        self.monitored_datarefs.append(("unmonitor", dataref))
+        return True
+
+    def register_command_is_active_event(self, path: str, on: bool = True) -> bool:
+        self.command_events.append((path, on))
+        return True
 ```
 
-- [ ] **Step 5: Run tests to verify they pass**
+- [ ] **Step 2: Run helper import smoke test**
 
-Run: `uv run python -m unittest tests.test_exceptions -v`
-Expected: All 11 tests PASS
+Run: `uv run python -m unittest tests.helpers -v`
 
-- [ ] **Step 6: Commit**
+Expected: command imports the module and reports `Ran 0 tests`.
 
-```bash
-git add xpwebapi/exceptions.py tests/__init__.py tests/test_exceptions.py
-git commit -m "feat: add custom exception hierarchy (XPWebAPIError + subclasses)"
+- [ ] **Step 3: Commit helper scaffold**
+
+```powershell
+git add tests/helpers.py
+git commit -m "test: add shared unittest helpers"
 ```
+
+---
+

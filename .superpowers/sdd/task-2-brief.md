@@ -1,195 +1,109 @@
-### Task 2: Backward Compatibility Aliases + Call Site Updates
+### Task 2: Refactor Existing Tests To Use Helpers
 
 **Files:**
-- Modify: `xpwebapi/beacon.py`
-- Modify: `xpwebapi/udp.py`
-- Modify: `xpwebapi/__init__.py`
-- Modify: `tests/test_exceptions.py`
+- Modify: `tests/test_api.py`
+- Modify: `tests/test_rest.py`
+- Modify: `tests/test_async_rest.py`
+- Modify: `tests/test_udp.py`
+- Modify: `tests/test_beacon.py`
 
 **Interfaces:**
-- Consumes: `XPBeaconError`, `XPVersionError`, `XPTimeoutError` from `xpwebapi.exceptions`
-- Produces: `XPlaneNoBeacon(XPBeaconError)`, `XPlaneVersionNotSupported(XPVersionError)` in `beacon.py`; `XPlaneTimeout(XPTimeoutError)` in `udp.py`
+- Consumes: `tests.helpers.mock_response`
+- Consumes: `tests.helpers.DummyAPI`
+- Consumes: `tests.helpers.make_rref_packet`
+- Consumes: `tests.helpers.make_beacon_packet`
+- Consumes: `tests.helpers.make_dataref_meta`
+- Consumes: `tests.helpers.make_command_meta`
+- Consumes: `tests.helpers.encoded_data`
+- Produces: existing tests with duplicated helper code removed
 
-- [ ] **Step 1: Add backward compat tests to `tests/test_exceptions.py`**
+- [ ] **Step 1: Update `tests/test_api.py` imports**
 
-Append to the existing file:
+Replace the local `MagicMock` import and local helper definitions with:
 
 ```python
-class TestBackwardCompat(unittest.TestCase):
-    def test_xplane_no_beacon_is_beacon_error(self):
-        from xpwebapi.beacon import XPlaneNoBeacon
-        from xpwebapi.exceptions import XPBeaconError
-        self.assertTrue(issubclass(XPlaneNoBeacon, XPBeaconError))
+import base64
+import unittest
 
-    def test_xplane_version_not_supported_is_version_error(self):
-        from xpwebapi.beacon import XPlaneVersionNotSupported
-        from xpwebapi.exceptions import XPVersionError
-        self.assertTrue(issubclass(XPlaneVersionNotSupported, XPVersionError))
-
-    def test_xplane_timeout_is_timeout_error(self):
-        from xpwebapi.udp import XPlaneTimeout
-        from xpwebapi.exceptions import XPTimeoutError
-        self.assertTrue(issubclass(XPlaneTimeout, XPTimeoutError))
-
-    def test_old_names_importable_from_package(self):
-        from xpwebapi import XPlaneNoBeacon, XPlaneVersionNotSupported, XPlaneTimeout
-        self.assertTrue(issubclass(XPlaneNoBeacon, Exception))
-        self.assertTrue(issubclass(XPlaneVersionNotSupported, Exception))
-        self.assertTrue(issubclass(XPlaneTimeout, Exception))
-
-    def test_new_names_importable_from_package(self):
-        from xpwebapi import XPWebAPIError, XPConnectionError, XPBeaconError, XPTimeoutError, XPVersionError
-        self.assertTrue(issubclass(XPWebAPIError, Exception))
+from tests.helpers import DummyAPI, mock_response
+from xpwebapi.api import (
+    DATAREF_DATATYPE,
+    Cache,
+    CommandCache,
+    Command,
+    CommandMeta,
+    DatarefCache,
+    Dataref,
+    DatarefMeta,
+    ValueCache,
+)
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+Delete the local `mock_response` function and `DummyAPI` class from `tests/test_api.py`.
 
-Run: `uv run python -m unittest tests.test_exceptions.TestBackwardCompat -v`
-Expected: FAIL — `XPlaneNoBeacon` is not a subclass of `XPBeaconError`
+- [ ] **Step 2: Update `tests/test_rest.py` imports**
 
-- [ ] **Step 3: Update `xpwebapi/beacon.py`**
+Replace the local `mock_response` function with the shared helper:
 
-Replace the existing exception class definitions (lines 32-37):
-
-Old:
 ```python
-class XPlaneNoBeacon(Exception):
-    args = tuple("No beacon received from any running XPlane instance in network")
+import base64
+import unittest
+from unittest.mock import MagicMock, PropertyMock, patch
 
+import httpx
 
-class XPlaneVersionNotSupported(Exception):
-    args = tuple("XPlane version not supported")
+from tests.helpers import mock_response
+from xpwebapi.api import DATAREF_DATATYPE, Command, CommandMeta, Dataref, DatarefMeta
+from xpwebapi.rest import XPRestAPI
 ```
 
-New:
+- [ ] **Step 3: Update `tests/test_async_rest.py` imports**
+
+Replace the local `mock_response` function with:
+
 ```python
-from .exceptions import XPBeaconError, XPVersionError
-
-
-class XPlaneNoBeacon(XPBeaconError):
-    pass
-
-
-class XPlaneVersionNotSupported(XPVersionError):
-    pass
+from tests.helpers import mock_response
 ```
 
-- [ ] **Step 4: Update `xpwebapi/udp.py`**
+Keep `AsyncMock`, `MagicMock`, and existing async test classes unchanged.
 
-Replace the existing exception class definition (lines 28-29):
+- [ ] **Step 4: Update `tests/test_udp.py` imports**
 
-Old:
+Replace local `struct` usage and local `make_rref_packet` with:
+
 ```python
-class XPlaneTimeout(Exception):
-    args = tuple("X-Plane timeout")
+import unittest
+from unittest.mock import MagicMock, PropertyMock, patch
+
+from tests.helpers import make_rref_packet
+from xpwebapi.api import Command, Dataref
+from xpwebapi.exceptions import XPPacketError
+from xpwebapi.udp import XPUDPAPI, XPlaneTimeout
 ```
 
-New:
+- [ ] **Step 5: Update `tests/test_beacon.py` imports**
+
+Replace local `struct` usage and local `make_beacon_packet` with:
+
 ```python
-from .exceptions import XPTimeoutError
+import socket
+import unittest
+from unittest.mock import MagicMock, patch
 
-
-class XPlaneTimeout(XPTimeoutError):
-    pass
+import xpwebapi
+from tests.helpers import make_beacon_packet
+from xpwebapi.beacon import BeaconData, XPBeaconMonitor, XPlaneNoBeacon, XPlaneVersionNotSupported
 ```
 
-- [ ] **Step 5: Update `xpwebapi/__init__.py`**
+- [ ] **Step 6: Run the existing test suite**
 
-Add new exception imports and update `__all__`:
+Run: `uv run python -m unittest discover -v`
 
-Old:
-```python
-from .api import Dataref, Command, DatarefValueType, DATAREF_DATATYPE
-from .beacon import XPBeaconMonitor, BeaconData, XPlaneNoBeacon, XPlaneVersionNotSupported
-from .rest import XPRestAPI
-from .ws import XPWebsocketAPI, CALLBACK_TYPE
-from .udp import XPUDPAPI, XPlaneTimeout
+Expected: all existing tests pass with the same behavior as before the helper refactor.
 
-__all__ = [
-    "Dataref",
-    "Command",
-    "DatarefValueType",
-    "DATAREF_DATATYPE",
-    "XPBeaconMonitor",
-    "BeaconData",
-    "XPlaneNoBeacon",
-    "XPlaneVersionNotSupported",
-    "XPRestAPI",
-    "XPWebsocketAPI",
-    "CALLBACK_TYPE",
-    "XPUDPAPI",
-    "XPlaneTimeout",
-    "beacon",
-    "rest_api",
-    "ws_api",
-    "udp_api",
-    "version",
-]
-```
+- [ ] **Step 7: Commit helper refactor**
 
-New:
-```python
-from .api import Dataref, Command, DatarefValueType, DATAREF_DATATYPE
-from .beacon import XPBeaconMonitor, BeaconData, XPlaneNoBeacon, XPlaneVersionNotSupported
-from .exceptions import XPWebAPIError, XPConnectionError, XPBeaconError, XPTimeoutError, XPVersionError
-from .rest import XPRestAPI
-from .ws import XPWebsocketAPI, CALLBACK_TYPE
-from .udp import XPUDPAPI, XPlaneTimeout
-
-__all__ = [
-    "Dataref",
-    "Command",
-    "DatarefValueType",
-    "DATAREF_DATATYPE",
-    "XPBeaconMonitor",
-    "BeaconData",
-    "XPlaneNoBeacon",
-    "XPlaneVersionNotSupported",
-    "XPWebAPIError",
-    "XPConnectionError",
-    "XPBeaconError",
-    "XPTimeoutError",
-    "XPVersionError",
-    "XPRestAPI",
-    "XPWebsocketAPI",
-    "CALLBACK_TYPE",
-    "XPUDPAPI",
-    "XPlaneTimeout",
-    "beacon",
-    "rest_api",
-    "ws_api",
-    "udp_api",
-    "version",
-]
-```
-
-- [ ] **Step 6: Update raise sites in `beacon.py`**
-
-Find `raise XPlaneNoBeacon()` (line 320) and replace with:
-```python
-raise XPlaneNoBeacon("no beacon received", timeout=timeout)
-```
-
-Find `raise XPlaneVersionNotSupported()` (line 314) and replace with:
-```python
-raise XPlaneVersionNotSupported(f"beacon version {beacon_major_version}.{beacon_minor_version}.{application_host_id}")
-```
-
-- [ ] **Step 7: Update raise site in `udp.py`**
-
-Find `raise XPlaneTimeout` (line 337) and replace with:
-```python
-raise XPlaneTimeout("UDP read timeout")
-```
-
-- [ ] **Step 8: Run all exception tests**
-
-Run: `uv run python -m unittest tests.test_exceptions -v`
-Expected: All tests PASS (11 hierarchy + 5 backward compat = 16)
-
-- [ ] **Step 9: Commit**
-
-```bash
-git add xpwebapi/beacon.py xpwebapi/udp.py xpwebapi/__init__.py tests/test_exceptions.py
-git commit -m "feat: backward compat exception aliases, update raise sites with context"
+```powershell
+git add tests/test_api.py tests/test_rest.py tests/test_async_rest.py tests/test_udp.py tests/test_beacon.py
+git commit -m "test: reuse shared test helpers"
 ```

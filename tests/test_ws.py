@@ -125,15 +125,16 @@ class TestXPWebsocketAPIConnect(WebsocketAPITestCase):
         self.assertIsNone(api.ws)
         callback.assert_called_once()
 
-    def test_context_manager_disconnects_websocket_and_closes_session(self):
+    def test_context_manager_connects_on_enter_and_closes_on_exit(self):
         api = self.make_api()
-        websocket = api.ws
 
-        with api as active:
-            self.assertIs(active, api)
+        with patch.object(api, "connect") as connect:
+            with patch.object(api, "close") as close:
+                with api as active:
+                    self.assertIs(active, api)
+                    connect.assert_called_once_with()
 
-        websocket.close.assert_called_once()
-        api.session.close.assert_called_once()
+                close.assert_called_once_with()
 
 
 class TestXPWebsocketAPICallbacks(WebsocketAPITestCase):

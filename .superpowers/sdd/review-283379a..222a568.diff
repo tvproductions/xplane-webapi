@@ -1,0 +1,174 @@
+# Review package: 283379a..222a568
+
+## Commits
+222a568 fix: track udp monitor counters
+
+## Files changed
+ tests/test_udp.py | 40 ++++++++++++++++++++++++++++++++++++++++
+ xpwebapi/udp.py   | 10 +++++++++-
+ 2 files changed, 49 insertions(+), 1 deletion(-)
+
+## Diff
+diff --git a/tests/test_udp.py b/tests/test_udp.py
+index 386edb8..8c98994 100644
+--- a/tests/test_udp.py
++++ b/tests/test_udp.py
+@@ -33,20 +33,28 @@ class TestXPUDPAPIWriteDataref(UDPAPITestCase):
+         dataref = Dataref(path="sim/test/value", api=api)
+         dataref.value = 3.5
+ 
+         self.assertTrue(api.write_dataref(dataref))
+ 
+         message, address = api.socket.sendto.call_args.args
+         self.assertEqual(address, ("127.0.0.1", 49000))
+         self.assertTrue(message.startswith(b"DREF\x00"))
+         self.assertEqual(len(message), 509)
+ 
++    def test_write_dataref_sends_packet_without_connection_probe(self):
++        api = self.make_api()
++        dataref = Dataref(path="sim/test/value", api=api)
++        dataref.value = 1.25
++
++        self.assertTrue(api.write_dataref(dataref))
++        api.socket.sendto.assert_called_once()
++
+     def test_write_dataref_raises_packet_error_for_invalid_dref_length(self):
+         api = self.make_api()
+         dataref = Dataref(path="sim/test/value", api=api)
+         dataref.value = 3.5
+ 
+         with patch("xpwebapi.udp.struct.pack", return_value=b"bad"):
+             with self.assertRaises(XPPacketError) as caught:
+                 api.write_dataref(dataref)
+ 
+         self.assertEqual(str(caught.exception), "invalid DREF packet length")
+@@ -59,20 +67,30 @@ class TestXPUDPAPIExecuteCommand(UDPAPITestCase):
+     def test_execute_command_sends_cmnd_packet(self):
+         api = self.make_api()
+         command = Command(path="sim/test/command", api=api)
+ 
+         self.assertTrue(api.execute_command(command))
+ 
+         message, address = api.socket.sendto.call_args.args
+         self.assertEqual(address, ("127.0.0.1", 49000))
+         self.assertTrue(message.startswith(b"CMND\x00"))
+ 
++    def test_execute_command_ignores_duration_for_udp_packet(self):
++        api = self.make_api()
++        command = Command(path="sim/test/command", api=api)
++
++        self.assertTrue(api.execute_command(command, duration=2.0))
++
++        message, _address = api.socket.sendto.call_args.args
++        self.assertTrue(message.startswith(b"CMND\x00"))
++        self.assertIn(b"sim/test/command", message)
++
+ 
+ class TestXPUDPAPIReadValues(UDPAPITestCase):
+     def test_read_monitored_dataref_values_decodes_rref_packet(self):
+         api = self.make_api()
+         api.datarefs = {0: "sim/test/altitude", 1: "sim/test/speed"}
+         api.socket.recvfrom.return_value = (make_rref_packet([(0, 5000.0), (1, 120.5)]), ("127.0.0.1", 49000))
+ 
+         values = api.read_monitored_dataref_values()
+ 
+         self.assertEqual(values["sim/test/altitude"], 5000.0)
+@@ -130,25 +148,47 @@ class TestXPUDPAPIRequestDataref(UDPAPITestCase):
+         self.assertEqual(caught.exception.context["expected"], 413)
+         self.assertEqual(caught.exception.context["actual"], 3)
+ 
+     def test_request_dataref_returns_false_when_not_connected(self):
+         api = self.make_api()
+         with patch.object(XPUDPAPI, "connected", new_callable=PropertyMock, return_value=False):
+             self.assertFalse(api._request_dataref("sim/test/value", freq=2))
+ 
+         api.socket.sendto.assert_not_called()
+ 
++    def test_monitor_dataref_increments_dataref_monitor_count(self):
++        api = self.make_api()
++        dataref = Dataref(path="sim/test/value", api=api)
++
++        with patch.object(XPUDPAPI, "connected", new_callable=PropertyMock, return_value=True):
++            self.assertTrue(api.monitor_dataref(dataref))
++
++        self.assertEqual(dataref.monitored_count, 1)
++        self.assertTrue(dataref.is_monitored)
++
+     def test_unmonitor_datarefs_sends_zero_frequency_request(self):
+         api = self.make_api()
+         dataref = Dataref(path="sim/test/value", api=api)
+ 
+         with patch.object(XPUDPAPI, "connected", new_callable=PropertyMock, return_value=True):
+             api._request_dataref(dataref.path, freq=1)
+             result, effectives = api.unmonitor_datarefs({dataref.path: dataref})
+ 
+         self.assertTrue(result)
+         self.assertEqual(effectives, {})
+         self.assertNotIn(dataref.path, api.datarefs.values())
+ 
++    def test_unmonitor_datarefs_decrements_dataref_monitor_count(self):
++        api = self.make_api()
++        dataref = Dataref(path="sim/test/value", api=api)
++
++        with patch.object(XPUDPAPI, "connected", new_callable=PropertyMock, return_value=True):
++            api.monitor_dataref(dataref)
++            result, effectives = api.unmonitor_datarefs({dataref.path: dataref})
++
++        self.assertTrue(result)
++        self.assertEqual(effectives, {})
++        self.assertEqual(dataref.monitored_count, 0)
++
+ 
+ if __name__ == "__main__":
+     unittest.main()
+diff --git a/xpwebapi/udp.py b/xpwebapi/udp.py
+index 5d88e60..023d77e 100644
+--- a/xpwebapi/udp.py
++++ b/xpwebapi/udp.py
+@@ -251,37 +251,45 @@ class XPUDPAPI(API):
+ 
+         [description]
+ 
+         Args:
+             dataref (Dataref): Dataref to monitor
+ 
+         Returns:
+             bool if fails
+             request id if succeeded
+         """
+-        return self._request_dataref(dataref=dataref.path, freq=1)
++        ret = self._request_dataref(dataref=dataref.path, freq=1)
++        if ret:
++            dataref.inc_monitor()
++        return ret
+ 
+     def unmonitor_datarefs(self, datarefs: dict, reason: str | None = None) -> Tuple[int | bool, Dict]:
+         """Stops monitoring supplied datarefs.
+ 
+         [description]
+ 
+         Args:
+             datarefs (dict): {path: Dataref} dictionary of datarefs
+             reason (str | None): Documentation only string to identify call to function.
+ 
+         Returns:
+             Tuple[int | bool, Dict]: [description]
+         """
+         ret = True
+         for dataref in datarefs.values():
++            if dataref.monitored_count > 1:
++                dataref.dec_monitor()
++                continue
+             r = self._request_dataref(dataref=dataref.path, freq=0)
++            if r and dataref.is_monitored:
++                dataref.dec_monitor()
+             if not r:
+                 ret = False
+         return ret, {}
+ 
+     def _request_dataref(self, dataref: str, freq: int | None = None) -> bool | int:
+         """Request X-Plane to send the dataref with a certain frequency.
+         You can disable a dataref by setting freq to 0.
+         """
+         if not self.connected:
+             logger.warning("not connected")

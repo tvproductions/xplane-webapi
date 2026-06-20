@@ -19,20 +19,20 @@
 
 ## P1 — High
 
-### [ ] Async support via `httpx.AsyncClient`
-- [ ] Add `AsyncXPRestAPI` (or async mixin) using `httpx.AsyncClient`
-- [ ] Async variants of `dataref_value`, `write_dataref`, `execute_command`
-- [ ] Keep sync API as default; async is opt-in
+### [x] Async support via `httpx.AsyncClient`
+- [x] Add `AsyncXPRestAPI` (or async mixin) using `httpx.AsyncClient`
+- [x] Async variants of `dataref_value`, `write_dataref`, `execute_command`
+- [x] Keep sync API as default; async is opt-in
 
-### [ ] Separate `DatarefCache` and `CommandCache`
-- [ ] Replace `Cache.meta()` union return (`DatarefMeta | CommandMeta`) with two typed classes
-- [ ] Eliminates `isinstance` checks in `rest.py` and `ws.py`
-- [ ] Fix `get_dataref_meta_*` / `get_command_meta_*` to return precise types from the cache layer
+### [x] Separate `DatarefCache` and `CommandCache`
+- [x] Replace `Cache.meta()` union return (`DatarefMeta | CommandMeta`) with two typed classes
+- [x] Eliminates `isinstance` checks in `rest.py` and `ws.py`
+- [x] Fix `get_dataref_meta_*` / `get_command_meta_*` to return precise types from the cache layer
 
-### [ ] Context manager support
-- [ ] `with xpwebapi.ws_api() as api:` for automatic connect/disconnect
-- [ ] `__enter__` / `__exit__` on `XPRestAPI`, `XPWebsocketAPI`, `XPUDPAPI`
-- [ ] Ensure socket/thread cleanup on exit
+### [x] Context manager support
+- [x] `with xpwebapi.ws_api() as api:` for automatic connect/disconnect
+- [x] `__enter__` / `__exit__` on `XPRestAPI`, `XPWebsocketAPI`, `XPUDPAPI`
+- [x] Ensure socket/thread cleanup on exit
 
 ## P2 — Medium
 

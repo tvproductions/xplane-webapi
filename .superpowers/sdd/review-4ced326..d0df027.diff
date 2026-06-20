@@ -1,0 +1,233 @@
+# Review package: 4ced326..d0df027
+
+## Commits
+d0df027 test: reuse shared test helpers
+
+## Files changed
+ tests/test_api.py        | 52 +-----------------------------------------------
+ tests/test_async_rest.py | 10 +---------
+ tests/test_beacon.py     |  8 +-------
+ tests/test_rest.py       | 10 +---------
+ tests/test_udp.py        |  9 +--------
+ 5 files changed, 5 insertions(+), 84 deletions(-)
+
+## Diff
+diff --git a/tests/test_api.py b/tests/test_api.py
+index 1dd1b38..18eb754 100644
+--- a/tests/test_api.py
++++ b/tests/test_api.py
+@@ -1,78 +1,28 @@
+ import base64
+ import unittest
+ from unittest.mock import MagicMock
+ 
++from tests.helpers import DummyAPI, mock_response
+ from xpwebapi.api import (
+-    API,
+-    APIResult,
+     DATAREF_DATATYPE,
+     Cache,
+     CommandCache,
+     Command,
+     CommandMeta,
+     DatarefCache,
+     Dataref,
+     DatarefMeta,
+-    DatarefReadResult,
+     ValueCache,
+ )
+ 
+ 
+-def mock_response(status_code: int, payload: dict | None = None):
+-    response = MagicMock()
+-    response.status_code = status_code
+-    response.json.return_value = payload or {}
+-    return response
+-
+-
+-class DummyAPI(API):
+-    def __init__(self, value: DatarefReadResult = None):
+-        self.meta_by_path = {}
+-        self.value_to_return = value
+-        self.written = []
+-        self.executed = []
+-        self.monitored_datarefs = []
+-        self.command_events = []
+-        super().__init__(host="127.0.0.1", port=8086, api="/api", api_version="v1")
+-
+-    @property
+-    def connected(self) -> bool:
+-        return True
+-
+-    def get_rest_meta(self, obj: Dataref | Command, force: bool = False) -> DatarefMeta | CommandMeta | None:
+-        return self.meta_by_path.get(obj.path)
+-
+-    def write_dataref(self, dataref: Dataref) -> APIResult:
+-        self.written.append(dataref)
+-        return True
+-
+-    def dataref_value(self, dataref: Dataref, raw: bool = False, no_decode: bool = False) -> DatarefReadResult:
+-        return self.value_to_return
+-
+-    def execute_command(self, command: Command, duration: float = 0.0) -> APIResult:
+-        self.executed.append((command, duration))
+-        return True
+-
+-    def monitor_dataref(self, dataref: Dataref) -> bool:
+-        self.monitored_datarefs.append(("monitor", dataref))
+-        return True
+-
+-    def unmonitor_dataref(self, dataref: Dataref) -> bool:
+-        self.monitored_datarefs.append(("unmonitor", dataref))
+-        return True
+-
+-    def register_command_is_active_event(self, path: str, on: bool = True) -> bool:
+-        self.command_events.append((path, on))
+-        return True
+-
+-
+ class TestDatarefMeta(unittest.TestCase):
+     def test_construction(self):
+         meta = DatarefMeta(name="sim/test/value", value_type="int", is_writable=True, id=42)
+         self.assertEqual(meta.name, "sim/test/value")
+         self.assertEqual(meta.value_type, "int")
+         self.assertTrue(meta.is_writable)
+         self.assertEqual(meta.ident, 42)
+ 
+     def test_is_array_for_array_types(self):
+         int_array = DatarefMeta(name="sim/test/int_array", value_type=DATAREF_DATATYPE.INTARRAY.value, is_writable=False, id=1)
+diff --git a/tests/test_async_rest.py b/tests/test_async_rest.py
+index 5c4e79c..1dd622a 100644
+--- a/tests/test_async_rest.py
++++ b/tests/test_async_rest.py
+@@ -1,31 +1,23 @@
+ import base64
+ import unittest
+ from unittest.mock import AsyncMock, MagicMock, patch
+ 
+ import httpx
+ 
+ import xpwebapi
++from tests.helpers import mock_response
+ from xpwebapi.api import CONNECTION_STATUS, DATAREF_DATATYPE, Command, CommandMeta, Dataref, DatarefMeta
+ from xpwebapi.async_rest import AsyncXPRestAPI
+ from xpwebapi.rest import V1_CAPABILITIES, XPRestAPI
+ 
+ 
+-def mock_response(status_code: int, payload: dict | None = None):
+-    response = MagicMock()
+-    response.status_code = status_code
+-    response.reason_phrase = "OK" if status_code == 200 else "Error"
+-    response.text = ""
+-    response.json.return_value = payload or {}
+-    return response
+-
+-
+ class AsyncRestAPITestCase(unittest.IsolatedAsyncioTestCase):
+     def make_api(self):
+         api = AsyncXPRestAPI(host="127.0.0.1", port=8086, api="/api", api_version="v1")
+         api.session = MagicMock()
+         api.session.get = AsyncMock()
+         api.session.post = AsyncMock()
+         api.session.patch = AsyncMock()
+         api.session.aclose = AsyncMock()
+         api._show_stats = False
+         return api
+diff --git a/tests/test_beacon.py b/tests/test_beacon.py
+index 8c809fa..fbabbc2 100644
+--- a/tests/test_beacon.py
++++ b/tests/test_beacon.py
+@@ -1,25 +1,19 @@
+ import socket
+-import struct
+ import unittest
+ from unittest.mock import MagicMock, patch
+ 
+ import xpwebapi
++from tests.helpers import make_beacon_packet
+ from xpwebapi.beacon import BeaconData, XPBeaconMonitor, XPlaneNoBeacon, XPlaneVersionNotSupported
+ 
+ 
+-def make_beacon_packet(hostname="testhost", port=49000, xplane_version=121400, role=1, major=1, minor=2, app_id=1):
+-    header = b"BECN\x00"
+-    data = struct.pack("<BBiiIH", major, minor, app_id, xplane_version, role, port)
+-    return header + data + hostname.encode("utf-8") + b"\x00\x00"
+-
+-
+ class BeaconMonitorTestCase(unittest.TestCase):
+     def make_monitor(self):
+         with patch("xpwebapi.beacon.list_my_ips", return_value=[]):
+             return XPBeaconMonitor()
+ 
+     def mock_sockets(self, recvfrom):
+         monitor_socket = MagicMock()
+         beacon_socket = MagicMock()
+         beacon_socket.recvfrom.side_effect = recvfrom if isinstance(recvfrom, BaseException) else None
+         if not isinstance(recvfrom, BaseException):
+diff --git a/tests/test_rest.py b/tests/test_rest.py
+index 83e5685..a5b9cd4 100644
+--- a/tests/test_rest.py
++++ b/tests/test_rest.py
+@@ -1,29 +1,21 @@
+ import base64
+ import unittest
+ from unittest.mock import MagicMock, PropertyMock, patch
+ 
+ import httpx
+ 
++from tests.helpers import mock_response
+ from xpwebapi.api import DATAREF_DATATYPE, Command, CommandMeta, Dataref, DatarefMeta
+ from xpwebapi.rest import XPRestAPI
+ 
+ 
+-def mock_response(status_code: int, payload: dict | None = None):
+-    response = MagicMock()
+-    response.status_code = status_code
+-    response.reason_phrase = "OK" if status_code == 200 else "Error"
+-    response.text = ""
+-    response.json.return_value = payload or {}
+-    return response
+-
+-
+ class RestAPITestCase(unittest.TestCase):
+     def make_api(self):
+         api = XPRestAPI(host="127.0.0.1", port=8086, api="/api", api_version="v1")
+         api.session = MagicMock()
+         api._show_stats = False
+         return api
+ 
+     def make_dataref(self, api, value_type="int", is_writable=True, ident=10):
+         dataref = Dataref(path="sim/test/value", api=api)
+         dataref._cached_meta = DatarefMeta(name=dataref.path, value_type=value_type, is_writable=is_writable, id=ident)
+diff --git a/tests/test_udp.py b/tests/test_udp.py
+index b0a727b..386edb8 100644
+--- a/tests/test_udp.py
++++ b/tests/test_udp.py
+@@ -1,26 +1,19 @@
+-import struct
+ import unittest
+ from unittest.mock import MagicMock, PropertyMock, patch
+ 
++from tests.helpers import make_rref_packet
+ from xpwebapi.api import Command, Dataref
+ from xpwebapi.exceptions import XPPacketError
+ from xpwebapi.udp import XPUDPAPI, XPlaneTimeout
+ 
+ 
+-def make_rref_packet(values):
+-    packet = b"RREF,"
+-    for ident, value in values:
+-        packet += struct.pack("<if", ident, value)
+-    return packet
+-
+-
+ class UDPAPITestCase(unittest.TestCase):
+     def make_api(self):
+         with patch("xpwebapi.udp.socket.socket"):
+             api = XPUDPAPI(host="127.0.0.1", port=49000)
+         api.socket = MagicMock()
+         self.addCleanup(lambda api=api: api.datarefs.clear())
+         return api
+ 
+ 
+ class TestXPUDPAPIWriteDataref(UDPAPITestCase):

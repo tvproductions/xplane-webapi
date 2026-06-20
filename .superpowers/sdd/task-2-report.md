@@ -1,61 +1,81 @@
-# Task 2 Report: Backward Compatibility Aliases + Call Site Updates
+# Task 2 Report: Refactor Existing Tests To Use Helpers
 
 ## What I Implemented
 
-1. **`tests/test_exceptions.py`** — Appended `TestBackwardCompat` class with 5 tests verifying:
-   - `XPlaneNoBeacon` is a subclass of `XPBeaconError`
-   - `XPlaneVersionNotSupported` is a subclass of `XPVersionError`
-   - `XPlaneTimeout` is a subclass of `XPTimeoutError`
-   - Old exception names remain importable from `xpwebapi`
-   - New exception names are importable from `xpwebapi`
-
-2. **`xpwebapi/beacon.py`** — Replaced `XPlaneNoBeacon(Exception)` and `XPlaneVersionNotSupported(Exception)` with subclasses of `XPBeaconError` and `XPVersionError` respectively. Updated raise sites with contextual messages:
-   - `raise XPlaneNoBeacon("no beacon received", timeout=timeout)`
-   - `raise XPlaneVersionNotSupported(f"beacon version {major}.{minor}.{host_id}")`
-
-3. **`xpwebapi/udp.py`** — Replaced `XPlaneTimeout(Exception)` with subclass of `XPTimeoutError`. Updated raise site:
-   - `raise XPlaneTimeout("UDP read timeout")`
-
-4. **`xpwebapi/__init__.py`** — Added imports and `__all__` entries for `XPWebAPIError`, `XPConnectionError`, `XPBeaconError`, `XPTimeoutError`, `XPVersionError`.
+- Updated `tests/test_api.py` to import `DummyAPI` and `mock_response` from `tests.helpers`, and removed the duplicated local helper definitions.
+- Updated `tests/test_rest.py` to import `mock_response` from `tests.helpers`, and removed the duplicated local helper definition.
+- Updated `tests/test_async_rest.py` to import `mock_response` from `tests.helpers`, and removed the duplicated local helper definition.
+- Updated `tests/test_udp.py` to import `make_rref_packet` from `tests.helpers`, removed the duplicated local helper definition, and dropped the now-unused `struct` import.
+- Updated `tests/test_beacon.py` to import `make_beacon_packet` from `tests.helpers`, removed the duplicated local helper definition, and dropped the now-unused `struct` import.
+- Kept production code unchanged.
 
 ## What I Tested and Test Results
 
-- **RED phase**: Ran `TestBackwardCompat` before implementation — 3 FAILs + 1 ERROR (as expected)
-- **GREEN phase**: All 16 tests pass (11 hierarchy + 5 backward compat)
-- **Lint**: `ruff check xpwebapi/ tests/` — all checks passed
-- **Full test suite**: `uv run python -m unittest discover` — 16/16 OK
+- Baseline focused suite before refactor:
+  - `uv run python -m unittest -v tests.test_api tests.test_rest tests.test_async_rest tests.test_udp tests.test_beacon`
+  - Result: `Ran 112 tests in 1.504s` / `OK`
+- Focused suite after refactor:
+  - `uv run python -m unittest -v tests.test_api tests.test_rest tests.test_async_rest tests.test_udp tests.test_beacon`
+  - Result: `Ran 112 tests in 1.588s` / `OK`
+- Full suite before commit:
+  - `uv run python -m unittest discover -v`
+  - Result: `Ran 156 tests in 1.952s` / `OK`
+- Lint before commit:
+  - `uv run ruff check xpwebapi tests`
+  - Result: `All checks passed!`
+- Format check before commit:
+  - `uv run ruff format --check xpwebapi tests`
+  - Result: `19 files already formatted`
 
-## TDD Evidence
+## TDD/refactor Evidence
 
-### RED (failing output)
-```
-test_new_names_importable_from_package ... ERROR
-test_old_names_importable_from_package ... ok
-test_xplane_no_beacon_is_beacon_error ... FAIL
-test_xplane_timeout_is_timeout_error ... FAIL
-test_xplane_version_not_supported_is_version_error ... FAIL
-FAILED (failures=3, errors=1)
+### Baseline command/output before refactor
+Command:
+```powershell
+uv run python -m unittest -v tests.test_api tests.test_rest tests.test_async_rest tests.test_udp tests.test_beacon
 ```
 
-### GREEN (passing output)
-```
-Ran 16 tests in 0.000s
+Output excerpt:
+```text
+...
+----------------------------------------------------------------------
+Ran 112 tests in 1.504s
+
 OK
 ```
 
+### Green command/output after refactor
+Command:
+```powershell
+uv run python -m unittest -v tests.test_api tests.test_rest tests.test_async_rest tests.test_udp tests.test_beacon
+```
+
+Output excerpt:
+```text
+...
+----------------------------------------------------------------------
+Ran 112 tests in 1.588s
+
+OK
+```
+
+Note: the first post-refactor run exposed a missing `MagicMock` import in `tests/test_api.py` after following the brief's import replacement literally. I restored that stdlib import, reran the focused suite, and it passed green.
+
 ## Files Changed
 
-| File | Change |
-|------|--------|
-| `tests/test_exceptions.py` | Appended `TestBackwardCompat` class (5 tests) |
-| `xpwebapi/beacon.py` | Exception classes now subclass new hierarchy; raise sites updated with context |
-| `xpwebapi/udp.py` | `XPlaneTimeout` now subclasses `XPTimeoutError`; raise site updated |
-| `xpwebapi/__init__.py` | Added new exception imports and `__all__` entries |
+- `tests/test_api.py`
+- `tests/test_rest.py`
+- `tests/test_async_rest.py`
+- `tests/test_udp.py`
+- `tests/test_beacon.py`
 
 ## Self-Review Findings
 
-- All old exception names remain importable from both their original modules and the package root — full backward compatibility preserved.
-- Raise sites now include contextual information (timeout values, version numbers) via the `context` kwargs mechanism from the base `XPWebAPIError`.
-- Import placement was adjusted to satisfy `ruff` E402 (module-level imports at top of file).
-- `noqa: F401` added to the `test_new_names_importable_from_package` test since the import itself is the assertion.
-- No concerns identified.
+- The refactor stayed within the five allowed test files.
+- Shared helper usage now matches the Task 1 helper module for all duplicated cases named in the brief.
+- `tests/test_api.py` still legitimately needs `MagicMock` for session stubbing, so that import remains alongside the shared helper imports.
+
+## Issues or Concerns
+
+- No behavioral concerns after verification.
+- The task brief's suggested `tests/test_api.py` import block omitted `MagicMock`; the final change keeps it because the file still uses it.
