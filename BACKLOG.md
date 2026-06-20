@@ -12,10 +12,10 @@
 - [x] Standardize write/execute return types with `APIResult` across the abstract base and overrides
 - [x] Verify override compatibility with the type checker
 
-### [ ] Custom exception hierarchy
-- [ ] `XPWebAPIError(Exception)` as base
-- [ ] `XPConnectionError`, `XPTimeoutError`, `XPVersionError`, `XPBeaconError`
-- [ ] Replace bare `raise XPlaneNoBeacon()` / `raise XPlaneTimeout` with typed exceptions carrying context
+### [x] Custom exception hierarchy
+- [x] `XPWebAPIError(Exception)` as base
+- [x] `XPConnectionError`, `XPTimeoutError`, `XPVersionError`, `XPBeaconError`
+- [x] Replace bare `raise XPlaneNoBeacon()` / `raise XPlaneTimeout` with typed exceptions carrying context
 
 ## P1 — High
 
