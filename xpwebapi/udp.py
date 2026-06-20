@@ -258,7 +258,10 @@ class XPUDPAPI(API):
             bool if fails
             request id if succeeded
         """
-        return self._request_dataref(dataref=dataref.path, freq=1)
+        ret = self._request_dataref(dataref=dataref.path, freq=1)
+        if ret:
+            dataref.inc_monitor()
+        return ret
 
     def unmonitor_datarefs(self, datarefs: dict, reason: str | None = None) -> Tuple[int | bool, Dict]:
         """Stops monitoring supplied datarefs.
@@ -274,7 +277,12 @@ class XPUDPAPI(API):
         """
         ret = True
         for dataref in datarefs.values():
+            if dataref.monitored_count > 1:
+                dataref.dec_monitor()
+                continue
             r = self._request_dataref(dataref=dataref.path, freq=0)
+            if r and dataref.is_monitored:
+                dataref.dec_monitor()
             if not r:
                 ret = False
         return ret, {}

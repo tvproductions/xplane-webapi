@@ -40,6 +40,14 @@ class TestXPUDPAPIWriteDataref(UDPAPITestCase):
         self.assertTrue(message.startswith(b"DREF\x00"))
         self.assertEqual(len(message), 509)
 
+    def test_write_dataref_sends_packet_without_connection_probe(self):
+        api = self.make_api()
+        dataref = Dataref(path="sim/test/value", api=api)
+        dataref.value = 1.25
+
+        self.assertTrue(api.write_dataref(dataref))
+        api.socket.sendto.assert_called_once()
+
     def test_write_dataref_raises_packet_error_for_invalid_dref_length(self):
         api = self.make_api()
         dataref = Dataref(path="sim/test/value", api=api)
@@ -65,6 +73,16 @@ class TestXPUDPAPIExecuteCommand(UDPAPITestCase):
         message, address = api.socket.sendto.call_args.args
         self.assertEqual(address, ("127.0.0.1", 49000))
         self.assertTrue(message.startswith(b"CMND\x00"))
+
+    def test_execute_command_ignores_duration_for_udp_packet(self):
+        api = self.make_api()
+        command = Command(path="sim/test/command", api=api)
+
+        self.assertTrue(api.execute_command(command, duration=2.0))
+
+        message, _address = api.socket.sendto.call_args.args
+        self.assertTrue(message.startswith(b"CMND\x00"))
+        self.assertIn(b"sim/test/command", message)
 
 
 class TestXPUDPAPIReadValues(UDPAPITestCase):
@@ -137,6 +155,16 @@ class TestXPUDPAPIRequestDataref(UDPAPITestCase):
 
         api.socket.sendto.assert_not_called()
 
+    def test_monitor_dataref_increments_dataref_monitor_count(self):
+        api = self.make_api()
+        dataref = Dataref(path="sim/test/value", api=api)
+
+        with patch.object(XPUDPAPI, "connected", new_callable=PropertyMock, return_value=True):
+            self.assertTrue(api.monitor_dataref(dataref))
+
+        self.assertEqual(dataref.monitored_count, 1)
+        self.assertTrue(dataref.is_monitored)
+
     def test_unmonitor_datarefs_sends_zero_frequency_request(self):
         api = self.make_api()
         dataref = Dataref(path="sim/test/value", api=api)
@@ -148,6 +176,18 @@ class TestXPUDPAPIRequestDataref(UDPAPITestCase):
         self.assertTrue(result)
         self.assertEqual(effectives, {})
         self.assertNotIn(dataref.path, api.datarefs.values())
+
+    def test_unmonitor_datarefs_decrements_dataref_monitor_count(self):
+        api = self.make_api()
+        dataref = Dataref(path="sim/test/value", api=api)
+
+        with patch.object(XPUDPAPI, "connected", new_callable=PropertyMock, return_value=True):
+            api.monitor_dataref(dataref)
+            result, effectives = api.unmonitor_datarefs({dataref.path: dataref})
+
+        self.assertTrue(result)
+        self.assertEqual(effectives, {})
+        self.assertEqual(dataref.monitored_count, 0)
 
 
 if __name__ == "__main__":
