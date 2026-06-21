@@ -205,6 +205,16 @@ class TestConfigureLogging(unittest.TestCase):
 
             self.assertEqual(rest_logger.level, logging.ERROR)
 
+    def test_explicit_component_reconfigure_reclaims_control_after_manual_change(self):
+        with IsolatedLoggerState("xpwebapi", "webapi", "xpwebapi.rest"):
+            rest_logger = logging.getLogger("xpwebapi.rest")
+
+            configure_logging(components={"xpwebapi.rest": "DEBUG"})
+            rest_logger.setLevel(logging.ERROR)
+            configure_logging(components={"xpwebapi.rest": "INFO"})
+
+            self.assertEqual(rest_logger.level, logging.INFO)
+
     def test_configure_logging_validates_before_mutating_handlers(self):
         foreign_handler = logging.NullHandler()
 

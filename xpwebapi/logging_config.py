@@ -140,10 +140,9 @@ def _apply_component_levels(components: Mapping[str, str]) -> None:
             logger_name,
             (logger.level, logger.level),
         )
-        if logger_name in _OWNED_COMPONENT_LOGGER_LEVELS and logger.level != owned_level:
-            continue
-
         new_level = _level_number(logger_level)
+        if logger_name in _OWNED_COMPONENT_LOGGER_LEVELS and logger.level != owned_level:
+            previous_level = logger.level
         logger.setLevel(new_level)
         _OWNED_COMPONENT_LOGGER_LEVELS[logger_name] = (previous_level, new_level)
 
