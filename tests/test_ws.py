@@ -3,6 +3,8 @@ import unittest
 from datetime import datetime
 from unittest.mock import MagicMock, PropertyMock, patch
 
+from websockets.exceptions import ConnectionClosedError
+
 from xpwebapi.api import DATAREF_DATATYPE, Command, CommandMeta, Dataref, DatarefMeta
 from xpwebapi.retry import RetryConfig
 from xpwebapi.rest import REST_KW
@@ -71,7 +73,7 @@ class TestXPWebsocketAPISend(WebsocketAPITestCase):
 
 
 class TestXPWebsocketAPIConnect(WebsocketAPITestCase):
-    @patch("xpwebapi.ws.Client.connect")
+    @patch("xpwebapi.ws.connect")
     def test_connect_websocket_success(self, mock_connect):
         api = self.make_api()
         api.ws = None
@@ -83,9 +85,9 @@ class TestXPWebsocketAPIConnect(WebsocketAPITestCase):
                 api.connect_websocket()
 
         self.assertIs(api.ws, websocket)
-        mock_connect.assert_called_once_with("ws://127.0.0.1:8086/api/v2")
+        mock_connect.assert_called_once_with("ws://127.0.0.1:8086/api/v2", proxy=None)
 
-    @patch("xpwebapi.ws.Client.connect")
+    @patch("xpwebapi.ws.connect")
     def test_connect_websocket_does_not_connect_when_rest_unreachable(self, mock_connect):
         api = self.make_api()
         api.ws = None
@@ -95,7 +97,7 @@ class TestXPWebsocketAPIConnect(WebsocketAPITestCase):
         self.assertIsNone(api.ws)
         mock_connect.assert_not_called()
 
-    @patch("xpwebapi.ws.Client.connect")
+    @patch("xpwebapi.ws.connect")
     def test_connect_websocket_retries_transient_connect_error(self, mock_connect):
         api = self.make_api()
         api.ws = None
@@ -231,6 +233,38 @@ class TestXPWebsocketAPIMessageHandling(WebsocketAPITestCase):
         callback.assert_any_call(dataref="sim/test/array[2]", value=7.5)
         callback.assert_any_call(dataref="sim/test/array[4]", value=8.5)
         self.assertEqual(callback.call_count, 2)
+
+
+class TestXPWebsocketAPIListener(WebsocketAPITestCase):
+    def test_ws_listener_treats_recv_timeout_as_idle_receive(self):
+        api = self.make_api()
+        api.RECEIVE_TIMEOUT = 0.01
+        api.ws.recv.side_effect = [TimeoutError, '{"type": "result", "req_id": 1, "success": true}']
+        api._requests[1] = MagicMock()
+
+        states = [True, True, False]
+        with patch.object(XPWebsocketAPI, "websocket_listener_running", new_callable=PropertyMock, side_effect=states):
+            with patch.object(api, "_log_receive_timeout") as log_timeout:
+                with patch.object(api, "_close_websocket_listener"):
+                    api.ws_listener()
+
+        api.ws.recv.assert_any_call(timeout=0.01)
+        log_timeout.assert_called_once_with(0)
+        self.assertEqual(api._stats["receive_raw"], 1)
+        self.assertEqual(api._stats["receive"], 1)
+
+    def test_ws_listener_handles_connection_closed(self):
+        api = self.make_api()
+        api.RECEIVE_TIMEOUT = 0.01
+        api.ws.recv.side_effect = ConnectionClosedError(None, None)
+
+        states = [True, False]
+        with patch.object(XPWebsocketAPI, "websocket_listener_running", new_callable=PropertyMock, side_effect=states):
+            with patch.object(api, "_handle_websocket_closed") as handle_closed:
+                with patch.object(api, "_close_websocket_listener"):
+                    api.ws_listener()
+
+        handle_closed.assert_called_once_with()
 
 
 class TestXPWebsocketAPIMonitoring(WebsocketAPITestCase):
