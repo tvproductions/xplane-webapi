@@ -39,6 +39,7 @@ dev = [
     "interrogate>=1.7.0",
     "lizard>=1.23.0",
     "mkdocs",
+    "mkdocs-git-revision-date-localized-plugin",
     "mkdocs-material",
     "mkdocstrings",
     "mkdocstrings-python",
