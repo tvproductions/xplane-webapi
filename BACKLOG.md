@@ -50,10 +50,10 @@
 - [x] Separate request/response traffic logging from application logging
 - [x] Configurable log levels per component via JSON configuration
 
-### [ ] WebSocket library evaluation
-- [ ] Evaluate `websockets` as replacement for `simple-websocket`
-- [ ] Better async support, more active maintenance
-- [ ] Benchmark and migrate if beneficial
+### [x] WebSocket library evaluation
+- [x] Evaluate `websockets` as replacement for `simple-websocket`
+- [x] Better async support, more active maintenance
+- [x] Benchmark and migrate if beneficial
 
 ## P3 — Low
 
