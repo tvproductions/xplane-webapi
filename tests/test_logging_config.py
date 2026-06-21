@@ -1,6 +1,6 @@
-import importlib
 import json
 import logging
+import subprocess
 import sys
 import unittest
 from io import StringIO
@@ -9,6 +9,7 @@ from tempfile import TemporaryDirectory
 
 from pydantic import ValidationError
 
+import xpwebapi.logging_config as logging_config_module
 from xpwebapi.logging_config import JsonLogFormatter, LoggingConfig, configure_logging, write_logging_config
 
 
@@ -91,8 +92,11 @@ class IsolatedLoggerState:
     def __init__(self, *names: str) -> None:
         self.names = names
         self.state = {}
+        self.owned_component_levels = {}
 
     def __enter__(self) -> "IsolatedLoggerState":
+        self.owned_component_levels = logging_config_module._OWNED_COMPONENT_LOGGER_LEVELS.copy()
+        logging_config_module._OWNED_COMPONENT_LOGGER_LEVELS.clear()
         for name in self.names:
             logger = logging.getLogger(name)
             self.state[name] = (logger.handlers[:], logger.level, logger.propagate)
@@ -102,6 +106,8 @@ class IsolatedLoggerState:
         return self
 
     def __exit__(self, _exc_type, _exc, _tb) -> None:
+        logging_config_module._OWNED_COMPONENT_LOGGER_LEVELS.clear()
+        logging_config_module._OWNED_COMPONENT_LOGGER_LEVELS.update(self.owned_component_levels)
         for name, (handlers, level, propagate) in self.state.items():
             logger = logging.getLogger(name)
             logger.handlers.clear()
@@ -189,6 +195,16 @@ class TestConfigureLogging(unittest.TestCase):
             self.assertEqual(rest_logger.level, logging.ERROR)
             self.assertEqual(ws_logger.level, logging.WARNING)
 
+    def test_manual_component_level_change_after_configure_is_preserved_when_override_is_removed(self):
+        with IsolatedLoggerState("xpwebapi", "webapi", "xpwebapi.rest"):
+            rest_logger = logging.getLogger("xpwebapi.rest")
+
+            configure_logging(components={"xpwebapi.rest": "DEBUG"})
+            rest_logger.setLevel(logging.ERROR)
+            configure_logging()
+
+            self.assertEqual(rest_logger.level, logging.ERROR)
+
     def test_configure_logging_validates_before_mutating_handlers(self):
         foreign_handler = logging.NullHandler()
 
@@ -217,18 +233,25 @@ class TestConfigureLogging(unittest.TestCase):
             self.assertEqual(app_logger.level, logging.DEBUG)
 
     def test_importing_package_does_not_configure_logging_handlers(self):
-        import xpwebapi
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                (
+                    "import json, logging; "
+                    "before = {name: len(logging.getLogger(name).handlers) for name in ('xpwebapi', 'webapi')}; "
+                    "import xpwebapi; "
+                    "after = {name: len(logging.getLogger(name).handlers) for name in ('xpwebapi', 'webapi')}; "
+                    "print(json.dumps({'before': before, 'after': after}))"
+                ),
+            ],
+            capture_output=True,
+            check=True,
+            text=True,
+        )
 
-        with IsolatedLoggerState("xpwebapi", "webapi"):
-            before = {
-                "xpwebapi": logging.getLogger("xpwebapi").handlers[:],
-                "webapi": logging.getLogger("webapi").handlers[:],
-            }
-
-            importlib.reload(xpwebapi)
-
-            self.assertEqual(logging.getLogger("xpwebapi").handlers, before["xpwebapi"])
-            self.assertEqual(logging.getLogger("webapi").handlers, before["webapi"])
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["after"], payload["before"])
 
 
 class TestPackageRootExports(unittest.TestCase):

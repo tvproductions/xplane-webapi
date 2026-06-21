@@ -22,7 +22,7 @@ PYTHON_LEVELS = {
     "NOTSET": logging.NOTSET,
 }
 OWNED_HANDLER_ATTR = "_xpwebapi_owned_handler"
-_OWNED_COMPONENT_LOGGER_LEVELS: dict[str, int] = {}
+_OWNED_COMPONENT_LOGGER_LEVELS: dict[str, tuple[int, int]] = {}
 
 
 def _normalize_level_name(level: str) -> str:
@@ -129,13 +129,23 @@ def _apply_component_levels(components: Mapping[str, str]) -> None:
     for logger_name in tuple(_OWNED_COMPONENT_LOGGER_LEVELS):
         if logger_name in configured_names:
             continue
-        logging.getLogger(logger_name).setLevel(_OWNED_COMPONENT_LOGGER_LEVELS.pop(logger_name))
+        previous_level, owned_level = _OWNED_COMPONENT_LOGGER_LEVELS.pop(logger_name)
+        logger = logging.getLogger(logger_name)
+        if logger.level == owned_level:
+            logger.setLevel(previous_level)
 
     for logger_name, logger_level in components.items():
         logger = logging.getLogger(logger_name)
-        if logger_name not in _OWNED_COMPONENT_LOGGER_LEVELS:
-            _OWNED_COMPONENT_LOGGER_LEVELS[logger_name] = logger.level
-        logger.setLevel(_level_number(logger_level))
+        previous_level, owned_level = _OWNED_COMPONENT_LOGGER_LEVELS.get(
+            logger_name,
+            (logger.level, logger.level),
+        )
+        if logger_name in _OWNED_COMPONENT_LOGGER_LEVELS and logger.level != owned_level:
+            continue
+
+        new_level = _level_number(logger_level)
+        logger.setLevel(new_level)
+        _OWNED_COMPONENT_LOGGER_LEVELS[logger_name] = (previous_level, new_level)
 
 
 def _merge_config(
