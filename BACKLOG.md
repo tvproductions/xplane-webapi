@@ -57,10 +57,11 @@
 
 ## P3 — Low
 
-### [ ] CI/CD pipeline
-- [ ] GitHub Actions: lint (`ruff check`), format (`ruff format --check`), type check (`ty check`), test (`python -m unittest discover -v`)
-- [ ] Publish to PyPI on tagged release via `uv publish`
-- [ ] Pre-commit hooks for local development
+### [x] CI/CD pipeline
+- [x] GitHub Actions: lint (`ruff check`), format (`ruff format --check`), type check (`ty check`), test (`python -m unittest discover -v`), and package build validation (`uv build`)
+- [ ] Publish to PyPI on tagged release via `uv publish` — deferred pending upstream PR outcome and package-name strategy
+- [x] Pre-commit hooks for local development
+- [x] Preserve MkDocs deployment on pushes to `main`
 
 ### [ ] Documentation improvements
 - [ ] Type-annotate all examples
