@@ -16,7 +16,8 @@ from enum import Enum
 # Packaging is used in Cockpit to check driver versions
 from packaging.version import Version
 
-from simple_websocket import Client, ConnectionClosed
+from websockets.exceptions import ConnectionClosed
+from websockets.sync.client import ClientConnection, connect
 
 from .api import APIResult, CONNECTION_STATUS, DATAREF_DATATYPE, webapi_logger, Dataref, Command
 from .rest import REST_KW, XPRestAPI
@@ -123,7 +124,7 @@ class XPWebsocketAPI(XPRestAPI):
         hostname = socket.gethostname()
         self.local_ip = socket.gethostbyname(hostname)
 
-        self.ws: Client | None = None  # None = no connection
+        self.ws: ClientConnection | None = None  # None = no connection
         self.ws_lsnr_not_running = threading.Event()
         self.ws_lsnr_not_running.set()  # means it is off
         self.ws_thread = None
@@ -262,7 +263,7 @@ class XPWebsocketAPI(XPRestAPI):
                 for attempt in range(self.retry_config.attempts):
                     try:
                         if self.rest_api_reachable:
-                            self.ws = Client.connect(url)
+                            self.ws = connect(url, proxy=None)
                             self.status = CONNECTION_STATUS.WEBSOCKET_CONNNECTED
                             self.reload_caches()
                             logger.info(f"websocket opened at {url}")
@@ -849,14 +850,14 @@ class XPWebsocketAPI(XPRestAPI):
             try:
                 if self.ws is None:
                     continue
-                message = self.ws.receive(timeout=self.RECEIVE_TIMEOUT)
-                self.inc("receive_raw")
-                # probably we don't receive messages because X-Plane has nothing to send...
-                if message is None:
+                try:
+                    message = self.ws.recv(timeout=self.RECEIVE_TIMEOUT)
+                except TimeoutError:
                     self._log_receive_timeout(to_count)
                     to_count = to_count + 1
                     continue
 
+                self.inc("receive_raw")
                 self.inc("receive")
                 lnow = now()
                 if total_reads == 0:

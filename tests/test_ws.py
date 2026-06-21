@@ -248,7 +248,7 @@ class TestXPWebsocketAPIListener(WebsocketAPITestCase):
                 with patch.object(api, "_close_websocket_listener"):
                     api.ws_listener()
 
-        api.ws.recv.assert_any_call(timeout=0.01)
+        api.ws.recv.assert_any_call(timeout=1)
         log_timeout.assert_called_once_with(0)
         self.assertEqual(api._stats["receive_raw"], 1)
         self.assertEqual(api._stats["receive"], 1)
