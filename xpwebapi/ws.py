@@ -799,7 +799,7 @@ class XPWebsocketAPI(XPRestAPI):
             else:
                 self._handle_dataref_scalar_update(cast(Dataref, dataref), value)
 
-    def _handle_websocket_message(self, message: str, lnow: datetime) -> None:
+    def _handle_websocket_message(self, message: str | bytes, lnow: datetime) -> None:
         data = {}
         try:
             data = json.loads(message)
