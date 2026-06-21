@@ -58,9 +58,7 @@ class LoggingConfig(BaseModel):
 
     @model_validator(mode="after")
     def _validate_components(self) -> "LoggingConfig":
-        self.components = {
-            _validate_component_name(name): _normalize_level_name(level) for name, level in self.components.items()
-        }
+        self.components = {_validate_component_name(name): _normalize_level_name(level) for name, level in self.components.items()}
         return self
 
 
@@ -77,9 +75,7 @@ class JsonLogFormatter(logging.Formatter):
 
     def format(self, record: logging.LogRecord) -> str:
         payload = {
-            "timestamp": datetime.fromtimestamp(record.created, tz=UTC)
-            .isoformat(timespec="milliseconds")
-            .replace("+00:00", "Z"),
+            "timestamp": datetime.fromtimestamp(record.created, tz=UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z"),
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),
