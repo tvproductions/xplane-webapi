@@ -78,6 +78,10 @@ class TestLoggingConfig(unittest.TestCase):
         with self.assertRaises(ValidationError):
             LoggingConfig(components={"urllib3": "DEBUG"})
 
+    def test_logging_config_rejects_trailing_dot_only_component(self):
+        with self.assertRaises(ValidationError):
+            LoggingConfig(components={"xpwebapi.": "DEBUG"})
+
 
 if __name__ == "__main__":
     unittest.main()

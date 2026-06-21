@@ -32,7 +32,7 @@ def _normalize_level_name(level: str) -> str:
 
 
 def _validate_component_name(name: str) -> str:
-    if name == "webapi" or name.startswith("xpwebapi."):
+    if name == "webapi" or (name.startswith("xpwebapi.") and len(name) > len("xpwebapi.")):
         return name
     raise ValueError("component logger must be 'webapi' or start with 'xpwebapi.'")
 
