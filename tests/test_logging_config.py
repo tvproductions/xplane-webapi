@@ -1,11 +1,15 @@
+import importlib
 import json
 import logging
 import sys
 import unittest
+from io import StringIO
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from pydantic import ValidationError
 
-from xpwebapi.logging_config import JsonLogFormatter, LoggingConfig
+from xpwebapi.logging_config import JsonLogFormatter, LoggingConfig, configure_logging, write_logging_config
 
 
 class TestJsonLogFormatter(unittest.TestCase):
@@ -81,6 +85,137 @@ class TestLoggingConfig(unittest.TestCase):
     def test_logging_config_rejects_trailing_dot_only_component(self):
         with self.assertRaises(ValidationError):
             LoggingConfig(components={"xpwebapi.": "DEBUG"})
+
+
+class IsolatedLoggerState:
+    def __init__(self, *names: str) -> None:
+        self.names = names
+        self.state = {}
+
+    def __enter__(self) -> "IsolatedLoggerState":
+        for name in self.names:
+            logger = logging.getLogger(name)
+            self.state[name] = (logger.handlers[:], logger.level, logger.propagate)
+            logger.handlers.clear()
+            logger.setLevel(logging.NOTSET)
+            logger.propagate = True
+        return self
+
+    def __exit__(self, _exc_type, _exc, _tb) -> None:
+        for name, (handlers, level, propagate) in self.state.items():
+            logger = logging.getLogger(name)
+            logger.handlers.clear()
+            logger.handlers.extend(handlers)
+            logger.setLevel(level)
+            logger.propagate = propagate
+
+
+class TestLoggingConfigFileIO(unittest.TestCase):
+    def test_write_logging_config_writes_valid_starter_config(self):
+        with TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "xpwebapi-logging.json"
+
+            written = write_logging_config(path)
+
+            self.assertEqual(written, path)
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            config = LoggingConfig.model_validate(raw["logging"])
+            self.assertEqual(config.format, "text")
+            self.assertEqual(config.level, "INFO")
+            self.assertEqual(config.traffic_level, "WARNING")
+
+    def test_write_logging_config_does_not_overwrite_by_default(self):
+        with TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "xpwebapi-logging.json"
+            path.write_text("{}", encoding="utf-8")
+
+            with self.assertRaises(FileExistsError):
+                write_logging_config(path)
+
+    def test_configure_logging_raises_value_error_for_invalid_json(self):
+        with TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "xpwebapi-logging.json"
+            path.write_text("{", encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "xpwebapi-logging.json"):
+                configure_logging(config_file=path)
+
+    def test_configure_logging_raises_file_not_found_for_explicit_missing_file(self):
+        with TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "missing.json"
+
+            with self.assertRaises(FileNotFoundError):
+                configure_logging(config_file=path)
+
+
+class TestConfigureLogging(unittest.TestCase):
+    def test_configure_logging_separates_application_and_traffic_loggers(self):
+        app_stream = StringIO()
+
+        with IsolatedLoggerState("xpwebapi", "webapi"):
+            config = configure_logging(format="json", level="DEBUG", traffic_level="ERROR", stream=app_stream)
+
+            app_logger = logging.getLogger("xpwebapi")
+            traffic_logger = logging.getLogger("webapi")
+
+            self.assertEqual(config.format, "json")
+            self.assertEqual(app_logger.level, logging.DEBUG)
+            self.assertEqual(traffic_logger.level, logging.ERROR)
+            self.assertEqual(len(app_logger.handlers), 1)
+            self.assertEqual(len(traffic_logger.handlers), 1)
+            self.assertIsInstance(app_logger.handlers[0].formatter, JsonLogFormatter)
+            self.assertIsInstance(traffic_logger.handlers[0].formatter, JsonLogFormatter)
+            self.assertIsNot(app_logger.handlers[0], traffic_logger.handlers[0])
+            self.assertFalse(traffic_logger.propagate)
+
+    def test_configure_logging_applies_component_levels(self):
+        with IsolatedLoggerState("xpwebapi", "webapi", "xpwebapi.rest", "xpwebapi.ws"):
+            configure_logging(level="WARNING", components={"xpwebapi.rest": "DEBUG", "xpwebapi.ws": "ERROR"})
+
+            self.assertEqual(logging.getLogger("xpwebapi").level, logging.WARNING)
+            self.assertEqual(logging.getLogger("xpwebapi.rest").level, logging.DEBUG)
+            self.assertEqual(logging.getLogger("xpwebapi.ws").level, logging.ERROR)
+
+    def test_configure_logging_validates_before_mutating_handlers(self):
+        foreign_handler = logging.NullHandler()
+
+        with IsolatedLoggerState("xpwebapi", "webapi"):
+            app_logger = logging.getLogger("xpwebapi")
+            app_logger.addHandler(foreign_handler)
+
+            with self.assertRaises(ValidationError):
+                configure_logging(level="NOTICE")
+
+            self.assertEqual(app_logger.handlers, [foreign_handler])
+
+    def test_repeated_configure_logging_replaces_only_owned_handlers(self):
+        foreign_handler = logging.NullHandler()
+
+        with IsolatedLoggerState("xpwebapi", "webapi"):
+            app_logger = logging.getLogger("xpwebapi")
+            app_logger.addHandler(foreign_handler)
+
+            configure_logging(level="INFO")
+            configure_logging(level="DEBUG")
+
+            self.assertIn(foreign_handler, app_logger.handlers)
+            owned_handlers = [handler for handler in app_logger.handlers if getattr(handler, "_xpwebapi_owned_handler", False)]
+            self.assertEqual(len(owned_handlers), 1)
+            self.assertEqual(app_logger.level, logging.DEBUG)
+
+    def test_importing_package_does_not_configure_logging_handlers(self):
+        import xpwebapi
+
+        with IsolatedLoggerState("xpwebapi", "webapi"):
+            before = {
+                "xpwebapi": logging.getLogger("xpwebapi").handlers[:],
+                "webapi": logging.getLogger("webapi").handlers[:],
+            }
+
+            importlib.reload(xpwebapi)
+
+            self.assertEqual(logging.getLogger("xpwebapi").handlers, before["xpwebapi"])
+            self.assertEqual(logging.getLogger("webapi").handlers, before["webapi"])
 
 
 if __name__ == "__main__":

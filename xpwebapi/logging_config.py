@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Mapping
 from datetime import UTC, datetime
-from typing import Literal
+from pathlib import Path
+from typing import Literal, TextIO
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -19,6 +21,7 @@ PYTHON_LEVELS = {
     "DEBUG": logging.DEBUG,
     "NOTSET": logging.NOTSET,
 }
+OWNED_HANDLER_ATTR = "_xpwebapi_owned_handler"
 
 
 def _normalize_level_name(level: str) -> str:
@@ -86,3 +89,100 @@ class JsonLogFormatter(logging.Formatter):
         if record.exc_info:
             payload["exception"] = self.formatException(record.exc_info)
         return json.dumps(payload, sort_keys=True)
+
+
+def _level_number(level: str) -> int:
+    return PYTHON_LEVELS[_normalize_level_name(level)]
+
+
+def _load_config_file(config_file: str | Path) -> LoggingConfig:
+    path = Path(config_file)
+    raw_text = path.read_text(encoding="utf-8")
+    try:
+        raw = json.loads(raw_text)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"invalid JSON logging config {path}: {exc}") from exc
+    return LoggingConfigFile.model_validate(raw).logging
+
+
+def _make_handler(config: LoggingConfig, stream: TextIO | None) -> logging.Handler:
+    handler = logging.StreamHandler(stream)
+    formatter: logging.Formatter
+    if config.format == "json":
+        formatter = JsonLogFormatter()
+    else:
+        formatter = logging.Formatter(LOGGING_FORMAT_TEXT)
+    handler.setFormatter(formatter)
+    setattr(handler, OWNED_HANDLER_ATTR, True)
+    return handler
+
+
+def _replace_owned_handlers(logger: logging.Logger, handler: logging.Handler) -> None:
+    logger.handlers = [existing for existing in logger.handlers if not getattr(existing, OWNED_HANDLER_ATTR, False)]
+    logger.addHandler(handler)
+
+
+def _merge_config(
+    base: LoggingConfig,
+    *,
+    format: Literal["text", "json"] | None,
+    level: str | None,
+    traffic_level: str | None,
+    components: Mapping[str, str] | None,
+) -> LoggingConfig:
+    data = base.model_dump()
+    if format is not None:
+        data["format"] = format
+    if level is not None:
+        data["level"] = level
+    if traffic_level is not None:
+        data["traffic_level"] = traffic_level
+    if components is not None:
+        data["components"] = {**data["components"], **dict(components)}
+    return LoggingConfig.model_validate(data)
+
+
+def configure_logging(
+    config_file: str | Path | None = None,
+    *,
+    format: Literal["text", "json"] | None = None,
+    level: str | None = None,
+    traffic_level: str | None = None,
+    components: Mapping[str, str] | None = None,
+    stream: TextIO | None = None,
+) -> LoggingConfig:
+    """Configure xpwebapi application and traffic logging explicitly."""
+
+    base_config = _load_config_file(config_file) if config_file is not None else LoggingConfig()
+    config = _merge_config(base_config, format=format, level=level, traffic_level=traffic_level, components=components)
+
+    app_logger = logging.getLogger("xpwebapi")
+    traffic_logger = logging.getLogger("webapi")
+
+    app_handler = _make_handler(config, stream)
+    traffic_handler = _make_handler(config, stream)
+
+    _replace_owned_handlers(app_logger, app_handler)
+    _replace_owned_handlers(traffic_logger, traffic_handler)
+
+    app_logger.setLevel(_level_number(config.level))
+    traffic_logger.setLevel(_level_number(config.traffic_level))
+    app_logger.propagate = False
+    traffic_logger.propagate = False
+
+    for logger_name, logger_level in config.components.items():
+        logging.getLogger(logger_name).setLevel(_level_number(logger_level))
+
+    return config
+
+
+def write_logging_config(path: str | Path, *, config: LoggingConfig | None = None, overwrite: bool = False) -> Path:
+    """Write a starter JSON logging config file."""
+
+    output_path = Path(path)
+    if output_path.exists() and not overwrite:
+        raise FileExistsError(output_path)
+
+    config_file = LoggingConfigFile(logging=config or LoggingConfig())
+    output_path.write_text(json.dumps(config_file.model_dump(), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return output_path
