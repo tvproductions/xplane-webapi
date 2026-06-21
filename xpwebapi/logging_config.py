@@ -22,6 +22,7 @@ PYTHON_LEVELS = {
     "NOTSET": logging.NOTSET,
 }
 OWNED_HANDLER_ATTR = "_xpwebapi_owned_handler"
+_OWNED_COMPONENT_LOGGER_LEVELS: dict[str, int] = {}
 
 
 def _normalize_level_name(level: str) -> str:
@@ -122,6 +123,21 @@ def _replace_owned_handlers(logger: logging.Logger, handler: logging.Handler) ->
     logger.addHandler(handler)
 
 
+def _apply_component_levels(components: Mapping[str, str]) -> None:
+    configured_names = set(components)
+
+    for logger_name in tuple(_OWNED_COMPONENT_LOGGER_LEVELS):
+        if logger_name in configured_names:
+            continue
+        logging.getLogger(logger_name).setLevel(_OWNED_COMPONENT_LOGGER_LEVELS.pop(logger_name))
+
+    for logger_name, logger_level in components.items():
+        logger = logging.getLogger(logger_name)
+        if logger_name not in _OWNED_COMPONENT_LOGGER_LEVELS:
+            _OWNED_COMPONENT_LOGGER_LEVELS[logger_name] = logger.level
+        logger.setLevel(_level_number(logger_level))
+
+
 def _merge_config(
     base: LoggingConfig,
     *,
@@ -170,8 +186,7 @@ def configure_logging(
     app_logger.propagate = False
     traffic_logger.propagate = False
 
-    for logger_name, logger_level in config.components.items():
-        logging.getLogger(logger_name).setLevel(_level_number(logger_level))
+    _apply_component_levels(config.components)
 
     return config
 

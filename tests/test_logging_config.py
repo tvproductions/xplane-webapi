@@ -176,6 +176,19 @@ class TestConfigureLogging(unittest.TestCase):
             self.assertEqual(logging.getLogger("xpwebapi.rest").level, logging.DEBUG)
             self.assertEqual(logging.getLogger("xpwebapi.ws").level, logging.ERROR)
 
+    def test_repeated_configure_logging_restores_removed_component_overrides(self):
+        with IsolatedLoggerState("xpwebapi", "webapi", "xpwebapi.rest", "xpwebapi.ws"):
+            rest_logger = logging.getLogger("xpwebapi.rest")
+            ws_logger = logging.getLogger("xpwebapi.ws")
+            rest_logger.setLevel(logging.ERROR)
+            ws_logger.setLevel(logging.CRITICAL)
+
+            configure_logging(components={"xpwebapi.rest": "DEBUG"})
+            configure_logging(components={"xpwebapi.ws": "WARNING"})
+
+            self.assertEqual(rest_logger.level, logging.ERROR)
+            self.assertEqual(ws_logger.level, logging.WARNING)
+
     def test_configure_logging_validates_before_mutating_handlers(self):
         foreign_handler = logging.NullHandler()
 
