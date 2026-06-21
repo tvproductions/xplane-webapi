@@ -268,6 +268,68 @@ class TestXPWebsocketAPIListener(WebsocketAPITestCase):
 
 
 class TestXPWebsocketAPIMonitoring(WebsocketAPITestCase):
+    def test_monitor_datarefs_accepts_iterable_and_sends_one_subscribe_request(self):
+        api = self.make_api()
+        first = Dataref(path="sim/test/first", api=api)
+        first._cached_meta = DatarefMeta(name=first.path, value_type="float", is_writable=True, id=101)
+        second = Dataref(path="sim/test/second", api=api)
+        second._cached_meta = DatarefMeta(name=second.path, value_type="float", is_writable=True, id=102)
+        api.send = MagicMock(return_value=7)
+
+        with patch.object(XPWebsocketAPI, "connected", new_callable=PropertyMock, return_value=True):
+            result, effectives = api.monitor_datarefs([first, second], reason="batch-test")
+
+        self.assertEqual(result, 7)
+        self.assertEqual(set(effectives), {first.name, second.name})
+        api.send.assert_called_once()
+        payload = api.send.call_args.args[0]
+        self.assertEqual(payload[REST_KW.TYPE.value], "dataref_subscribe_values")
+        self.assertEqual(payload[REST_KW.PARAMS.value][REST_KW.DATAREFS.value], [{"id": 101}, {"id": 102}])
+        self.assertEqual(api._dataref_by_id, {101: first, 102: second})
+
+    def test_unmonitor_datarefs_accepts_iterable_and_sends_one_unsubscribe_request(self):
+        api = self.make_api()
+        first = Dataref(path="sim/test/first", api=api)
+        first._cached_meta = DatarefMeta(name=first.path, value_type="float", is_writable=True, id=101)
+        first.inc_monitor()
+        second = Dataref(path="sim/test/second", api=api)
+        second._cached_meta = DatarefMeta(name=second.path, value_type="float", is_writable=True, id=102)
+        second.inc_monitor()
+        api._dataref_by_id = {101: first, 102: second}
+        api.send = MagicMock(return_value=8)
+
+        with patch.object(XPWebsocketAPI, "connected", new_callable=PropertyMock, return_value=True):
+            result, effectives = api.unmonitor_datarefs([first, second], reason="batch-test")
+
+        self.assertEqual(result, 8)
+        self.assertEqual(set(effectives), {first.name, second.name})
+        api.send.assert_called_once()
+        payload = api.send.call_args.args[0]
+        self.assertEqual(payload[REST_KW.TYPE.value], "dataref_unsubscribe_values")
+        self.assertEqual(payload[REST_KW.PARAMS.value][REST_KW.DATAREFS.value], [{"id": 101}, {"id": 102}])
+        self.assertEqual(api._dataref_by_id, {})
+
+    def test_monitor_datarefs_groups_selected_array_indices_in_one_request(self):
+        api = self.make_api()
+        meta = DatarefMeta(name="sim/test/array", value_type=DATAREF_DATATYPE.FLOATARRAY.value, is_writable=True, id=201)
+        first = Dataref(path="sim/test/array[2]", api=api)
+        first._cached_meta = meta
+        second = Dataref(path="sim/test/array[4]", api=api)
+        second._cached_meta = meta
+        api.send = MagicMock(return_value=9)
+
+        with patch.object(XPWebsocketAPI, "connected", new_callable=PropertyMock, return_value=True):
+            result, effectives = api.monitor_datarefs([first, second], reason="array-test")
+
+        self.assertEqual(result, 9)
+        self.assertEqual(set(effectives), {first.name, second.name})
+        api.send.assert_called_once()
+        payload = api.send.call_args.args[0]
+        self.assertEqual(payload[REST_KW.TYPE.value], "dataref_subscribe_values")
+        self.assertEqual(payload[REST_KW.PARAMS.value][REST_KW.DATAREFS.value], [{"id": 201, "index": [2, 4]}])
+        self.assertEqual(api._dataref_by_id, {201: [first, second]})
+        self.assertEqual(meta.indices, [2, 4])
+
     def test_monitor_datarefs_subscribes_only_unmonitored_datarefs(self):
         api = self.make_api()
         first = Dataref(path="sim/test/first", api=api)

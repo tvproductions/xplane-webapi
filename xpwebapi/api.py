@@ -620,7 +620,7 @@ class Dataref:
         """Decodes current dataref value and replaces it with the decoded string value
 
         Args:
-            encoding| None ([str]): [description] (default: `None`)
+            encoding (str): Encoding used to decode the bytes value.
 
         Returns:
             [type]: [description]

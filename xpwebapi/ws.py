@@ -8,6 +8,7 @@ import logging
 import json
 import time
 
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Callable, Self, cast
@@ -34,6 +35,10 @@ XP_MAX_VERSION = 121499
 XP_MAX_VERSION_STR = "12.3.3"
 
 MAX_WARNING_COUNT = 5
+
+type DatarefBatch = Mapping[str, Dataref] | Iterable[Dataref]
+type BulkDatarefValue = Dataref | list[Dataref]
+type BulkDatarefBatch = Mapping[int, BulkDatarefValue]
 
 
 # WEB API RETURN CODES
@@ -448,6 +453,12 @@ class XPWebsocketAPI(XPRestAPI):
             webapi_logger.info(f">> MAP {', '.join(maps)}")
         return req_id
 
+    def _dataref_batch_values(self, datarefs: DatarefBatch) -> list[Dataref]:
+        """Normalize supported dataref batch inputs to a concrete list."""
+        if isinstance(datarefs, Mapping):
+            return list(datarefs.values())
+        return list(datarefs)
+
     # Dataref operations
     #
     # Note: It is not possible get the the value of a dataref just once
@@ -490,11 +501,11 @@ class XPWebsocketAPI(XPRestAPI):
             drefs[0][REST_KW.INDEX.value] = index
         return self.send(payload, mapping)
 
-    def register_bulk_dataref_value_event(self, datarefs, on: bool = True) -> bool | int:
+    def register_bulk_dataref_value_event(self, datarefs: BulkDatarefBatch, on: bool = True) -> bool | int:
         drefs = []
         for dataref in datarefs.values():
             if type(dataref) is list:
-                meta = self.get_dataref_meta_by_id(dataref[0].ident)  # we modify the global source info, not the local copy in the Dataref()
+                meta = dataref[0].meta  # we modify the global source info, not the local copy in the Dataref()
                 if meta is None:
                     logger.warning(f"cannot register {dataref[0]}, no meta data")
                     continue
@@ -516,8 +527,10 @@ class XPWebsocketAPI(XPRestAPI):
             else:
                 if dataref.is_array:
                     logger.debug(f"dataref {dataref.name}: collecting whole array")
-                drefs.append({REST_KW.IDENT.value: dataref.ident})
-        if len(datarefs) > 0:
+                ident = dataref.ident
+                if ident is not None:
+                    drefs.append({REST_KW.IDENT.value: ident})
+        if len(drefs) > 0:
             mapping = {}
             for d in datarefs.values():
                 if type(d) is list:
@@ -527,9 +540,8 @@ class XPWebsocketAPI(XPRestAPI):
                     mapping[d.ident] = d.name
             action = "dataref_subscribe_values" if on else "dataref_unsubscribe_values"
             return self.send({REST_KW.TYPE.value: action, REST_KW.PARAMS.value: {REST_KW.DATAREFS.value: drefs}}, mapping)
-        if on:
-            action = "register" if on else "unregister"
-            logger.warning(f"no bulk datarefs to {action}")
+        action = "register" if on else "unregister"
+        logger.warning(f"no bulk datarefs to {action}")
         return False
 
     # Command operations
@@ -956,28 +968,29 @@ class XPWebsocketAPI(XPRestAPI):
             time.sleep(1)
         logger.debug("..connected")
 
-    def monitor_datarefs(self, datarefs: dict, reason: str | None = None) -> tuple[int | bool, dict]:
+    def monitor_datarefs(self, datarefs: DatarefBatch, reason: str | None = None) -> tuple[int | bool, dict]:
         """Starts monitoring of supplied datarefs.
 
-        [description]
+        Sends a single WebSocket subscribe request for all newly monitored datarefs.
 
         Args:
-            datarefs (dict): {path: Dataref} dictionary of datarefs
+            datarefs (DatarefBatch): Mapping of {path: Dataref} or iterable of datarefs.
             reason (str | None): Documentation only string to identify call to function.
 
         Returns:
-            tuple[int | bool, dict]: [description]
+            tuple[int | bool, dict]: Request id or False, and effective datarefs by name.
         """
+        requested = self._dataref_batch_values(datarefs)
         if not self.connected:
-            logger.debug(f"would add {datarefs.keys()}")
+            logger.debug(f"would add {[d.name for d in requested]}")
             return (False, {})
-        if len(datarefs) == 0:
+        if len(requested) == 0:
             logger.debug("no dataref to add")
             return (False, {})
         # Add those to monitor
         bulk = {}
         effectives = {}
-        for d in datarefs.values():
+        for d in requested:
             if not d.is_monitored:
                 ident = d.ident
                 if ident is not None:
@@ -1006,28 +1019,29 @@ class XPWebsocketAPI(XPRestAPI):
             logger.debug("no dataref to add")
         return ret, effectives
 
-    def unmonitor_datarefs(self, datarefs: dict, reason: str | None = None) -> tuple[int | bool, dict]:
+    def unmonitor_datarefs(self, datarefs: DatarefBatch, reason: str | None = None) -> tuple[int | bool, dict]:
         """Stops monitoring supplied datarefs.
 
-        [description]
+        Sends a single WebSocket unsubscribe request for all datarefs whose monitor count reaches zero.
 
         Args:
-            datarefs (dict): {path: Dataref} dictionary of datarefs
+            datarefs (DatarefBatch): Mapping of {path: Dataref} or iterable of datarefs.
             reason (str | None): Documentation only string to identify call to function.
 
         Returns:
-            tuple[int | bool, dict]: [description]
+            tuple[int | bool, dict]: Request id or False, and effective datarefs by name.
         """
+        requested = self._dataref_batch_values(datarefs)
         if not self.connected:
-            logger.debug(f"would remove {datarefs.keys()}")
+            logger.debug(f"would remove {[d.name for d in requested]}")
             return (False, {})
-        if len(datarefs) == 0:
+        if len(requested) == 0:
             logger.debug("no variable to remove")
             return (False, {})
         # Add those to monitor
         bulk = {}
         effectives = {}
-        for d in datarefs.values():
+        for d in requested:
             if d.is_monitored:
                 effectives[d.name] = d
                 if not d.dec_monitor():  # will be decreased by 1 in super().remove_simulator_variable_to_monitor()

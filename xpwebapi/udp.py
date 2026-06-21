@@ -319,7 +319,7 @@ class XPUDPAPI(API):
             sleep(0.2)
         return True
 
-    def read_monitored_dataref_values(self):
+    def read_monitored_dataref_values(self) -> dict:
         """Do a single read and populate dataref with values.
 
         This function should be called at regular intervals to collect all requested datarefs.

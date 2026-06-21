@@ -63,15 +63,15 @@
 - [x] Pre-commit hooks for local development
 - [x] Preserve MkDocs deployment on pushes to `main`
 
-### [ ] Documentation improvements
-- [ ] Type-annotate all examples
-- [ ] Add usage patterns (connection lifecycle, monitoring datarefs, executing commands)
-- [ ] Generate and publish API docs via `mkdocstrings`
+### [x] Documentation improvements
+- [x] Type-annotate all examples
+- [x] Add usage patterns (connection lifecycle, monitoring datarefs, executing commands)
+- [x] Generate and publish API docs via `mkdocstrings`
 
-### [ ] Batch dataref request optimization
-- [ ] WebSocket API supports bulk subscribe/unsubscribe
-- [ ] Add `monitor_datarefs()` batch helper with single round-trip
-- [ ] Document performance characteristics
+### [x] Batch dataref request optimization
+- [x] WebSocket API supports bulk subscribe/unsubscribe
+- [x] Add `monitor_datarefs()` batch helper with single round-trip
+- [x] Document performance characteristics
 
 ### [ ] Connection pooling
 - [ ] Reuse `httpx.Client` across `XPRestAPI` instances when possible
