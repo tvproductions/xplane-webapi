@@ -45,10 +45,10 @@
 - [x] Replace `Optional[X]` with `X | None`
 - [x] Use `Self` from `typing` where appropriate
 
-### [ ] Structured logging
-- [ ] Add JSON log formatter option
-- [ ] Separate request/response traffic logging from application logging
-- [ ] Configurable log levels per component via environment variables
+### [x] Structured logging
+- [x] Add JSON log formatter option
+- [x] Separate request/response traffic logging from application logging
+- [x] Configurable log levels per component via JSON configuration
 
 ### [ ] WebSocket library evaluation
 - [ ] Evaluate `websockets` as replacement for `simple-websocket`

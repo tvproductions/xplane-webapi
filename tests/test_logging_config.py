@@ -231,5 +231,19 @@ class TestConfigureLogging(unittest.TestCase):
             self.assertEqual(logging.getLogger("webapi").handlers, before["webapi"])
 
 
+class TestPackageRootExports(unittest.TestCase):
+    def test_logging_helpers_are_exported_from_package_root(self):
+        import xpwebapi
+
+        self.assertIs(xpwebapi.configure_logging, configure_logging)
+        self.assertIs(xpwebapi.write_logging_config, write_logging_config)
+        self.assertIs(xpwebapi.LoggingConfig, LoggingConfig)
+        self.assertIs(xpwebapi.JsonLogFormatter, JsonLogFormatter)
+        self.assertIn("configure_logging", xpwebapi.__all__)
+        self.assertIn("write_logging_config", xpwebapi.__all__)
+        self.assertIn("LoggingConfig", xpwebapi.__all__)
+        self.assertIn("JsonLogFormatter", xpwebapi.__all__)
+
+
 if __name__ == "__main__":
     unittest.main()
