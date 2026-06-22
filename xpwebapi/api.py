@@ -12,9 +12,9 @@ from datetime import datetime
 from typing import Any, Protocol, cast
 from typing import TYPE_CHECKING
 
-import httpx
-
 if TYPE_CHECKING:
+    import httpx
+
     from .beacon import BeaconData
 
 type DatarefScalarType = bool | str | int | float
@@ -213,7 +213,7 @@ class API(Protocol):
         self._show_stats = True
         self._stats = {}
 
-        self.session: httpx.Client = httpx.Client()
+        self.session: httpx.Client
         self.use_cache: bool = False
         self.all_datarefs: DatarefCache | None = None
         self.all_commands: CommandCache | None = None

@@ -37,6 +37,38 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
+When creating many short-lived synchronous REST API objects, opt in to shared HTTP connection pooling. Instances with matching pool configuration reuse the same underlying `httpx.Client`; the shared client closes after the last pooled API instance is closed.
+
+```python
+import xpwebapi
+
+
+first = xpwebapi.rest_api(
+    api_version="v2",
+    pool_connections=True,
+    max_connections=8,
+    max_keepalive_connections=4,
+    keepalive_expiry=30.0,
+    timeout=5.0,
+)
+second = xpwebapi.rest_api(
+    api_version="v2",
+    pool_connections=True,
+    max_connections=8,
+    max_keepalive_connections=4,
+    keepalive_expiry=30.0,
+    timeout=5.0,
+)
+
+try:
+    print(first.capabilities)
+    clock = second.dataref("sim/cockpit2/clock_timer/local_time_seconds")
+    print(second.dataref_value(clock))
+finally:
+    first.close()
+    second.close()
+```
+
 For WebSocket and UDP clients, explicitly stop monitoring/listener threads before disconnecting when you do not use a context manager.
 
 ```python

@@ -73,6 +73,6 @@
 - [x] Add `monitor_datarefs()` batch helper with single round-trip
 - [x] Document performance characteristics
 
-### [ ] Connection pooling
-- [ ] Reuse `httpx.Client` across `XPRestAPI` instances when possible
-- [ ] Pool configuration options (max connections, timeouts)
+### [x] Connection pooling
+- [x] Reuse `httpx.Client` across `XPRestAPI` instances when possible
+- [x] Pool configuration options (max connections, timeouts)

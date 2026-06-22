@@ -36,6 +36,67 @@ class TestXPRestAPIConnected(RestAPITestCase):
 
         api.session.close.assert_called_once()
 
+    def test_pooled_clients_reuse_session_until_last_close(self):
+        with patch("xpwebapi.rest.httpx.Client") as client_cls:
+            shared_session = MagicMock()
+            client_cls.return_value = shared_session
+
+            first = XPRestAPI(host="127.0.0.1", port=8086, api="/api", api_version="v1", pool_connections=True)
+            second = XPRestAPI(host="127.0.0.1", port=8086, api="/api", api_version="v1", pool_connections=True)
+
+        self.assertIs(first.session, second.session)
+
+        first.close()
+        shared_session.close.assert_not_called()
+
+        second.close()
+        shared_session.close.assert_called_once()
+
+    def test_unpooled_clients_keep_independent_sessions(self):
+        with patch("xpwebapi.rest.httpx.Client") as client_cls:
+            first_session = MagicMock()
+            second_session = MagicMock()
+            client_cls.side_effect = [first_session, second_session]
+
+            first = XPRestAPI(host="127.0.0.1", port=8086, api="/api", api_version="v1", pool_connections=False)
+            second = XPRestAPI(host="127.0.0.1", port=8086, api="/api", api_version="v1", pool_connections=False)
+
+        self.assertIsNot(first.session, second.session)
+
+        first.close()
+        first_session.close.assert_called_once()
+        second_session.close.assert_not_called()
+
+        second.close()
+        second_session.close.assert_called_once()
+
+    def test_pool_configuration_passes_limits_and_timeout_to_httpx_client(self):
+        with patch("xpwebapi.rest.httpx.Client") as client_cls:
+            client_cls.return_value = MagicMock()
+
+            api = XPRestAPI(
+                host="127.0.0.1",
+                port=8086,
+                api="/api",
+                api_version="v1",
+                pool_connections=True,
+                max_connections=8,
+                max_keepalive_connections=4,
+                keepalive_expiry=12.5,
+                timeout=3.0,
+            )
+
+        kwargs = client_cls.call_args.kwargs
+        limits = kwargs["limits"]
+        timeout = kwargs["timeout"]
+
+        self.assertEqual(limits.max_connections, 8)
+        self.assertEqual(limits.max_keepalive_connections, 4)
+        self.assertEqual(limits.keepalive_expiry, 12.5)
+        self.assertEqual(timeout.as_dict(), {"connect": 3.0, "read": 3.0, "write": 3.0, "pool": 3.0})
+
+        api.close()
+
     def test_connected_returns_true_for_successful_count_probe(self):
         api = self.make_api()
         api.session.get.return_value = mock_response(200, {"data": 1})

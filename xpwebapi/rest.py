@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import logging
 import base64
+from dataclasses import dataclass
 from datetime import timedelta
+from threading import Lock
 from types import TracebackType
 from typing import TYPE_CHECKING, Self
 from enum import Enum
@@ -47,6 +49,70 @@ V1_CAPABILITIES = {"api": {"versions": ["v1"]}, "x-plane": {"version": "12.1.1"}
 PROXY_TCP_PORT = 8080
 
 XP_SUPER_MIN_VERSION = 121010
+
+REST_HEADERS = {"Accept": "application/json", "Content-Type": "application/json"}
+
+
+@dataclass(frozen=True)
+class _RestClientPoolKey:
+    max_connections: int | None
+    max_keepalive_connections: int | None
+    keepalive_expiry: float | None
+    timeout: float | None
+
+
+@dataclass
+class _RestClientPoolEntry:
+    client: httpx.Client
+    references: int = 0
+
+
+class _RestClientPool:
+    _clients: dict[_RestClientPoolKey, _RestClientPoolEntry] = {}
+    _lock = Lock()
+
+    @classmethod
+    def acquire(cls, key: _RestClientPoolKey) -> httpx.Client:
+        with cls._lock:
+            entry = cls._clients.get(key)
+            if entry is None:
+                entry = _RestClientPoolEntry(client=_make_http_client(key))
+                cls._clients[key] = entry
+            entry.references = entry.references + 1
+            return entry.client
+
+    @classmethod
+    def release(cls, key: _RestClientPoolKey) -> None:
+        client: httpx.Client | None = None
+        with cls._lock:
+            entry = cls._clients.get(key)
+            if entry is None:
+                return
+            entry.references = entry.references - 1
+            if entry.references <= 0:
+                client = entry.client
+                del cls._clients[key]
+        if client is not None:
+            client.close()
+
+
+def _make_http_client(key: _RestClientPoolKey) -> httpx.Client:
+    limits = None
+    if key.max_connections is not None or key.max_keepalive_connections is not None or key.keepalive_expiry is not None:
+        limits = httpx.Limits(
+            max_connections=key.max_connections,
+            max_keepalive_connections=key.max_keepalive_connections,
+            keepalive_expiry=key.keepalive_expiry,
+        )
+    timeout = httpx.Timeout(key.timeout) if key.timeout is not None else None
+    if limits is None and timeout is None:
+        return httpx.Client(headers=REST_HEADERS)
+    if key.timeout is not None:
+        if limits is None:
+            return httpx.Client(headers=REST_HEADERS, timeout=timeout)
+        return httpx.Client(headers=REST_HEADERS, limits=limits, timeout=timeout)
+    assert limits is not None
+    return httpx.Client(headers=REST_HEADERS, limits=limits)
 
 
 # REST KEYWORDS
@@ -99,10 +165,26 @@ class XPRestAPI(API):
         retry_attempts: int = 1,
         retry_backoff: float = 0.0,
         retry_backoff_max: float = 5.0,
+        pool_connections: bool = False,
+        max_connections: int | None = None,
+        max_keepalive_connections: int | None = None,
+        keepalive_expiry: float | None = None,
+        timeout: float | None = None,
     ) -> None:
         API.__init__(self, host=host, port=port, api=api, api_version=api_version)
         self._capabilities = {}
         self.retry_config = RetryConfig(attempts=retry_attempts, backoff=retry_backoff, max_backoff=retry_backoff_max)
+        self._session_pool_key = (
+            _RestClientPoolKey(
+                max_connections=max_connections,
+                max_keepalive_connections=max_keepalive_connections,
+                keepalive_expiry=keepalive_expiry,
+                timeout=timeout,
+            )
+            if pool_connections
+            else None
+        )
+        self._session_closed = False
 
         self._first_try = True
         self._running_time = Dataref(path=RUNNING_TIME, api=self)  # cheating, side effect, works for rest api only, do not force!
@@ -117,7 +199,11 @@ class XPRestAPI(API):
         self._unreach_count = 0
         self._dataref_by_id = {}  # {dataref-id: Dataref}
 
-        self.session = httpx.Client(headers={"Accept": "application/json", "Content-Type": "application/json"})
+        self.session = (
+            _RestClientPool.acquire(self._session_pool_key)
+            if self._session_pool_key is not None
+            else _make_http_client(_RestClientPoolKey(None, None, None, None))
+        )
 
     def __enter__(self) -> Self:
         return self
@@ -127,7 +213,13 @@ class XPRestAPI(API):
 
     def close(self) -> None:
         """Close the underlying HTTP session."""
-        self.session.close()
+        if self._session_closed:
+            return
+        self._session_closed = True
+        if self._session_pool_key is None:
+            self.session.close()
+        else:
+            _RestClientPool.release(self._session_pool_key)
 
     @property
     def use_cache(self) -> bool:

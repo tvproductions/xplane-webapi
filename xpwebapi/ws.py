@@ -456,7 +456,7 @@ class XPWebsocketAPI(XPRestAPI):
     def _dataref_batch_values(self, datarefs: DatarefBatch) -> list[Dataref]:
         """Normalize supported dataref batch inputs to a concrete list."""
         if isinstance(datarefs, Mapping):
-            return list(datarefs.values())
+            return list(cast(Mapping[str, Dataref], datarefs).values())
         return list(datarefs)
 
     # Dataref operations
