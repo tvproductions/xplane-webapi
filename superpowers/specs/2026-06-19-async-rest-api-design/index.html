@@ -1,0 +1,1187 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Async REST API Design - Python wrapper for X-Plane Web API</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../css/timeago.css">
+    
+      <link rel="stylesheet" href="../../../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#async-rest-api-design" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="Python wrapper for X-Plane Web API" class="md-header__button md-logo" aria-label="Python wrapper for X-Plane Web API" data-md-component="logo">
+      
+  <img src="../../../x-plane.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Python wrapper for X-Plane Web API
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Async REST API Design
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14.3 16-.7-2h-3.2l-.7 2H7.8L11 7h2l3.2 9zM20 8.69V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12zm-9.15 3.96h2.3L12 9z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="purple"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_2" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="lime"  aria-label="Switch to system preference"  type="radio" name="__palette" id="__palette_2">
+    
+      <label class="md-header__button md-icon" title="Switch to system preference" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="Python wrapper for X-Plane Web API" class="md-nav__button md-logo" aria-label="Python wrapper for X-Plane Web API" data-md-component="logo">
+      
+  <img src="../../../x-plane.svg" alt="logo">
+
+    </a>
+    Python wrapper for X-Plane Web API
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_1" id="__nav_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Home
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../changelog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../usage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Usage
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/package/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Package
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/core-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/rest/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    REST
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/async-rest/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Async REST
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/websocket/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    WebSocket
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/udp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    UDP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/beacon/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Beacon
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/exceptions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Exceptions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/logging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Logging
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#goals" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Goals
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#non-goals" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Non-Goals
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#public-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Public API
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Public API">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#new-class" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        New Class
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#factory-and-exports" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Factory and Exports
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lifecycle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lifecycle
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#connectivity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Connectivity
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#metadata-and-datarefs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Metadata and Datarefs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#return-semantics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Return Semantics
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#serialization-behavior" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Serialization Behavior
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#testing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Testing
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#documentation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Documentation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#risks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Risks
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="async-rest-api-design">Async REST API Design</h1>
+<p><strong>Date</strong>: 2026-06-19
+<strong>Scope</strong>: P1 async support for REST operations
+<strong>Approach</strong>: Add an opt-in <code>AsyncXPRestAPI</code> backed by <code>httpx.AsyncClient</code>, preserving the existing synchronous API unchanged.</p>
+<hr />
+<h2 id="goals">Goals</h2>
+<ul>
+<li>Add asynchronous REST support for callers already running an event loop.</li>
+<li>Keep <code>XPRestAPI</code>, <code>rest_api()</code>, WebSocket, and UDP behavior unchanged.</li>
+<li>Reuse existing <code>Dataref</code>, <code>Command</code>, metadata, cache, URL, and serialization logic where practical.</li>
+<li>Provide explicit async lifecycle management for the underlying HTTP client.</li>
+<li>Cover async behavior with stdlib <code>unittest</code> async tests and mocks.</li>
+</ul>
+<h2 id="non-goals">Non-Goals</h2>
+<ul>
+<li>No async WebSocket implementation in this tranche.</li>
+<li>No conversion of <code>API</code> from <code>ABC</code> to <code>Protocol</code>.</li>
+<li>No redesign of cache classes.</li>
+<li>No dependency changes; <code>httpx</code> is already a runtime dependency.</li>
+<li>No breaking changes to method return semantics.</li>
+</ul>
+<hr />
+<h2 id="public-api">Public API</h2>
+<h3 id="new-class">New Class</h3>
+<p>Add <code>AsyncXPRestAPI</code> in a new module:</p>
+<pre><code class="language-python"># xpwebapi/async_rest.py
+class AsyncXPRestAPI:
+    ...
+</code></pre>
+<p>The class mirrors the REST operations that can be performed asynchronously:</p>
+<pre><code class="language-python">async def aclose(self) -&gt; None: ...
+
+async def rest_api_reachable(self) -&gt; bool: ...
+
+async def get_rest_meta(self, obj: Dataref | Command, force: bool = False) -&gt; DatarefMeta | CommandMeta | None: ...
+
+async def dataref_value(self, dataref: Dataref, raw: bool = False, no_decode: bool = False) -&gt; DatarefValueType | bytes | None: ...
+
+async def write_dataref(self, dataref: Dataref) -&gt; bool: ...
+
+async def execute_command(self, command: Command, duration: float = 0.0) -&gt; bool: ...
+</code></pre>
+<p><code>AsyncXPRestAPI</code> intentionally uses async methods for operations that perform I/O. It does not inherit from the synchronous <code>API</code> abstract base because the sync contract exposes methods and properties that cannot be awaited. The async class duplicates the small amount of shared network state and exposes its own async contract.</p>
+<p>The class still provides the same object factories:</p>
+<pre><code class="language-python">def dataref(self, path: str, auto_save: bool = False) -&gt; Dataref: ...
+
+def command(self, path: str) -&gt; Command: ...
+</code></pre>
+<p>Callers should pass these objects back to async API methods instead of using sync convenience accessors like <code>dataref.value</code>, <code>dataref.write()</code>, or <code>command.execute()</code>.</p>
+<h3 id="factory-and-exports">Factory and Exports</h3>
+<p>Update <code>xpwebapi/__init__.py</code>:</p>
+<pre><code class="language-python">from .async_rest import AsyncXPRestAPI
+
+def async_rest_api(**kwargs):
+    return AsyncXPRestAPI(**kwargs)
+</code></pre>
+<p>Add <code>"AsyncXPRestAPI"</code> and <code>"async_rest_api"</code> to <code>__all__</code>.</p>
+<p>Existing code continues to use:</p>
+<pre><code class="language-python">api = xpwebapi.rest_api()
+</code></pre>
+<p>Async callers can use:</p>
+<pre><code class="language-python">api = xpwebapi.async_rest_api()
+try:
+    value = await api.dataref_value(api.dataref(&quot;sim/test/value&quot;))
+finally:
+    await api.aclose()
+</code></pre>
+<hr />
+<h2 id="lifecycle">Lifecycle</h2>
+<p><code>AsyncXPRestAPI</code> owns an <code>httpx.AsyncClient</code>:</p>
+<pre><code class="language-python">self.session = httpx.AsyncClient(headers={&quot;Accept&quot;: &quot;application/json&quot;, &quot;Content-Type&quot;: &quot;application/json&quot;})
+</code></pre>
+<p>The initial lifecycle API is explicit:</p>
+<pre><code class="language-python">await api.aclose()
+</code></pre>
+<p>Optional async context manager support can be included because it is low risk and directly tied to client cleanup:</p>
+<pre><code class="language-python">async with xpwebapi.async_rest_api() as api:
+    value = await api.dataref_value(api.dataref(&quot;sim/test/value&quot;))
+</code></pre>
+<p>Implementation:</p>
+<pre><code class="language-python">async def __aenter__(self) -&gt; AsyncXPRestAPI:
+    return self
+
+async def __aexit__(self, exc_type, exc, tb) -&gt; None:
+    await self.aclose()
+</code></pre>
+<p>Sync context manager support remains out of scope.</p>
+<hr />
+<h2 id="connectivity">Connectivity</h2>
+<p>The sync <code>XPRestAPI.connected</code> property cannot be awaited. For async code, expose:</p>
+<pre><code class="language-python">async def rest_api_reachable(self) -&gt; bool:
+    ...
+</code></pre>
+<p>Async operation methods call <code>await self.rest_api_reachable()</code> before issuing requests, matching the sync behavior without introducing an awaitable property.</p>
+<p>The probe URL remains:</p>
+<pre><code class="language-python">http://{host}:{port}/api/v1/datarefs/count
+</code></pre>
+<p>Connection failures return <code>False</code> and set status to <code>REST_API_NOT_REACHABLE</code>, consistent with <code>XPRestAPI</code>.</p>
+<hr />
+<h2 id="metadata-and-datarefs">Metadata and Datarefs</h2>
+<p><code>Dataref.meta</code>, <code>Command.meta</code>, <code>Dataref.valid</code>, <code>Dataref.value</code>, <code>Dataref.write()</code>, and <code>Command.execute()</code> are synchronous properties or methods today. They cannot transparently call async I/O and should not be used as the primary async calling style.</p>
+<p>The async API therefore supports two safe paths:</p>
+<ol>
+<li>Use cached metadata on <code>Dataref</code> / <code>Command</code> objects before async operations.</li>
+<li>Call <code>await api.get_rest_meta(obj)</code> explicitly to populate <code>_cached_meta</code>.</li>
+</ol>
+<p>Async methods should avoid using <code>dataref.valid</code>, <code>dataref.ident</code>, <code>dataref.is_writable</code>, and <code>command.valid</code> when those properties might perform sync I/O through <code>obj.meta</code>.</p>
+<p>Instead, async methods use a helper:</p>
+<pre><code class="language-python">async def _meta_for(self, obj: Dataref | Command) -&gt; DatarefMeta | CommandMeta | None:
+    if obj._cached_meta is not None:
+        return obj._cached_meta
+    return await self.get_rest_meta(obj)
+</code></pre>
+<p>This keeps async operations non-blocking while preserving existing object models. The async implementation should also expose <code>use_cache</code>, <code>all_datarefs</code>, and <code>all_commands</code> attributes for compatibility with the existing objects, but async methods must not depend on sync metadata properties.</p>
+<hr />
+<h2 id="return-semantics">Return Semantics</h2>
+<p>Match sync REST behavior:</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th style="text-align: right;">Success</th>
+<th style="text-align: right;">Not connected / invalid / error</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dataref_value</code></td>
+<td style="text-align: right;"><code>DatarefValueType | bytes</code></td>
+<td style="text-align: right;"><code>None</code></td>
+</tr>
+<tr>
+<td><code>write_dataref</code></td>
+<td style="text-align: right;"><code>True</code></td>
+<td style="text-align: right;"><code>False</code></td>
+</tr>
+<tr>
+<td><code>execute_command</code></td>
+<td style="text-align: right;"><code>True</code></td>
+<td style="text-align: right;"><code>False</code></td>
+</tr>
+<tr>
+<td><code>get_rest_meta</code></td>
+<td style="text-align: right;"><code>DatarefMeta | CommandMeta</code></td>
+<td style="text-align: right;"><code>None</code></td>
+</tr>
+<tr>
+<td><code>rest_api_reachable</code></td>
+<td style="text-align: right;"><code>True</code></td>
+<td style="text-align: right;"><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<p>Unlike WebSocket operations, async REST does not return request IDs, so <code>write_dataref</code> and <code>execute_command</code> return <code>bool</code>.</p>
+<hr />
+<h2 id="serialization-behavior">Serialization Behavior</h2>
+<p><code>AsyncXPRestAPI.dataref_value()</code> follows sync REST behavior:</p>
+<ul>
+<li><code>raw=False</code> decodes base64 string data responses when possible.</li>
+<li><code>raw=True</code> returns the encoded response value as provided by the API.</li>
+<li>Non-data scalar values are returned unchanged.</li>
+<li>Error responses return <code>None</code>.</li>
+</ul>
+<p><code>AsyncXPRestAPI.write_dataref()</code> follows sync REST behavior:</p>
+<ul>
+<li>Rejects missing metadata.</li>
+<li>Rejects unwritable datarefs.</li>
+<li>Rejects missing new values.</li>
+<li>Base64-encodes <code>data</code> / <code>bytes</code> values through existing <code>Dataref.b64encoded</code>.</li>
+<li>Adds <code>?index={index}</code> for selected array element writes.</li>
+</ul>
+<p><code>AsyncXPRestAPI.execute_command()</code> follows sync REST behavior:</p>
+<ul>
+<li>Uses <code>command.duration</code> when explicit <code>duration</code> is <code>0.0</code>.</li>
+<li>Sends command identifier and duration to <code>/command/{ident}/activate</code>.</li>
+</ul>
+<hr />
+<h2 id="testing">Testing</h2>
+<p>Add <code>tests/test_async_rest.py</code> using <code>unittest.IsolatedAsyncioTestCase</code>.</p>
+<p>Mock <code>httpx.AsyncClient</code> behavior with <code>AsyncMock</code> and controlled response objects. Tests should not require network access or a running simulator.</p>
+<p>Coverage:</p>
+<ul>
+<li><code>rest_api_reachable()</code> returns <code>True</code> on 200.</li>
+<li><code>rest_api_reachable()</code> returns <code>False</code> on non-200.</li>
+<li><code>rest_api_reachable()</code> returns <code>False</code> on <code>httpx.ConnectError</code>.</li>
+<li><code>get_rest_meta()</code> returns cached metadata without HTTP.</li>
+<li><code>get_rest_meta()</code> fetches and caches <code>DatarefMeta</code>.</li>
+<li><code>get_rest_meta()</code> fetches and caches <code>CommandMeta</code>.</li>
+<li><code>dataref_value()</code> returns scalars.</li>
+<li><code>dataref_value()</code> decodes base64 data values.</li>
+<li><code>dataref_value(raw=True)</code> returns encoded data.</li>
+<li><code>dataref_value()</code> returns <code>None</code> when disconnected or on error.</li>
+<li><code>write_dataref()</code> returns <code>True</code> on 200.</li>
+<li><code>write_dataref()</code> rejects unwritable datarefs.</li>
+<li><code>write_dataref()</code> handles selected array element URLs.</li>
+<li><code>execute_command()</code> returns <code>True</code> on 200.</li>
+<li><code>execute_command()</code> applies command default duration.</li>
+<li><code>aclose()</code> awaits <code>AsyncClient.aclose()</code>.</li>
+<li><code>async with AsyncXPRestAPI(...)</code> closes the client on exit.</li>
+</ul>
+<p>Verification commands:</p>
+<pre><code class="language-powershell">uv run python -m unittest tests.test_async_rest -v
+uv run python -m unittest discover -v
+uv run ruff check xpwebapi tests
+uv run ruff format --check xpwebapi tests
+</code></pre>
+<hr />
+<h2 id="documentation">Documentation</h2>
+<p>Add a short async usage section to <code>docs/usage/index.md</code> or <code>README.md</code>:</p>
+<pre><code class="language-python">import asyncio
+import xpwebapi
+
+async def main():
+    async with xpwebapi.async_rest_api() as api:
+        dataref = api.dataref(&quot;sim/time/total_running_time_sec&quot;)
+        value = await api.dataref_value(dataref)
+        print(value)
+
+asyncio.run(main())
+</code></pre>
+<p>Keep the sync examples as the default path.</p>
+<hr />
+<h2 id="risks">Risks</h2>
+<ul>
+<li>Existing <code>Dataref</code> and <code>Command</code> convenience methods remain sync; async callers must call API methods directly with <code>await</code>.</li>
+<li>Async cache loading is not included in the minimum tranche, so metadata fetches are per-object unless cached on the object.</li>
+<li>The async class initially duplicates network setup helpers from <code>API</code>. A later refactor can extract a non-abstract shared base if duplication grows.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": [], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="../../../js/timeago.min.js"></script>
+      
+        <script src="../../../js/timeago_mkdocs_material.js"></script>
+      
+    
+  </body>
+</html>

@@ -1,0 +1,1707 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="../udp/">
+      
+      
+        <link rel="next" href="../exceptions/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Beacon - Python wrapper for X-Plane Web API</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../css/timeago.css">
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#beacon" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Python wrapper for X-Plane Web API" class="md-header__button md-logo" aria-label="Python wrapper for X-Plane Web API" data-md-component="logo">
+      
+  <img src="../../x-plane.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Python wrapper for X-Plane Web API
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Beacon
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14.3 16-.7-2h-3.2l-.7 2H7.8L11 7h2l3.2 9zM20 8.69V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12zm-9.15 3.96h2.3L12 9z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="purple"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_2" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="lime"  aria-label="Switch to system preference"  type="radio" name="__palette" id="__palette_2">
+    
+      <label class="md-header__button md-icon" title="Switch to system preference" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Python wrapper for X-Plane Web API" class="md-nav__button md-logo" aria-label="Python wrapper for X-Plane Web API" data-md-component="logo">
+      
+  <img src="../../x-plane.svg" alt="logo">
+
+    </a>
+    Python wrapper for X-Plane Web API
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_1" id="__nav_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Home
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../changelog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../usage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Usage
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../package/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Package
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../core-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../rest/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    REST
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../async-rest/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Async REST
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../websocket/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    WebSocket
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../udp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    UDP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Beacon
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../exceptions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Exceptions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../logging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Logging
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="beacon">Beacon</h1>
+
+
+<div class="doc doc-object doc-module">
+
+
+
+<h1 id="xpwebapi.beacon" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-module"></code>            <span class="doc doc-object-name doc-module-name">beacon</span>
+
+
+</h1>
+
+    <div class="doc doc-contents first">
+
+        <p>X-Plane UDP Beacon Monitor</p>
+<p>Beacon Monitor listen to X-Plane UDP multicast port for a «beacon» emitted by X-Plane network API, if enabled.
+If no beacon is ever detected, either X-Plane is not running, or it is busy starting.
+If a beacon is detected, the message contains connection information to reach X-Plane instance through the network.
+Beacon also contains information about the version of X-Plane.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+          <b><code><span title="xpwebapi.beacon.logger">logger</span></code></b>
+              (<code><span title="Logger">Logger</span></code>)
+          –
+          <div class="doc-md-description">
+            <p>Loger for functions and classes in this file.</p>
+          </div>
+        </li>
+    </ul>
+
+
+
+
+
+
+
+
+
+
+<p><span class="doc-section-title">Classes:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+          <b><code><a class="autorefs autorefs-internal" title="            BEACON_DATA (xpwebapi.beacon.BEACON_DATA)" href="#xpwebapi.beacon.BEACON_DATA">BEACON_DATA</a></code></b>
+          –
+          <div class="doc-md-description">
+            <p>X-Plane names of attributes inside its beacon.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><a class="autorefs autorefs-internal" title="            BEACON_MONITOR_STATUS (xpwebapi.beacon.BEACON_MONITOR_STATUS)" href="#xpwebapi.beacon.BEACON_MONITOR_STATUS">BEACON_MONITOR_STATUS</a></code></b>
+          –
+          <div class="doc-md-description">
+            <p>Internal status of Beacon Monitor.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><a class="autorefs autorefs-internal" title="            BeaconData
+
+
+  
+      dataclass
+   (xpwebapi.beacon.BeaconData)" href="#xpwebapi.beacon.BeaconData">BeaconData</a></code></b>
+          –
+          <div class="doc-md-description">
+            <p>Pythonic dataclass to host X-Plane Beacon data.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><a class="autorefs autorefs-internal" title="            XPBeaconMonitor (xpwebapi.beacon.XPBeaconMonitor)" href="#xpwebapi.beacon.XPBeaconMonitor">XPBeaconMonitor</a></code></b>
+          –
+          <div class="doc-md-description">
+            <p>X-Plane «beacon» monitor.</p>
+          </div>
+        </li>
+    </ul>
+
+
+
+
+<p><span class="doc-section-title">Functions:</span></p>
+    <ul>
+          <li class="doc-section-item field-body">
+            <b><code><a class="autorefs autorefs-internal" title="            list_my_ips (xpwebapi.beacon.list_my_ips)" href="#xpwebapi.beacon.list_my_ips">list_my_ips</a></code></b>
+            –
+            <div class="doc-md-description">
+              <p>Utility function that list most if not all IP addresses of this host.</p>
+            </div>
+          </li>
+    </ul>
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="xpwebapi.beacon.BEACON_DATA" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">BEACON_DATA</span>
+
+
+</h2>
+
+
+    <div class="doc doc-contents ">
+
+            <div style="display: none">
+              <a class="autorefs autorefs-internal" title="            BEACON_DATA (xpwebapi.beacon.BEACON_DATA)" href="#xpwebapi.beacon.BEACON_DATA" id="mermaid-link-xpwebapi.beacon.BEACON_DATA"></a>
+            </div>
+            <pre class="mermaid"><code id="mermaid-diagram-xpwebapi.beacon.BEACON_DATA">
+              flowchart TD
+              xpwebapi.beacon.BEACON_DATA[BEACON_DATA]
+
+              
+
+              click xpwebapi.beacon.BEACON_DATA href "" "xpwebapi.beacon.BEACON_DATA"
+            </code></pre>
+            <script>
+              var diagram = document.getElementById('mermaid-diagram-xpwebapi.beacon.BEACON_DATA');
+              diagram.innerHTML = diagram.innerHTML.replace(/click ([\w.]+) href "" "\1"/g, function(match, nodeID, offset) {
+                try {
+                  const link = document.getElementById("mermaid-link-" + nodeID).href;
+                  return `click ${nodeID} href "${link}" "${nodeID}"`
+                } catch (e) {
+                  return '';
+                }
+              });
+            </script>
+
+
+        <p>X-Plane names of attributes inside its beacon.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="xpwebapi.beacon.BEACON_MONITOR_STATUS" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">BEACON_MONITOR_STATUS</span>
+
+
+</h2>
+
+
+    <div class="doc doc-contents ">
+
+            <div style="display: none">
+              <a class="autorefs autorefs-internal" title="            BEACON_MONITOR_STATUS (xpwebapi.beacon.BEACON_MONITOR_STATUS)" href="#xpwebapi.beacon.BEACON_MONITOR_STATUS" id="mermaid-link-xpwebapi.beacon.BEACON_MONITOR_STATUS"></a>
+            </div>
+            <pre class="mermaid"><code id="mermaid-diagram-xpwebapi.beacon.BEACON_MONITOR_STATUS">
+              flowchart TD
+              xpwebapi.beacon.BEACON_MONITOR_STATUS[BEACON_MONITOR_STATUS]
+
+              
+
+              click xpwebapi.beacon.BEACON_MONITOR_STATUS href "" "xpwebapi.beacon.BEACON_MONITOR_STATUS"
+            </code></pre>
+            <script>
+              var diagram = document.getElementById('mermaid-diagram-xpwebapi.beacon.BEACON_MONITOR_STATUS');
+              diagram.innerHTML = diagram.innerHTML.replace(/click ([\w.]+) href "" "\1"/g, function(match, nodeID, offset) {
+                try {
+                  const link = document.getElementById("mermaid-link-" + nodeID).href;
+                  return `click ${nodeID} href "${link}" "${nodeID}"`
+                } catch (e) {
+                  return '';
+                }
+              });
+            </script>
+
+
+        <p>Internal status of Beacon Monitor.</p>
+<ul>
+<li>NOT_RUNNING - Beacon is not running</li>
+<li>RUNNING - Beacon monitor is running but no beacon detected</li>
+<li>DETECTING_BEACON - Beacon monitor is running and beacon detected</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="xpwebapi.beacon.BeaconData" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">BeaconData</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+</h2>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">BeaconData</span><span class="p">(</span><span class="n"><span title="xpwebapi.beacon.BeaconData(host)">host</span></span><span class="p">:</span> <span class="n"><span title="str">str</span></span><span class="p">,</span> <span class="n"><span title="xpwebapi.beacon.BeaconData(port)">port</span></span><span class="p">:</span> <span class="n"><span title="int">int</span></span><span class="p">,</span> <span class="n"><span title="xpwebapi.beacon.BeaconData(hostname)">hostname</span></span><span class="p">:</span> <span class="n"><span title="str">str</span></span><span class="p">,</span> <span class="n"><span title="xpwebapi.beacon.BeaconData(xplane_version)">xplane_version</span></span><span class="p">:</span> <span class="n"><span title="int">int</span></span><span class="p">,</span> <span class="n"><span title="xpwebapi.beacon.BeaconData(role)">role</span></span><span class="p">:</span> <span class="n"><span title="int">int</span></span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+
+
+        <p>Pythonic dataclass to host X-Plane Beacon data.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="xpwebapi.beacon.XPBeaconMonitor" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">XPBeaconMonitor</span>
+
+
+</h2>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">XPBeaconMonitor</span><span class="p">(</span>
+    <span class="n"><span title="xpwebapi.beacon.XPBeaconMonitor(retry_attempts)">retry_attempts</span></span><span class="p">:</span> <span class="n"><span title="int">int</span></span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span> <span class="n"><span title="xpwebapi.beacon.XPBeaconMonitor(retry_backoff)">retry_backoff</span></span><span class="p">:</span> <span class="n"><span title="float">float</span></span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span> <span class="n"><span title="xpwebapi.beacon.XPBeaconMonitor(retry_backoff_max)">retry_backoff_max</span></span><span class="p">:</span> <span class="n"><span title="float">float</span></span> <span class="o">=</span> <span class="mf">5.0</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+
+
+        <p>X-Plane «beacon» monitor.</p>
+<p>Monitors X-Plane beacon which betrays X-Plane UDP port reachability.
+Beacon monitor listen for X-Plane beacon on UDP port.
+When beacon is detected, Beacon Monitor calls back a user-supplied function
+whenever the reachability status changes.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+          <b><code><span title="xpwebapi.beacon.XPBeaconMonitor.MCAST_GRP">MCAST_GRP</span></code></b>
+              (<code><span title="str">str</span></code>)
+          –
+          <div class="doc-md-description">
+            <p>default 239.255.1.1</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="xpwebapi.beacon.XPBeaconMonitor.MCAST_PORT">MCAST_PORT</span></code></b>
+              (<code><span title="int">int</span></code>)
+          –
+          <div class="doc-md-description">
+            <p>default 49707 (MCAST_PORT was 49000 for XPlane10)</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="xpwebapi.beacon.XPBeaconMonitor.BEACON_TIMEOUT">BEACON_TIMEOUT</span></code></b>
+              (<code><span title="float">float</span></code>)
+          –
+          <div class="doc-md-description">
+            <p>default 3.0 seconds</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="xpwebapi.beacon.XPBeaconMonitor.MAX_WARNING">MAX_WARNING</span></code></b>
+              (<code><span title="int">int</span></code>)
+          –
+          <div class="doc-md-description">
+            <p>After MAX_WARNING warnings of "no connection", stops reporting "no connection". Default 3.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="xpwebapi.beacon.XPBeaconMonitor.BEACON_PROBING_TIMEOUT">BEACON_PROBING_TIMEOUT</span></code></b>
+              (<code><span title="float">float</span></code>)
+          –
+          <div class="doc-md-description">
+            <p>Times between attempts to reconnect to X-Plane when not connected (default 10 seconds)</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="xpwebapi.beacon.XPBeaconMonitor.WARN_FREQ">WARN_FREQ</span></code></b>
+              (<code><span title="float">float</span></code>)
+          –
+          <div class="doc-md-description">
+            <p>Report absence of connection every WARN_FREQ seconds. Default 10 seconds.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="xpwebapi.beacon.XPBeaconMonitor.socket">socket</span></code></b>
+              (<code><span title="xpwebapi.beacon.XPBeaconMonitor.socket.socket">socket</span> | None</code>)
+          –
+          <div class="doc-md-description">
+            <p>Socket to multicast listener</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><a class="autorefs autorefs-internal" title="            status
+
+
+  
+      property
+      writable
+   (xpwebapi.beacon.XPBeaconMonitor.status)" href="#xpwebapi.beacon.XPBeaconMonitor.status">status</a></code></b>
+              (<code><a class="autorefs autorefs-internal" title="            BEACON_MONITOR_STATUS (xpwebapi.beacon.BEACON_MONITOR_STATUS)" href="#xpwebapi.beacon.BEACON_MONITOR_STATUS">BEACON_MONITOR_STATUS</a></code>)
+          –
+          <div class="doc-md-description">
+            <p>Beacon monitor status</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="xpwebapi.beacon.XPBeaconMonitor.data">data</span></code></b>
+              (<code><a class="autorefs autorefs-internal" title="            BeaconData
+
+
+  
+      dataclass
+   (xpwebapi.beacon.BeaconData)" href="#xpwebapi.beacon.BeaconData">BeaconData</a> | None</code>)
+          –
+          <div class="doc-md-description">
+            <p>BeaconData | None - Beacon data as broadcasted by X-Plane in its beacon. None if beacon is not received.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="xpwebapi.beacon.XPBeaconMonitor.my_ips">my_ips</span></code></b>
+              (<code><span title="list">list</span>[<span title="str">str</span>]</code>)
+          –
+          <div class="doc-md-description">
+            <p>List of this host IP addresses</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="xpwebapi.beacon.XPBeaconMonitor._already_warned">_already_warned</span></code></b>
+              (<code><span title="bool">bool</span></code>)
+          –
+          <div class="doc-md-description">
+            
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="xpwebapi.beacon.XPBeaconMonitor._callback">_callback</span></code></b>
+              (<code><span title="set">set</span>[<span title="typing.Callable">Callable</span>]</code>)
+          –
+          <div class="doc-md-description">
+            <p>(Callable | None):</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="xpwebapi.beacon.XPBeaconMonitor.should_not_connect">should_not_connect</span></code></b>
+              (<code><span title="threading.Event">Event</span></code>)
+          –
+          <div class="doc-md-description">
+            
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="xpwebapi.beacon.XPBeaconMonitor.connect_thread">connect_thread</span></code></b>
+              (<code><span title="threading.Event">Event</span></code>)
+          –
+          <div class="doc-md-description">
+            <p>(threading.Thread | None):</p>
+          </div>
+        </li>
+    </ul>
+        <p>Usage;</p>
+<pre><code class="language-python">import xpwebapi
+
+
+def callback(connected: bool, beacon_data: xpwebapi.BeaconData, same_host: bool):
+    print(&quot;reachable&quot; if connected else &quot;unreachable&quot;)
+
+
+beacon = xpwebapi.beacon()
+beacon.set_callback(callback)
+beacon.start_monitor()
+</code></pre>
+
+
+
+
+
+
+
+
+
+
+
+
+<p><span class="doc-section-title">Methods:</span></p>
+    <ul>
+          <li class="doc-section-item field-body">
+            <b><code><a class="autorefs autorefs-internal" title="            callback (xpwebapi.beacon.XPBeaconMonitor.callback)" href="#xpwebapi.beacon.XPBeaconMonitor.callback">callback</a></code></b>
+            –
+            <div class="doc-md-description">
+              <p>Execute all callback functions</p>
+            </div>
+          </li>
+          <li class="doc-section-item field-body">
+            <b><code><a class="autorefs autorefs-internal" title="            get_beacon (xpwebapi.beacon.XPBeaconMonitor.get_beacon)" href="#xpwebapi.beacon.XPBeaconMonitor.get_beacon">get_beacon</a></code></b>
+            –
+            <div class="doc-md-description">
+              <p>Attempts to capture an X-Plane beacon using configured transient retries.</p>
+            </div>
+          </li>
+          <li class="doc-section-item field-body">
+            <b><code><a class="autorefs autorefs-internal" title="            same_host (xpwebapi.beacon.XPBeaconMonitor.same_host)" href="#xpwebapi.beacon.XPBeaconMonitor.same_host">same_host</a></code></b>
+            –
+            <div class="doc-md-description">
+              <p>Attempt to determine if X-Plane is running on local host (where beacon monitor runs) or remote host</p>
+            </div>
+          </li>
+          <li class="doc-section-item field-body">
+            <b><code><a class="autorefs autorefs-internal" title="            set_callback (xpwebapi.beacon.XPBeaconMonitor.set_callback)" href="#xpwebapi.beacon.XPBeaconMonitor.set_callback">set_callback</a></code></b>
+            –
+            <div class="doc-md-description">
+              <p>Add callback function</p>
+            </div>
+          </li>
+          <li class="doc-section-item field-body">
+            <b><code><a class="autorefs autorefs-internal" title="            start_monitor (xpwebapi.beacon.XPBeaconMonitor.start_monitor)" href="#xpwebapi.beacon.XPBeaconMonitor.start_monitor">start_monitor</a></code></b>
+            –
+            <div class="doc-md-description">
+              <p>Starts beacon monitor</p>
+            </div>
+          </li>
+          <li class="doc-section-item field-body">
+            <b><code><a class="autorefs autorefs-internal" title="            stop_monitor (xpwebapi.beacon.XPBeaconMonitor.stop_monitor)" href="#xpwebapi.beacon.XPBeaconMonitor.stop_monitor">stop_monitor</a></code></b>
+            –
+            <div class="doc-md-description">
+              <p>Terminates beacon monitor</p>
+            </div>
+          </li>
+    </ul>
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="xpwebapi.beacon.XPBeaconMonitor.consecutive_failures" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <span class="doc doc-object-name doc-attribute-name">consecutive_failures</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+</h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">consecutive_failures</span><span class="p">:</span> <span class="n"><span title="int">int</span></span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Returns number of recent consecutive failures</p>
+<p>This can be used to detect temporary failures. When X-Plane is extremely busy, it may not send a beacon, or beacon emission can be delayed.
+X-Plane is up and running but no beacon has been detected. "Missing" a few detections in a row does not mean X-Plane is not running.
+This <code>consecutive_failures</code> allows to wait for a few failures to detect X-Plane before concluding its unavailability.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="xpwebapi.beacon.XPBeaconMonitor.receiving_beacon" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <span class="doc doc-object-name doc-attribute-name">receiving_beacon</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+</h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">receiving_beacon</span><span class="p">:</span> <span class="n"><span title="bool">bool</span></span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Returns whether beacon from X-Plane is periodically received</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="xpwebapi.beacon.XPBeaconMonitor.status" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <span class="doc doc-object-name doc-attribute-name">status</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+      <small class="doc doc-label doc-label-writable"><code>writable</code></small>
+  </span>
+
+</h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">status</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-internal" title="            BEACON_MONITOR_STATUS (xpwebapi.beacon.BEACON_MONITOR_STATUS)" href="#xpwebapi.beacon.BEACON_MONITOR_STATUS">BEACON_MONITOR_STATUS</a></span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Report beacon monitor status</p>
+<p>returns:</p>
+<pre><code>BEACON_MONITOR_STATUS: Monitor status
+</code></pre>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="xpwebapi.beacon.XPBeaconMonitor.status_str" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <span class="doc doc-object-name doc-attribute-name">status_str</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+</h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">status_str</span><span class="p">:</span> <span class="n"><span title="str">str</span></span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Report beacon monitor status as a string</p>
+
+    </div>
+
+</div>
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="xpwebapi.beacon.XPBeaconMonitor.callback" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">callback</span>
+
+
+</h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">callback</span><span class="p">(</span><span class="n"><span title="xpwebapi.beacon.XPBeaconMonitor.callback(connected)">connected</span></span><span class="p">:</span> <span class="n"><span title="bool">bool</span></span><span class="p">,</span> <span class="n"><span title="xpwebapi.beacon.XPBeaconMonitor.callback(beacon_data)">beacon_data</span></span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-internal" title="            BeaconData
+
+
+  
+      dataclass
+   (xpwebapi.beacon.BeaconData)" href="#xpwebapi.beacon.BeaconData">BeaconData</a></span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="n"><span title="xpwebapi.beacon.XPBeaconMonitor.callback(same_host)">same_host</span></span><span class="p">:</span> <span class="n"><span title="bool">bool</span></span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Execute all callback functions</p>
+<p>Callback function prototype</p>
+<pre><code class="language-python">callback(connected: bool, beacon_data: BeaconData | None, same_host: bool | None)
+</code></pre>
+<p>Connected is True is beacon is detected at regular interval, False otherwise</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="xpwebapi.beacon.XPBeaconMonitor.get_beacon" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">get_beacon</span>
+
+
+</h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">get_beacon</span><span class="p">(</span><span class="n"><span title="xpwebapi.beacon.XPBeaconMonitor.get_beacon(timeout)">timeout</span></span><span class="p">:</span> <span class="n"><span title="float">float</span></span> <span class="o">=</span> <span class="n"><span title="xpwebapi.beacon.BEACON_TIMEOUT">BEACON_TIMEOUT</span></span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n"><a class="autorefs autorefs-internal" title="            BeaconData
+
+
+  
+      dataclass
+   (xpwebapi.beacon.BeaconData)" href="#xpwebapi.beacon.BeaconData">BeaconData</a></span> <span class="o">|</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Attempts to capture an X-Plane beacon using configured transient retries.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="xpwebapi.beacon.XPBeaconMonitor.same_host" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">same_host</span>
+
+
+</h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">same_host</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n"><span title="bool">bool</span></span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Attempt to determine if X-Plane is running on local host (where beacon monitor runs) or remote host</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="xpwebapi.beacon.XPBeaconMonitor.set_callback" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">set_callback</span>
+
+
+</h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">set_callback</span><span class="p">(</span><span class="n"><a class="autorefs autorefs-internal" title="callback (xpwebapi.beacon.XPBeaconMonitor.set_callback(callback))" href="#xpwebapi.beacon.XPBeaconMonitor.set_callback(callback)">callback</a></span><span class="p">:</span> <span class="n"><span title="typing.Callable">Callable</span></span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Add callback function</p>
+<p>Callback functions will be called whenever the status of the "connection" changes.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+<h4 id="xpwebapi.beacon.XPBeaconMonitor.set_callback(callback)" class="doc doc-heading doc-heading-parameter">              <b><code>callback</code></b>
+</h4>              (<code><span title="typing.Callable">Callable</span></code>, default:
+                  <code>None</code>
+)
+          –
+          <div class="doc-md-description">
+            <p>Callback function
+Callback function prototype</p>
+<pre><code class="language-python">callback(connected: bool, beacon_data: BeaconData | None, same_host: bool | None)
+</code></pre>
+          </div>
+        </li>
+    </ul>
+        <p>Connected is True is beacon is detected at regular interval, False otherwise</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="xpwebapi.beacon.XPBeaconMonitor.start_monitor" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">start_monitor</span>
+
+
+</h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">start_monitor</span><span class="p">()</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Starts beacon monitor</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="xpwebapi.beacon.XPBeaconMonitor.stop_monitor" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">stop_monitor</span>
+
+
+</h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">stop_monitor</span><span class="p">()</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Terminates beacon monitor</p>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="xpwebapi.beacon.list_my_ips" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">list_my_ips</span>
+
+
+</h2>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">list_my_ips</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n"><span title="list">list</span></span><span class="p">[</span><span class="n"><span title="str">str</span></span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Utility function that list most if not all IP addresses of this host.</p>
+
+
+<p><span class="doc-section-title">Returns:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+              <code><span title="list">list</span>[<span title="str">str</span>]</code>
+          –
+          <div class="doc-md-description">
+            <p>list[str]: List of IP v4 addresses of this host on most, if not all interfaces (cable, wi-fi, bluetooth...)</p>
+          </div>
+        </li>
+    </ul>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+
+  
+    
+  
+  
+    
+  
+
+
+  <aside class="md-source-file">
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Last update">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="June 21, 2026 23:54:54 UTC"><span class="timeago" datetime="2026-06-21T23:54:54+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="June 21, 2026 23:54:54 UTC">2026-06-21</span>
+  </span>
+
+    
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Created">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14.47 15.08 11 13V7h1.5v5.25l3.08 1.83c-.41.28-.79.62-1.11 1m-1.39 4.84c-.36.05-.71.08-1.08.08-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8c0 .37-.03.72-.08 1.08.69.1 1.33.32 1.92.64.1-.56.16-1.13.16-1.72 0-5.5-4.5-10-10-10S2 6.5 2 12s4.47 10 10 10c.59 0 1.16-.06 1.72-.16-.32-.59-.54-1.23-.64-1.92M18 15v3h-3v2h3v3h2v-3h3v-2h-3v-3z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="June 21, 2026 23:54:54 UTC"><span class="timeago" datetime="2026-06-21T23:54:54+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="June 21, 2026 23:54:54 UTC">2026-06-21</span>
+  </span>
+
+    
+    
+    
+  </aside>
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": [], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="../../js/timeago.min.js"></script>
+      
+        <script src="../../js/timeago_mkdocs_material.js"></script>
+      
+    
+  </body>
+</html>

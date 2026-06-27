@@ -1,0 +1,2244 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>P0 Tranche Implementation Plan - Python wrapper for X-Plane Web API</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../css/timeago.css">
+    
+      <link rel="stylesheet" href="../../../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#p0-tranche-implementation-plan" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="Python wrapper for X-Plane Web API" class="md-header__button md-logo" aria-label="Python wrapper for X-Plane Web API" data-md-component="logo">
+      
+  <img src="../../../x-plane.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Python wrapper for X-Plane Web API
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              P0 Tranche Implementation Plan
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14.3 16-.7-2h-3.2l-.7 2H7.8L11 7h2l3.2 9zM20 8.69V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12zm-9.15 3.96h2.3L12 9z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="purple"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_2" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="lime"  aria-label="Switch to system preference"  type="radio" name="__palette" id="__palette_2">
+    
+      <label class="md-header__button md-icon" title="Switch to system preference" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="Python wrapper for X-Plane Web API" class="md-nav__button md-logo" aria-label="Python wrapper for X-Plane Web API" data-md-component="logo">
+      
+  <img src="../../../x-plane.svg" alt="logo">
+
+    </a>
+    Python wrapper for X-Plane Web API
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_1" id="__nav_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Home
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../changelog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../usage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Usage
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/package/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Package
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/core-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/rest/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    REST
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/async-rest/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Async REST
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/websocket/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    WebSocket
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/udp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    UDP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/beacon/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Beacon
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/exceptions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Exceptions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/logging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Logging
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#global-constraints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Global Constraints
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Global Constraints">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#task-1-exception-hierarchy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 1: Exception Hierarchy
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-2-backward-compatibility-aliases-call-site-updates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 2: Backward Compatibility Aliases + Call Site Updates
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-3-lsp-fixes-in-apipy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 3: LSP Fixes in api.py
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-4-test-suite-test_apipy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 4: Test Suite — test_api.py
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-5-test-suite-test_restpy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 5: Test Suite — test_rest.py
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-6-test-suite-test_wspy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 6: Test Suite — test_ws.py
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-7-test-suite-test_beaconpy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 7: Test Suite — test_beacon.py
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-8-test-suite-test_udppy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 8: Test Suite — test_udp.py
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-9-full-suite-verification" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 9: Full Suite Verification
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="p0-tranche-implementation-plan">P0 Tranche Implementation Plan</h1>
+<blockquote>
+<p><strong>For agentic workers:</strong> REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (<code>- [ ]</code>) syntax for tracking.</p>
+</blockquote>
+<p><strong>Goal:</strong> Implement custom exception hierarchy, fix LSP violations in abstract method signatures, and add a unittest-based test suite covering all core modules.</p>
+<p><strong>Architecture:</strong> New <code>exceptions.py</code> module defines a typed hierarchy rooted at <code>XPWebAPIError</code>. Existing exception classes in <code>beacon.py</code> and <code>udp.py</code> become subclasses for backward compatibility. Abstract methods in <code>api.py</code> are cleaned up to match their override contracts. Tests use <code>unittest.mock</code> to patch <code>httpx</code>, <code>simple_websocket</code>, and <code>socket</code> — no live X-Plane instance required.</p>
+<p><strong>Tech Stack:</strong> Python 3.12+, <code>unittest</code> (stdlib), <code>unittest.mock</code>, <code>httpx</code>, <code>simple-websocket</code></p>
+<h2 id="global-constraints">Global Constraints</h2>
+<ul>
+<li>Python &gt;= 3.12</li>
+<li>No pytest. Use <code>unittest</code> (stdlib) exclusively.</li>
+<li>Test command: <code>uv run python -m unittest discover</code></li>
+<li>Lint: <code>uv run ruff check xpwebapi/ tests/</code></li>
+<li>Format: <code>uv run ruff format xpwebapi/ tests/</code></li>
+<li>Type check: <code>uv run ty check</code> (if available, non-blocking)</li>
+<li>Old exception names (<code>XPlaneNoBeacon</code>, <code>XPlaneVersionNotSupported</code>, <code>XPlaneTimeout</code>) must remain importable from <code>xpwebapi</code></li>
+<li>Do not modify <code>examples/</code> directory</li>
+</ul>
+<hr />
+<h3 id="task-1-exception-hierarchy">Task 1: Exception Hierarchy</h3>
+<p><strong>Files:</strong>
+- Create: <code>xpwebapi/exceptions.py</code>
+- Create: <code>tests/__init__.py</code>
+- Create: <code>tests/test_exceptions.py</code></p>
+<p><strong>Interfaces:</strong>
+- Produces: <code>XPWebAPIError</code>, <code>XPConnectionError</code>, <code>XPBeaconError</code>, <code>XPTimeoutError</code>, <code>XPVersionError</code> — all importable from <code>xpwebapi.exceptions</code></p>
+<ul>
+<li>[ ] <strong>Step 1: Create <code>tests/__init__.py</code></strong></li>
+</ul>
+<pre><code class="language-python"></code></pre>
+<p>(Empty file.)</p>
+<ul>
+<li>[ ] <strong>Step 2: Write failing tests in <code>tests/test_exceptions.py</code></strong></li>
+</ul>
+<pre><code class="language-python">import unittest
+
+from xpwebapi.exceptions import (
+    XPWebAPIError,
+    XPConnectionError,
+    XPBeaconError,
+    XPTimeoutError,
+    XPVersionError,
+)
+
+
+class TestExceptionHierarchy(unittest.TestCase):
+    def test_base_is_exception(self):
+        self.assertTrue(issubclass(XPWebAPIError, Exception))
+
+    def test_connection_error_is_xpwebapi_error(self):
+        self.assertTrue(issubclass(XPConnectionError, XPWebAPIError))
+
+    def test_beacon_error_is_connection_error(self):
+        self.assertTrue(issubclass(XPBeaconError, XPConnectionError))
+
+    def test_timeout_error_is_xpwebapi_error(self):
+        self.assertTrue(issubclass(XPTimeoutError, XPWebAPIError))
+
+    def test_version_error_is_xpwebapi_error(self):
+        self.assertTrue(issubclass(XPVersionError, XPWebAPIError))
+
+    def test_context_kwargs(self):
+        err = XPWebAPIError(&quot;boom&quot;, host=&quot;127.0.0.1&quot;, port=8086)
+        self.assertEqual(str(err), &quot;boom&quot;)
+        self.assertEqual(err.context, {&quot;host&quot;: &quot;127.0.0.1&quot;, &quot;port&quot;: 8086})
+
+    def test_context_empty_by_default(self):
+        err = XPWebAPIError(&quot;oops&quot;)
+        self.assertEqual(err.context, {})
+
+    def test_beacon_error_context(self):
+        err = XPBeaconError(&quot;no beacon&quot;, timeout=3.0)
+        self.assertEqual(err.context, {&quot;timeout&quot;: 3.0})
+        self.assertIsInstance(err, XPConnectionError)
+
+    def test_timeout_error_context(self):
+        err = XPTimeoutError(&quot;timed out&quot;, host=&quot;10.0.0.1&quot;)
+        self.assertEqual(err.context, {&quot;host&quot;: &quot;10.0.0.1&quot;})
+
+    def test_version_error_context(self):
+        err = XPVersionError(&quot;unsupported&quot;, version=&quot;10.40&quot;)
+        self.assertEqual(err.context, {&quot;version&quot;: &quot;10.40&quot;})
+
+    def test_catch_base_catches_all(self):
+        for cls in (XPConnectionError, XPBeaconError, XPTimeoutError, XPVersionError):
+            with self.assertRaises(XPWebAPIError):
+                raise cls(&quot;test&quot;)
+
+
+if __name__ == &quot;__main__&quot;:
+    unittest.main()
+</code></pre>
+<ul>
+<li>[ ] <strong>Step 3: Run tests to verify they fail</strong></li>
+</ul>
+<p>Run: <code>uv run python -m unittest tests.test_exceptions -v</code>
+Expected: FAIL — <code>ModuleNotFoundError: No module named 'xpwebapi.exceptions'</code></p>
+<ul>
+<li>[ ] <strong>Step 4: Create <code>xpwebapi/exceptions.py</code></strong></li>
+</ul>
+<pre><code class="language-python">from typing import Any
+
+
+class XPWebAPIError(Exception):
+    def __init__(self, message: str = &quot;&quot;, **context: Any):
+        self.context = context
+        super().__init__(message)
+
+
+class XPConnectionError(XPWebAPIError):
+    pass
+
+
+class XPBeaconError(XPConnectionError):
+    pass
+
+
+class XPTimeoutError(XPWebAPIError):
+    pass
+
+
+class XPVersionError(XPWebAPIError):
+    pass
+</code></pre>
+<ul>
+<li>[ ] <strong>Step 5: Run tests to verify they pass</strong></li>
+</ul>
+<p>Run: <code>uv run python -m unittest tests.test_exceptions -v</code>
+Expected: All 11 tests PASS</p>
+<ul>
+<li>[ ] <strong>Step 6: Commit</strong></li>
+</ul>
+<pre><code class="language-bash">git add xpwebapi/exceptions.py tests/__init__.py tests/test_exceptions.py
+git commit -m &quot;feat: add custom exception hierarchy (XPWebAPIError + subclasses)&quot;
+</code></pre>
+<hr />
+<h3 id="task-2-backward-compatibility-aliases-call-site-updates">Task 2: Backward Compatibility Aliases + Call Site Updates</h3>
+<p><strong>Files:</strong>
+- Modify: <code>xpwebapi/beacon.py</code>
+- Modify: <code>xpwebapi/udp.py</code>
+- Modify: <code>xpwebapi/__init__.py</code>
+- Modify: <code>tests/test_exceptions.py</code></p>
+<p><strong>Interfaces:</strong>
+- Consumes: <code>XPBeaconError</code>, <code>XPVersionError</code>, <code>XPTimeoutError</code> from <code>xpwebapi.exceptions</code>
+- Produces: <code>XPlaneNoBeacon(XPBeaconError)</code>, <code>XPlaneVersionNotSupported(XPVersionError)</code> in <code>beacon.py</code>; <code>XPlaneTimeout(XPTimeoutError)</code> in <code>udp.py</code></p>
+<ul>
+<li>[ ] <strong>Step 1: Add backward compat tests to <code>tests/test_exceptions.py</code></strong></li>
+</ul>
+<p>Append to the existing file:</p>
+<pre><code class="language-python">class TestBackwardCompat(unittest.TestCase):
+    def test_xplane_no_beacon_is_beacon_error(self):
+        from xpwebapi.beacon import XPlaneNoBeacon
+        from xpwebapi.exceptions import XPBeaconError
+        self.assertTrue(issubclass(XPlaneNoBeacon, XPBeaconError))
+
+    def test_xplane_version_not_supported_is_version_error(self):
+        from xpwebapi.beacon import XPlaneVersionNotSupported
+        from xpwebapi.exceptions import XPVersionError
+        self.assertTrue(issubclass(XPlaneVersionNotSupported, XPVersionError))
+
+    def test_xplane_timeout_is_timeout_error(self):
+        from xpwebapi.udp import XPlaneTimeout
+        from xpwebapi.exceptions import XPTimeoutError
+        self.assertTrue(issubclass(XPlaneTimeout, XPTimeoutError))
+
+    def test_old_names_importable_from_package(self):
+        from xpwebapi import XPlaneNoBeacon, XPlaneVersionNotSupported, XPlaneTimeout
+        self.assertTrue(issubclass(XPlaneNoBeacon, Exception))
+        self.assertTrue(issubclass(XPlaneVersionNotSupported, Exception))
+        self.assertTrue(issubclass(XPlaneTimeout, Exception))
+
+    def test_new_names_importable_from_package(self):
+        from xpwebapi import XPWebAPIError, XPConnectionError, XPBeaconError, XPTimeoutError, XPVersionError
+        self.assertTrue(issubclass(XPWebAPIError, Exception))
+</code></pre>
+<ul>
+<li>[ ] <strong>Step 2: Run tests to verify they fail</strong></li>
+</ul>
+<p>Run: <code>uv run python -m unittest tests.test_exceptions.TestBackwardCompat -v</code>
+Expected: FAIL — <code>XPlaneNoBeacon</code> is not a subclass of <code>XPBeaconError</code></p>
+<ul>
+<li>[ ] <strong>Step 3: Update <code>xpwebapi/beacon.py</code></strong></li>
+</ul>
+<p>Replace the existing exception class definitions (lines 32-37):</p>
+<p>Old:</p>
+<pre><code class="language-python">class XPlaneNoBeacon(Exception):
+    args = tuple(&quot;No beacon received from any running XPlane instance in network&quot;)
+
+
+class XPlaneVersionNotSupported(Exception):
+    args = tuple(&quot;XPlane version not supported&quot;)
+</code></pre>
+<p>New:</p>
+<pre><code class="language-python">from .exceptions import XPBeaconError, XPVersionError
+
+
+class XPlaneNoBeacon(XPBeaconError):
+    pass
+
+
+class XPlaneVersionNotSupported(XPVersionError):
+    pass
+</code></pre>
+<ul>
+<li>[ ] <strong>Step 4: Update <code>xpwebapi/udp.py</code></strong></li>
+</ul>
+<p>Replace the existing exception class definition (lines 28-29):</p>
+<p>Old:</p>
+<pre><code class="language-python">class XPlaneTimeout(Exception):
+    args = tuple(&quot;X-Plane timeout&quot;)
+</code></pre>
+<p>New:</p>
+<pre><code class="language-python">from .exceptions import XPTimeoutError
+
+
+class XPlaneTimeout(XPTimeoutError):
+    pass
+</code></pre>
+<ul>
+<li>[ ] <strong>Step 5: Update <code>xpwebapi/__init__.py</code></strong></li>
+</ul>
+<p>Add new exception imports and update <code>__all__</code>:</p>
+<p>Old:</p>
+<pre><code class="language-python">from .api import Dataref, Command, DatarefValueType, DATAREF_DATATYPE
+from .beacon import XPBeaconMonitor, BeaconData, XPlaneNoBeacon, XPlaneVersionNotSupported
+from .rest import XPRestAPI
+from .ws import XPWebsocketAPI, CALLBACK_TYPE
+from .udp import XPUDPAPI, XPlaneTimeout
+
+__all__ = [
+    &quot;Dataref&quot;,
+    &quot;Command&quot;,
+    &quot;DatarefValueType&quot;,
+    &quot;DATAREF_DATATYPE&quot;,
+    &quot;XPBeaconMonitor&quot;,
+    &quot;BeaconData&quot;,
+    &quot;XPlaneNoBeacon&quot;,
+    &quot;XPlaneVersionNotSupported&quot;,
+    &quot;XPRestAPI&quot;,
+    &quot;XPWebsocketAPI&quot;,
+    &quot;CALLBACK_TYPE&quot;,
+    &quot;XPUDPAPI&quot;,
+    &quot;XPlaneTimeout&quot;,
+    &quot;beacon&quot;,
+    &quot;rest_api&quot;,
+    &quot;ws_api&quot;,
+    &quot;udp_api&quot;,
+    &quot;version&quot;,
+]
+</code></pre>
+<p>New:</p>
+<pre><code class="language-python">from .api import Dataref, Command, DatarefValueType, DATAREF_DATATYPE
+from .beacon import XPBeaconMonitor, BeaconData, XPlaneNoBeacon, XPlaneVersionNotSupported
+from .exceptions import XPWebAPIError, XPConnectionError, XPBeaconError, XPTimeoutError, XPVersionError
+from .rest import XPRestAPI
+from .ws import XPWebsocketAPI, CALLBACK_TYPE
+from .udp import XPUDPAPI, XPlaneTimeout
+
+__all__ = [
+    &quot;Dataref&quot;,
+    &quot;Command&quot;,
+    &quot;DatarefValueType&quot;,
+    &quot;DATAREF_DATATYPE&quot;,
+    &quot;XPBeaconMonitor&quot;,
+    &quot;BeaconData&quot;,
+    &quot;XPlaneNoBeacon&quot;,
+    &quot;XPlaneVersionNotSupported&quot;,
+    &quot;XPWebAPIError&quot;,
+    &quot;XPConnectionError&quot;,
+    &quot;XPBeaconError&quot;,
+    &quot;XPTimeoutError&quot;,
+    &quot;XPVersionError&quot;,
+    &quot;XPRestAPI&quot;,
+    &quot;XPWebsocketAPI&quot;,
+    &quot;CALLBACK_TYPE&quot;,
+    &quot;XPUDPAPI&quot;,
+    &quot;XPlaneTimeout&quot;,
+    &quot;beacon&quot;,
+    &quot;rest_api&quot;,
+    &quot;ws_api&quot;,
+    &quot;udp_api&quot;,
+    &quot;version&quot;,
+]
+</code></pre>
+<ul>
+<li>[ ] <strong>Step 6: Update raise sites in <code>beacon.py</code></strong></li>
+</ul>
+<p>Find <code>raise XPlaneNoBeacon()</code> (line 320) and replace with:</p>
+<pre><code class="language-python">raise XPlaneNoBeacon(&quot;no beacon received&quot;, timeout=timeout)
+</code></pre>
+<p>Find <code>raise XPlaneVersionNotSupported()</code> (line 314) and replace with:</p>
+<pre><code class="language-python">raise XPlaneVersionNotSupported(f&quot;beacon version {beacon_major_version}.{beacon_minor_version}.{application_host_id}&quot;)
+</code></pre>
+<ul>
+<li>[ ] <strong>Step 7: Update raise site in <code>udp.py</code></strong></li>
+</ul>
+<p>Find <code>raise XPlaneTimeout</code> (line 337) and replace with:</p>
+<pre><code class="language-python">raise XPlaneTimeout(&quot;UDP read timeout&quot;)
+</code></pre>
+<ul>
+<li>[ ] <strong>Step 8: Run all exception tests</strong></li>
+</ul>
+<p>Run: <code>uv run python -m unittest tests.test_exceptions -v</code>
+Expected: All tests PASS (11 hierarchy + 5 backward compat = 16)</p>
+<ul>
+<li>[ ] <strong>Step 9: Commit</strong></li>
+</ul>
+<pre><code class="language-bash">git add xpwebapi/beacon.py xpwebapi/udp.py xpwebapi/__init__.py tests/test_exceptions.py
+git commit -m &quot;feat: backward compat exception aliases, update raise sites with context&quot;
+</code></pre>
+<hr />
+<h3 id="task-3-lsp-fixes-in-apipy">Task 3: LSP Fixes in <code>api.py</code></h3>
+<p><strong>Files:</strong>
+- Modify: <code>xpwebapi/api.py</code>
+- Modify: <code>xpwebapi/udp.py</code></p>
+<p><strong>Interfaces:</strong>
+- Consumes: <code>Dataref</code>, <code>Command</code>, <code>DatarefValueType</code> from <code>xpwebapi.api</code>
+- Produces: Corrected abstract method signatures that overrides in <code>rest.py</code>, <code>ws.py</code>, <code>udp.py</code> satisfy</p>
+<ul>
+<li>[ ] <strong>Step 1: Fix <code>dataref_value</code> abstract signature in <code>api.py</code></strong></li>
+</ul>
+<p>Find (line 362):</p>
+<pre><code class="language-python">@abstractmethod
+def dataref_value(self, dataref: Dataref, raw: bool = False, **kwargs) -&gt; DatarefValueType | bytes | None:
+    &quot;&quot;&quot;Returns Dataref value from simulator
+
+    Args:
+        dataref (Dataref): Dataref to get the value from
+
+    Returns:
+        bool | str | int | float: Value of dataref
+    &quot;&quot;&quot;
+    return False
+</code></pre>
+<p>Replace with:</p>
+<pre><code class="language-python">@abstractmethod
+def dataref_value(self, dataref: Dataref, raw: bool = False, no_decode: bool = False) -&gt; DatarefValueType | bytes | None:
+    &quot;&quot;&quot;Returns Dataref value from simulator
+
+    Args:
+        dataref (Dataref): Dataref to get the value from
+        raw (bool): Return raw value without decoding (default: `False`)
+        no_decode (bool): Skip base64 decoding for data types (default: `False`)
+
+    Returns:
+        DatarefValueType | bytes | None: Value of dataref
+    &quot;&quot;&quot;
+    ...
+</code></pre>
+<ul>
+<li>[ ] <strong>Step 2: Fix <code>write_dataref</code> abstract body in <code>api.py</code></strong></li>
+</ul>
+<p>Find (lines 349-359):</p>
+<pre><code class="language-python">@abstractmethod
+def write_dataref(self, dataref: Dataref) -&gt; bool | int:
+    &quot;&quot;&quot;Write Dataref value to X-Plane if Dataref is writable
+
+    Args:
+        dataref (Dataref): Dataref to write
+
+    Returns:
+        bool: Whether write operation was successful or not
+    &quot;&quot;&quot;
+    return False
+</code></pre>
+<p>Replace the body (<code>return False</code>) with <code>...</code>:</p>
+<pre><code class="language-python">@abstractmethod
+def write_dataref(self, dataref: Dataref) -&gt; bool | int:
+    &quot;&quot;&quot;Write Dataref value to X-Plane if Dataref is writable
+
+    Args:
+        dataref (Dataref): Dataref to write
+
+    Returns:
+        bool: Whether write operation was successful or not
+    &quot;&quot;&quot;
+    ...
+</code></pre>
+<ul>
+<li>[ ] <strong>Step 3: Fix <code>execute_command</code> abstract body in <code>api.py</code></strong></li>
+</ul>
+<p>Find (lines 373-384):</p>
+<pre><code class="language-python">@abstractmethod
+def execute_command(self, command: Command, duration: float = 0.0) -&gt; bool | int:
+    &quot;&quot;&quot;Execute command
+
+    Args:
+        command (Command): Command to execute
+        duration (float): Duration of execution for long commands (default: `0.0`)
+
+    Returns:
+        bool: [description]
+    &quot;&quot;&quot;
+    return False
+</code></pre>
+<p>Replace the body (<code>return False</code>) with <code>...</code>:</p>
+<pre><code class="language-python">@abstractmethod
+def execute_command(self, command: Command, duration: float = 0.0) -&gt; bool | int:
+    &quot;&quot;&quot;Execute command
+
+    Args:
+        command (Command): Command to execute
+        duration (float): Duration of execution for long commands (default: `0.0`)
+
+    Returns:
+        bool: [description]
+    &quot;&quot;&quot;
+    ...
+</code></pre>
+<ul>
+<li>[ ] <strong>Step 4: Fix <code>connected</code> abstract property body in <code>api.py</code></strong></li>
+</ul>
+<p>Find (lines 246-249):</p>
+<pre><code class="language-python">@property
+@abstractmethod
+def connected(self) -&gt; bool:
+    &quot;&quot;&quot;Whether X-Plane API is reachable through this instance&quot;&quot;&quot;
+    return False
+</code></pre>
+<p>Replace the body (<code>return False</code>) with <code>...</code>:</p>
+<pre><code class="language-python">@property
+@abstractmethod
+def connected(self) -&gt; bool:
+    &quot;&quot;&quot;Whether X-Plane API is reachable through this instance&quot;&quot;&quot;
+    ...
+</code></pre>
+<ul>
+<li>[ ] <strong>Step 5: Fix <code>dataref_value</code> signature in <code>udp.py</code></strong></li>
+</ul>
+<p>Find (line 188):</p>
+<pre><code class="language-python">def dataref_value(self, dataref: Dataref, raw: bool = False, **kwargs) -&gt; DatarefValueType | bytes | None:
+</code></pre>
+<p>Replace with:</p>
+<pre><code class="language-python">def dataref_value(self, dataref: Dataref, raw: bool = False, no_decode: bool = False) -&gt; DatarefValueType | bytes | None:
+</code></pre>
+<ul>
+<li>[ ] <strong>Step 6: Verify no import/syntax errors</strong></li>
+</ul>
+<p>Run: <code>uv run python -c "import xpwebapi"</code>
+Expected: No errors</p>
+<ul>
+<li>[ ] <strong>Step 7: Run lint</strong></li>
+</ul>
+<p>Run: <code>uv run ruff check xpwebapi/</code>
+Expected: No errors (or only pre-existing warnings)</p>
+<ul>
+<li>[ ] <strong>Step 8: Commit</strong></li>
+</ul>
+<pre><code class="language-bash">git add xpwebapi/api.py xpwebapi/udp.py
+git commit -m &quot;fix: remove **kwargs and return False stubs from abstract methods (LSP)&quot;
+</code></pre>
+<hr />
+<h3 id="task-4-test-suite-test_apipy">Task 4: Test Suite — <code>test_api.py</code></h3>
+<p><strong>Files:</strong>
+- Create: <code>tests/test_api.py</code></p>
+<p><strong>Interfaces:</strong>
+- Consumes: <code>Dataref</code>, <code>Command</code>, <code>DatarefMeta</code>, <code>CommandMeta</code>, <code>Cache</code>, <code>ValueCache</code>, <code>APIObjMeta</code>, <code>DATAREF_DATATYPE</code> from <code>xpwebapi.api</code></p>
+<ul>
+<li>[ ] <strong>Step 1: Write <code>tests/test_api.py</code></strong></li>
+</ul>
+<pre><code class="language-python">import unittest
+from unittest.mock import MagicMock
+
+from xpwebapi.api import (
+    API,
+    Cache,
+    Command,
+    CommandMeta,
+    Dataref,
+    DatarefMeta,
+    DATAREF_DATATYPE,
+    ValueCache,
+)
+
+
+class TestDatarefMeta(unittest.TestCase):
+    def test_construction(self):
+        m = DatarefMeta(name=&quot;sim/test/val&quot;, value_type=&quot;int&quot;, is_writable=True, id=42)
+        self.assertEqual(m.name, &quot;sim/test/val&quot;)
+        self.assertEqual(m.value_type, &quot;int&quot;)
+        self.assertTrue(m.is_writable)
+        self.assertEqual(m.ident, 42)
+
+    def test_is_array_int_array(self):
+        m = DatarefMeta(name=&quot;sim/test/arr&quot;, value_type=&quot;int_array&quot;, is_writable=False, id=1)
+        self.assertTrue(m.is_array)
+
+    def test_is_array_float_array(self):
+        m = DatarefMeta(name=&quot;sim/test/arr&quot;, value_type=&quot;float_array&quot;, is_writable=False, id=1)
+        self.assertTrue(m.is_array)
+
+    def test_is_not_array(self):
+        m = DatarefMeta(name=&quot;sim/test/val&quot;, value_type=&quot;int&quot;, is_writable=False, id=1)
+        self.assertFalse(m.is_array)
+
+    def test_append_index(self):
+        m = DatarefMeta(name=&quot;sim/test/arr&quot;, value_type=&quot;int_array&quot;, is_writable=False, id=1)
+        m.append_index(3)
+        m.append_index(1)
+        self.assertEqual(m.indices, [3, 1])
+
+    def test_append_index_no_duplicate(self):
+        m = DatarefMeta(name=&quot;sim/test/arr&quot;, value_type=&quot;int_array&quot;, is_writable=False, id=1)
+        m.append_index(3)
+        m.append_index(3)
+        self.assertEqual(m.indices, [3])
+
+    def test_remove_index(self):
+        m = DatarefMeta(name=&quot;sim/test/arr&quot;, value_type=&quot;int_array&quot;, is_writable=False, id=1)
+        m.append_index(3)
+        m.append_index(1)
+        m.remove_index(3)
+        self.assertEqual(m.indices, [1])
+
+    def test_save_and_last_indices(self):
+        m = DatarefMeta(name=&quot;sim/test/arr&quot;, value_type=&quot;int_array&quot;, is_writable=False, id=1)
+        m.append_index(0)
+        m.append_index(1)
+        m._indices_requested = True
+        m.save_indices()
+        self.assertEqual(m.last_indices(), [0, 1])
+
+    def test_last_indices_empty(self):
+        m = DatarefMeta(name=&quot;sim/test/arr&quot;, value_type=&quot;int_array&quot;, is_writable=False, id=1)
+        self.assertEqual(m.last_indices(), [])
+
+
+class TestCommandMeta(unittest.TestCase):
+    def test_construction(self):
+        m = CommandMeta(name=&quot;sim/cmd/test&quot;, description=&quot;A test command&quot;, id=99)
+        self.assertEqual(m.name, &quot;sim/cmd/test&quot;)
+        self.assertEqual(m.description, &quot;A test command&quot;)
+        self.assertEqual(m.ident, 99)
+
+
+class TestValueCache(unittest.TestCase):
+    def test_get_rounding_plain(self):
+        vc = ValueCache({&quot;sim/test/val&quot;: 2})
+        self.assertEqual(vc.get_rounding(&quot;sim/test/val&quot;), 2)
+
+    def test_get_rounding_array_root(self):
+        vc = ValueCache({&quot;sim/test/arr&quot;: 3})
+        self.assertEqual(vc.get_rounding(&quot;sim/test/arr[4]&quot;), 3)
+
+    def test_get_rounding_array_wildcard(self):
+        vc = ValueCache({&quot;sim/test/arr[*]&quot;: 1})
+        self.assertEqual(vc.get_rounding(&quot;sim/test/arr[7]&quot;), 1)
+
+    def test_get_rounding_none(self):
+        vc = ValueCache({})
+        self.assertIsNone(vc.get_rounding(&quot;sim/test/val&quot;))
+
+    def test_changed_no_rounding(self):
+        vc = ValueCache({})
+        self.assertTrue(vc.changed(&quot;sim/test/val&quot;, 42))
+
+    def test_changed_value_differs(self):
+        vc = ValueCache({&quot;sim/test/val&quot;: 2})
+        self.assertTrue(vc.changed(&quot;sim/test/val&quot;, 3.14159))
+
+    def test_changed_value_same_after_rounding(self):
+        vc = ValueCache({&quot;sim/test/val&quot;: 2})
+        vc.changed(&quot;sim/test/val&quot;, 3.14)
+        self.assertFalse(vc.changed(&quot;sim/test/val&quot;, 3.14))
+
+    def test_changed_non_numeric(self):
+        vc = ValueCache({&quot;sim/test/val&quot;: 2})
+        self.assertTrue(vc.changed(&quot;sim/test/val&quot;, &quot;hello&quot;))
+
+
+class TestCacheMeta(unittest.TestCase):
+    def test_meta_returns_dataref_meta(self):
+        m = Cache.meta(name=&quot;sim/test&quot;, value_type=&quot;int&quot;, is_writable=True, id=1)
+        self.assertIsInstance(m, DatarefMeta)
+
+    def test_meta_returns_command_meta(self):
+        m = Cache.meta(name=&quot;sim/cmd&quot;, description=&quot;test&quot;, id=2)
+        self.assertIsInstance(m, CommandMeta)
+
+
+class TestDatarefParseRawValue(unittest.TestCase):
+    def setUp(self):
+        self.api = MagicMock(spec=API)
+        self.api.use_cache = False
+        self.api.get_rest_meta = MagicMock()
+
+    def _make_dataref(self, path, value_type=&quot;int&quot;):
+        meta = DatarefMeta(name=path, value_type=value_type, is_writable=False, id=1)
+        self.api.get_rest_meta.return_value = meta
+        d = Dataref(path=path, api=self.api)
+        return d
+
+    def test_parse_scalar_int(self):
+        d = self._make_dataref(&quot;sim/test/val&quot;, &quot;int&quot;)
+        self.assertEqual(d.parse_raw_value(42), 42)
+
+    def test_parse_scalar_float(self):
+        d = self._make_dataref(&quot;sim/test/val&quot;, &quot;float&quot;)
+        self.assertAlmostEqual(d.parse_raw_value(3.14), 3.14)
+
+    def test_parse_array_whole(self):
+        d = self._make_dataref(&quot;sim/test/arr&quot;, &quot;int_array&quot;)
+        self.assertEqual(d.parse_raw_value([1, 2, 3]), [1, 2, 3])
+
+    def test_parse_array_single_index(self):
+        meta = DatarefMeta(name=&quot;sim/test/arr&quot;, value_type=&quot;int_array&quot;, is_writable=False, id=1)
+        meta.append_index(2)
+        self.api.get_rest_meta.return_value = meta
+        d = Dataref(path=&quot;sim/test/arr[2]&quot;, api=self.api)
+        self.assertEqual(d.parse_raw_value([10, 20, 30]), 20)
+
+    def test_parse_base64_data(self):
+        d = self._make_dataref(&quot;sim/test/data&quot;, &quot;data&quot;)
+        import base64
+        encoded = base64.b64encode(b&quot;hello&quot;).decode(&quot;ascii&quot;)
+        result = d.parse_raw_value(encoded)
+        self.assertEqual(result, b&quot;hello&quot;)
+
+    def test_parse_invalid_meta(self):
+        self.api.get_rest_meta.return_value = None
+        d = Dataref(path=&quot;sim/test/val&quot;, api=self.api)
+        self.assertIsNone(d.parse_raw_value(42))
+
+
+class TestDatarefDelegation(unittest.TestCase):
+    def setUp(self):
+        self.api = MagicMock(spec=API)
+        self.api.use_cache = False
+        self.api.get_rest_meta = MagicMock()
+        meta = DatarefMeta(name=&quot;sim/test/val&quot;, value_type=&quot;int&quot;, is_writable=True, id=1)
+        self.api.get_rest_meta.return_value = meta
+
+    def test_write_delegates_to_api(self):
+        self.api.write_dataref = MagicMock(return_value=True)
+        d = Dataref(path=&quot;sim/test/val&quot;, api=self.api)
+        d._new_value = 42
+        result = d.write()
+        self.api.write_dataref.assert_called_once_with(dataref=d)
+        self.assertTrue(result)
+
+    def test_monitor_delegates_to_api(self):
+        self.api.monitor_dataref = MagicMock(return_value=True)
+        d = Dataref(path=&quot;sim/test/val&quot;, api=self.api)
+        d.monitor()
+        self.api.monitor_dataref.assert_called_once_with(dataref=d)
+
+    def test_unmonitor_delegates_to_api(self):
+        self.api.unmonitor_dataref = MagicMock(return_value=True)
+        d = Dataref(path=&quot;sim/test/val&quot;, api=self.api)
+        d.unmonitor()
+        self.api.unmonitor_dataref.assert_called_once_with(dataref=d)
+
+
+class TestCommandDelegation(unittest.TestCase):
+    def setUp(self):
+        self.api = MagicMock(spec=API)
+        self.api.use_cache = False
+        self.api.get_rest_meta = MagicMock()
+        meta = CommandMeta(name=&quot;sim/cmd/test&quot;, description=&quot;test&quot;, id=1)
+        self.api.get_rest_meta.return_value = meta
+
+    def test_execute_delegates_to_api(self):
+        self.api.execute_command = MagicMock(return_value=True)
+        c = Command(path=&quot;sim/cmd/test&quot;, api=self.api)
+        result = c.execute()
+        self.api.execute_command.assert_called_once_with(command=c, duration=0.0)
+        self.assertTrue(result)
+
+    def test_execute_with_duration(self):
+        self.api.execute_command = MagicMock(return_value=True)
+        c = Command(path=&quot;sim/cmd/test&quot;, api=self.api)
+        c.execute(duration=5.0)
+        self.api.execute_command.assert_called_once_with(command=c, duration=5.0)
+
+
+if __name__ == &quot;__main__&quot;:
+    unittest.main()
+</code></pre>
+<ul>
+<li>[ ] <strong>Step 2: Run tests</strong></li>
+</ul>
+<p>Run: <code>uv run python -m unittest tests.test_api -v</code>
+Expected: All tests PASS</p>
+<ul>
+<li>[ ] <strong>Step 3: Commit</strong></li>
+</ul>
+<pre><code class="language-bash">git add tests/test_api.py
+git commit -m &quot;test: add unittest suite for api.py (Dataref, Command, Cache, ValueCache)&quot;
+</code></pre>
+<hr />
+<h3 id="task-5-test-suite-test_restpy">Task 5: Test Suite — <code>test_rest.py</code></h3>
+<p><strong>Files:</strong>
+- Create: <code>tests/test_rest.py</code></p>
+<p><strong>Interfaces:</strong>
+- Consumes: <code>XPRestAPI</code> from <code>xpwebapi.rest</code>, <code>Dataref</code>, <code>Command</code> from <code>xpwebapi.api</code></p>
+<ul>
+<li>[ ] <strong>Step 1: Write <code>tests/test_rest.py</code></strong></li>
+</ul>
+<pre><code class="language-python">import unittest
+from unittest.mock import MagicMock, patch, PropertyMock
+
+from xpwebapi.rest import XPRestAPI
+from xpwebapi.api import Dataref, Command, DatarefMeta, CommandMeta
+
+
+def mock_response(status_code=200, json_data=None):
+    resp = MagicMock()
+    resp.status_code = status_code
+    resp.json.return_value = json_data or {}
+    resp.reason_phrase = &quot;OK&quot; if status_code == 200 else &quot;Error&quot;
+    resp.text = &quot;&quot;
+    return resp
+
+
+class TestXPRestAPIConnected(unittest.TestCase):
+    @patch(&quot;xpwebapi.rest.httpx.Client&quot;)
+    def test_connected_when_200(self, mock_client_cls):
+        api = XPRestAPI.__new__(XPRestAPI)
+        api.host = &quot;127.0.0.1&quot;
+        api.port = 8086
+        api._api_root_path = &quot;/api&quot;
+        api._api_version = &quot;/v1&quot;
+        api._first_try = False
+        api._warning_count = 0
+        api._unreach_count = 0
+        api._status = 0
+        api._stats = {}
+        api._show_stats = False
+        api.session = MagicMock()
+        api.session.get.return_value = mock_response(200)
+        self.assertTrue(api.rest_api_reachable)
+
+    @patch(&quot;xpwebapi.rest.httpx.Client&quot;)
+    def test_not_connected_on_connect_error(self, mock_client_cls):
+        import httpx
+        api = XPRestAPI.__new__(XPRestAPI)
+        api.host = &quot;127.0.0.1&quot;
+        api.port = 8086
+        api._api_root_path = &quot;/api&quot;
+        api._api_version = &quot;/v1&quot;
+        api._first_try = False
+        api._warning_count = 0
+        api._unreach_count = 0
+        api._status = 0
+        api._stats = {}
+        api._show_stats = False
+        api.session = MagicMock()
+        api.session.get.side_effect = httpx.ConnectError(&quot;fail&quot;)
+        self.assertFalse(api.rest_api_reachable)
+
+
+class TestXPRestAPIDatarefValue(unittest.TestCase):
+    def _make_api(self):
+        api = XPRestAPI.__new__(XPRestAPI)
+        api.host = &quot;127.0.0.1&quot;
+        api.port = 8086
+        api._api_root_path = &quot;/api&quot;
+        api._api_version = &quot;/v1&quot;
+        api._first_try = False
+        api._warning_count = 0
+        api._unreach_count = 0
+        api._status = 0
+        api._stats = {}
+        api._show_stats = False
+        api._use_cache = False
+        api.all_datarefs = None
+        api.all_commands = None
+        api.session = MagicMock()
+        return api
+
+    def test_dataref_value_returns_int(self):
+        api = self._make_api()
+        api.session.get.return_value = mock_response(200, {&quot;data&quot;: 42})
+        with patch.object(XPRestAPI, &quot;connected&quot;, new_callable=PropertyMock, return_value=True):
+            meta = DatarefMeta(name=&quot;sim/test/val&quot;, value_type=&quot;int&quot;, is_writable=False, id=10)
+            d = Dataref(path=&quot;sim/test/val&quot;, api=api)
+            d._cached_meta = meta
+            result = api.dataref_value(d)
+            self.assertEqual(result, 42)
+
+    def test_dataref_value_not_connected(self):
+        api = self._make_api()
+        with patch.object(XPRestAPI, &quot;connected&quot;, new_callable=PropertyMock, return_value=False):
+            d = Dataref(path=&quot;sim/test/val&quot;, api=api)
+            result = api.dataref_value(d)
+            self.assertIsNone(result)
+
+    def test_dataref_value_error_response(self):
+        api = self._make_api()
+        api.session.get.return_value = mock_response(404)
+        with patch.object(XPRestAPI, &quot;connected&quot;, new_callable=PropertyMock, return_value=True):
+            meta = DatarefMeta(name=&quot;sim/test/val&quot;, value_type=&quot;int&quot;, is_writable=False, id=10)
+            d = Dataref(path=&quot;sim/test/val&quot;, api=api)
+            d._cached_meta = meta
+            result = api.dataref_value(d)
+            self.assertIsNone(result)
+
+
+class TestXPRestAPIWriteDataref(unittest.TestCase):
+    def _make_api(self):
+        api = XPRestAPI.__new__(XPRestAPI)
+        api.host = &quot;127.0.0.1&quot;
+        api.port = 8086
+        api._api_root_path = &quot;/api&quot;
+        api._api_version = &quot;/v1&quot;
+        api._first_try = False
+        api._warning_count = 0
+        api._unreach_count = 0
+        api._status = 0
+        api._stats = {}
+        api._show_stats = False
+        api._use_cache = False
+        api.all_datarefs = None
+        api.all_commands = None
+        api.session = MagicMock()
+        return api
+
+    def test_write_dataref_success(self):
+        api = self._make_api()
+        api.session.patch.return_value = mock_response(200, {&quot;result&quot;: &quot;ok&quot;})
+        with patch.object(XPRestAPI, &quot;connected&quot;, new_callable=PropertyMock, return_value=True):
+            meta = DatarefMeta(name=&quot;sim/test/val&quot;, value_type=&quot;int&quot;, is_writable=True, id=10)
+            d = Dataref(path=&quot;sim/test/val&quot;, api=api)
+            d._cached_meta = meta
+            d._new_value = 99
+            result = api.write_dataref(d)
+            self.assertTrue(result)
+
+    def test_write_dataref_not_writable(self):
+        api = self._make_api()
+        with patch.object(XPRestAPI, &quot;connected&quot;, new_callable=PropertyMock, return_value=True):
+            meta = DatarefMeta(name=&quot;sim/test/val&quot;, value_type=&quot;int&quot;, is_writable=False, id=10)
+            d = Dataref(path=&quot;sim/test/val&quot;, api=api)
+            d._cached_meta = meta
+            d._new_value = 99
+            result = api.write_dataref(d)
+            self.assertFalse(result)
+
+    def test_write_dataref_not_connected(self):
+        api = self._make_api()
+        with patch.object(XPRestAPI, &quot;connected&quot;, new_callable=PropertyMock, return_value=False):
+            d = Dataref(path=&quot;sim/test/val&quot;, api=api)
+            result = api.write_dataref(d)
+            self.assertFalse(result)
+
+
+class TestXPRestAPIExecuteCommand(unittest.TestCase):
+    def _make_api(self):
+        api = XPRestAPI.__new__(XPRestAPI)
+        api.host = &quot;127.0.0.1&quot;
+        api.port = 8086
+        api._api_root_path = &quot;/api&quot;
+        api._api_version = &quot;/v1&quot;
+        api._first_try = False
+        api._warning_count = 0
+        api._unreach_count = 0
+        api._status = 0
+        api._stats = {}
+        api._show_stats = False
+        api._use_cache = False
+        api.all_datarefs = None
+        api.all_commands = None
+        api.session = MagicMock()
+        return api
+
+    def test_execute_command_success(self):
+        api = self._make_api()
+        api.session.post.return_value = mock_response(200, {&quot;result&quot;: &quot;ok&quot;})
+        with patch.object(XPRestAPI, &quot;connected&quot;, new_callable=PropertyMock, return_value=True):
+            meta = CommandMeta(name=&quot;sim/cmd/test&quot;, description=&quot;test&quot;, id=5)
+            c = Command(path=&quot;sim/cmd/test&quot;, api=api)
+            c._cached_meta = meta
+            result = api.execute_command(c)
+            self.assertTrue(result)
+
+    def test_execute_command_not_connected(self):
+        api = self._make_api()
+        with patch.object(XPRestAPI, &quot;connected&quot;, new_callable=PropertyMock, return_value=False):
+            c = Command(path=&quot;sim/cmd/test&quot;, api=api)
+            result = api.execute_command(c)
+            self.assertFalse(result)
+
+
+if __name__ == &quot;__main__&quot;:
+    unittest.main()
+</code></pre>
+<ul>
+<li>[ ] <strong>Step 2: Run tests</strong></li>
+</ul>
+<p>Run: <code>uv run python -m unittest tests.test_rest -v</code>
+Expected: All tests PASS</p>
+<ul>
+<li>[ ] <strong>Step 3: Commit</strong></li>
+</ul>
+<pre><code class="language-bash">git add tests/test_rest.py
+git commit -m &quot;test: add unittest suite for rest.py (XPRestAPI)&quot;
+</code></pre>
+<hr />
+<h3 id="task-6-test-suite-test_wspy">Task 6: Test Suite — <code>test_ws.py</code></h3>
+<p><strong>Files:</strong>
+- Create: <code>tests/test_ws.py</code></p>
+<p><strong>Interfaces:</strong>
+- Consumes: <code>XPWebsocketAPI</code> from <code>xpwebapi.ws</code>, <code>CALLBACK_TYPE</code> from <code>xpwebapi.ws</code></p>
+<ul>
+<li>[ ] <strong>Step 1: Write <code>tests/test_ws.py</code></strong></li>
+</ul>
+<pre><code class="language-python">import unittest
+from unittest.mock import MagicMock, patch, PropertyMock
+
+from xpwebapi.ws import XPWebsocketAPI, CALLBACK_TYPE
+from xpwebapi.api import DatarefMeta, CommandMeta
+
+
+class TestXPWebsocketAPISend(unittest.TestCase):
+    def _make_api(self):
+        api = XPWebsocketAPI.__new__(XPWebsocketAPI)
+        api.host = &quot;127.0.0.1&quot;
+        api.port = 8086
+        api._api_root_path = &quot;/api&quot;
+        api._api_version = &quot;/v2&quot;
+        api._status = 0
+        api._stats = {}
+        api._show_stats = False
+        api.req_number = 0
+        api._requests = {}
+        api.ws = MagicMock()
+        api.callbacks = {t.value: set() for t in CALLBACK_TYPE}
+        return api
+
+    def test_send_increments_req_id(self):
+        api = self._make_api()
+        with patch.object(XPWebsocketAPI, &quot;connected&quot;, new_callable=PropertyMock, return_value=True):
+            id1 = api.send({&quot;type&quot;: &quot;test1&quot;})
+            id2 = api.send({&quot;type&quot;: &quot;test2&quot;})
+            self.assertEqual(id1, 1)
+            self.assertEqual(id2, 2)
+
+    def test_send_not_connected(self):
+        api = self._make_api()
+        with patch.object(XPWebsocketAPI, &quot;connected&quot;, new_callable=PropertyMock, return_value=False):
+            result = api.send({&quot;type&quot;: &quot;test&quot;})
+            self.assertFalse(result)
+
+    def test_send_empty_payload(self):
+        api = self._make_api()
+        with patch.object(XPWebsocketAPI, &quot;connected&quot;, new_callable=PropertyMock, return_value=True):
+            result = api.send({})
+            self.assertFalse(result)
+
+    def test_send_stores_request(self):
+        api = self._make_api()
+        with patch.object(XPWebsocketAPI, &quot;connected&quot;, new_callable=PropertyMock, return_value=True):
+            req_id = api.send({&quot;type&quot;: &quot;test&quot;})
+            self.assertIn(req_id, api._requests)
+
+
+class TestXPWebsocketAPIConnect(unittest.TestCase):
+    def _make_api(self):
+        api = XPWebsocketAPI.__new__(XPWebsocketAPI)
+        api.host = &quot;127.0.0.1&quot;
+        api.port = 8086
+        api._api_root_path = &quot;/api&quot;
+        api._api_version = &quot;/v2&quot;
+        api._status = 0
+        api._stats = {}
+        api._show_stats = False
+        api._unreach_count = 0
+        api._already_warned = 0
+        api.ws = None
+        api.callbacks = {t.value: set() for t in CALLBACK_TYPE}
+        return api
+
+    @patch(&quot;xpwebapi.ws.Client&quot;)
+    def test_connect_websocket_success(self, mock_client_cls):
+        api = self._make_api()
+        mock_ws = MagicMock()
+        mock_client_cls.connect.return_value = mock_ws
+        with patch.object(XPWebsocketAPI, &quot;rest_api_reachable&quot;, new_callable=PropertyMock, return_value=True):
+            with patch.object(XPWebsocketAPI, &quot;reload_caches&quot;):
+                api.connect_websocket()
+                self.assertEqual(api.ws, mock_ws)
+
+    @patch(&quot;xpwebapi.ws.Client&quot;)
+    def test_connect_websocket_rest_unreachable(self, mock_client_cls):
+        api = self._make_api()
+        with patch.object(XPWebsocketAPI, &quot;rest_api_reachable&quot;, new_callable=PropertyMock, return_value=False):
+            api.connect_websocket()
+            self.assertIsNone(api.ws)
+
+    def test_disconnect_websocket(self):
+        api = self._make_api()
+        api.ws = MagicMock()
+        api.disconnect_websocket(silent=True)
+        api.ws.close.assert_called_once()
+        self.assertIsNone(api.ws)
+
+
+class TestXPWebsocketAPICallbacks(unittest.TestCase):
+    def _make_api(self):
+        api = XPWebsocketAPI.__new__(XPWebsocketAPI)
+        api._stats = {}
+        api._show_stats = False
+        api.callbacks = {t.value: set() for t in CALLBACK_TYPE}
+        return api
+
+    def test_add_and_execute_callback(self):
+        api = self._make_api()
+        cb = MagicMock()
+        api.add_callback(CALLBACK_TYPE.ON_OPEN, cb)
+        api.execute_callbacks(CALLBACK_TYPE.ON_OPEN)
+        cb.assert_called_once()
+
+    def test_execute_no_callbacks(self):
+        api = self._make_api()
+        result = api.execute_callbacks(CALLBACK_TYPE.ON_OPEN)
+        self.assertTrue(result)
+
+    def test_callback_exception_handled(self):
+        api = self._make_api()
+        bad_cb = MagicMock(side_effect=RuntimeError(&quot;boom&quot;))
+        api.add_callback(CALLBACK_TYPE.ON_OPEN, bad_cb)
+        result = api.execute_callbacks(CALLBACK_TYPE.ON_OPEN)
+        self.assertFalse(result)
+
+
+if __name__ == &quot;__main__&quot;:
+    unittest.main()
+</code></pre>
+<ul>
+<li>[ ] <strong>Step 2: Run tests</strong></li>
+</ul>
+<p>Run: <code>uv run python -m unittest tests.test_ws -v</code>
+Expected: All tests PASS</p>
+<ul>
+<li>[ ] <strong>Step 3: Commit</strong></li>
+</ul>
+<pre><code class="language-bash">git add tests/test_ws.py
+git commit -m &quot;test: add unittest suite for ws.py (XPWebsocketAPI)&quot;
+</code></pre>
+<hr />
+<h3 id="task-7-test-suite-test_beaconpy">Task 7: Test Suite — <code>test_beacon.py</code></h3>
+<p><strong>Files:</strong>
+- Create: <code>tests/test_beacon.py</code></p>
+<p><strong>Interfaces:</strong>
+- Consumes: <code>XPBeaconMonitor</code>, <code>BeaconData</code>, <code>XPlaneNoBeacon</code> from <code>xpwebapi.beacon</code></p>
+<ul>
+<li>[ ] <strong>Step 1: Write <code>tests/test_beacon.py</code></strong></li>
+</ul>
+<pre><code class="language-python">import unittest
+import struct
+import socket
+from unittest.mock import MagicMock, patch
+
+from xpwebapi.beacon import XPBeaconMonitor, BeaconData, XPlaneNoBeacon
+
+
+def make_beacon_packet(host=&quot;127.0.0.1&quot;, port=49000, hostname=&quot;testhost&quot;, xplane_version=121400, role=1):
+    header = b&quot;BECN\x00&quot;
+    major = 1
+    minor = 2
+    app_id = 1
+    data = struct.pack(&quot;&lt;BBiiIH&quot;, major, minor, app_id, xplane_version, role, port)
+    hostname_bytes = hostname.encode() + b&quot;\x00&quot;
+    return header + data + hostname_bytes
+
+
+class TestBeaconData(unittest.TestCase):
+    def test_construction(self):
+        bd = BeaconData(host=&quot;10.0.0.1&quot;, port=49000, hostname=&quot;xp&quot;, xplane_version=121400, role=1)
+        self.assertEqual(bd.host, &quot;10.0.0.1&quot;)
+        self.assertEqual(bd.port, 49000)
+        self.assertEqual(bd.hostname, &quot;xp&quot;)
+        self.assertEqual(bd.xplane_version, 121400)
+        self.assertEqual(bd.role, 1)
+
+
+class TestXPBeaconMonitorGetBeacon(unittest.TestCase):
+    @patch(&quot;xpwebapi.beacon.socket.socket&quot;)
+    def test_get_beacon_valid(self, mock_socket_cls):
+        packet = make_beacon_packet()
+        mock_sock = MagicMock()
+        mock_sock.recvfrom.return_value = (packet, (&quot;127.0.0.1&quot;, 49000))
+        mock_socket_cls.return_value = mock_sock
+
+        mon = XPBeaconMonitor()
+        result = mon.get_beacon(timeout=1.0)
+        self.assertIsNotNone(result)
+        self.assertEqual(result.host, &quot;127.0.0.1&quot;)
+        self.assertEqual(result.xplane_version, 121400)
+
+    @patch(&quot;xpwebapi.beacon.socket.socket&quot;)
+    def test_get_beacon_timeout(self, mock_socket_cls):
+        mock_sock = MagicMock()
+        mock_sock.recvfrom.side_effect = socket.timeout(&quot;timed out&quot;)
+        mock_socket_cls.return_value = mock_sock
+
+        mon = XPBeaconMonitor()
+        with self.assertRaises(XPlaneNoBeacon):
+            mon.get_beacon(timeout=1.0)
+
+    @patch(&quot;xpwebapi.beacon.socket.socket&quot;)
+    def test_get_beacon_bad_header(self, mock_socket_cls):
+        mock_sock = MagicMock()
+        mock_sock.recvfrom.return_value = (b&quot;XXXX\x00&quot; + b&quot;\x00&quot; * 100, (&quot;127.0.0.1&quot;, 49000))
+        mock_socket_cls.return_value = mock_sock
+
+        mon = XPBeaconMonitor()
+        result = mon.get_beacon(timeout=1.0)
+        self.assertIsNone(result)
+
+
+class TestXPBeaconMonitorSameHost(unittest.TestCase):
+    def test_same_host_true(self):
+        mon = XPBeaconMonitor()
+        mon.data = BeaconData(host=&quot;127.0.0.1&quot;, port=49000, hostname=&quot;xp&quot;, xplane_version=121400, role=1)
+        mon.my_ips = [&quot;127.0.0.1&quot;, &quot;10.0.0.5&quot;]
+        self.assertTrue(mon.same_host())
+
+    def test_same_host_false(self):
+        mon = XPBeaconMonitor()
+        mon.data = BeaconData(host=&quot;192.168.1.100&quot;, port=49000, hostname=&quot;xp&quot;, xplane_version=121400, role=1)
+        mon.my_ips = [&quot;127.0.0.1&quot;, &quot;10.0.0.5&quot;]
+        self.assertFalse(mon.same_host())
+
+    def test_same_host_no_data(self):
+        mon = XPBeaconMonitor()
+        mon.data = None
+        self.assertFalse(mon.same_host())
+
+
+class TestXPBeaconMonitorCallback(unittest.TestCase):
+    def test_callback_executed(self):
+        mon = XPBeaconMonitor()
+        cb = MagicMock()
+        mon.set_callback(cb)
+        bd = BeaconData(host=&quot;127.0.0.1&quot;, port=49000, hostname=&quot;xp&quot;, xplane_version=121400, role=1)
+        mon.callback(connected=True, beacon_data=bd, same_host=True)
+        cb.assert_called_once_with(connected=True, beacon_data=bd, same_host=True)
+
+    def test_callback_exception_handled(self):
+        mon = XPBeaconMonitor()
+        bad_cb = MagicMock(side_effect=RuntimeError(&quot;boom&quot;))
+        mon.set_callback(bad_cb)
+        mon.callback(connected=True, beacon_data=None, same_host=False)
+
+    def test_multiple_callbacks(self):
+        mon = XPBeaconMonitor()
+        cb1 = MagicMock()
+        cb2 = MagicMock()
+        mon.set_callback(cb1)
+        mon.set_callback(cb2)
+        mon.callback(connected=False, beacon_data=None, same_host=False)
+        cb1.assert_called_once()
+        cb2.assert_called_once()
+
+
+if __name__ == &quot;__main__&quot;:
+    unittest.main()
+</code></pre>
+<ul>
+<li>[ ] <strong>Step 2: Run tests</strong></li>
+</ul>
+<p>Run: <code>uv run python -m unittest tests.test_beacon -v</code>
+Expected: All tests PASS</p>
+<ul>
+<li>[ ] <strong>Step 3: Commit</strong></li>
+</ul>
+<pre><code class="language-bash">git add tests/test_beacon.py
+git commit -m &quot;test: add unittest suite for beacon.py (XPBeaconMonitor)&quot;
+</code></pre>
+<hr />
+<h3 id="task-8-test-suite-test_udppy">Task 8: Test Suite — <code>test_udp.py</code></h3>
+<p><strong>Files:</strong>
+- Create: <code>tests/test_udp.py</code></p>
+<p><strong>Interfaces:</strong>
+- Consumes: <code>XPUDPAPI</code>, <code>XPlaneTimeout</code> from <code>xpwebapi.udp</code>, <code>Dataref</code> from <code>xpwebapi.api</code></p>
+<ul>
+<li>[ ] <strong>Step 1: Write <code>tests/test_udp.py</code></strong></li>
+</ul>
+<pre><code class="language-python">import unittest
+import struct
+from unittest.mock import MagicMock, patch, PropertyMock
+
+from xpwebapi.udp import XPUDPAPI, XPlaneTimeout
+from xpwebapi.api import Dataref, DatarefMeta
+
+
+def make_rref_packet(datarefs_and_values):
+    header = b&quot;RREF,&quot;
+    packet = header
+    for idx, value in datarefs_and_values:
+        packet += struct.pack(&quot;&lt;if&quot;, idx, value)
+    return packet
+
+
+class TestXPUDPAPIWriteDataref(unittest.TestCase):
+    def _make_api(self):
+        with patch(&quot;xpwebapi.udp.socket.socket&quot;):
+            api = XPUDPAPI(host=&quot;127.0.0.1&quot;, port=49000)
+        api.socket = MagicMock()
+        return api
+
+    def test_write_dataref_sends_packet(self):
+        api = self._make_api()
+        meta = DatarefMeta(name=&quot;sim/test/val&quot;, value_type=&quot;float&quot;, is_writable=True, id=1)
+        d = Dataref(path=&quot;sim/test/val&quot;, api=api)
+        d._cached_meta = meta
+        d._new_value = 3.14
+        with patch.object(XPUDPAPI, &quot;connected&quot;, new_callable=PropertyMock, return_value=True):
+            result = api.write_dataref(d)
+            self.assertTrue(result)
+            api.socket.sendto.assert_called_once()
+            args = api.socket.sendto.call_args
+            message = args[0][0]
+            self.assertTrue(message.startswith(b&quot;DREF\x00&quot;))
+
+
+class TestXPUDPAPIReadValues(unittest.TestCase):
+    def _make_api(self):
+        with patch(&quot;xpwebapi.udp.socket.socket&quot;):
+            api = XPUDPAPI(host=&quot;127.0.0.1&quot;, port=49000)
+        api.socket = MagicMock()
+        return api
+
+    def test_read_monitored_values(self):
+        api = self._make_api()
+        api.datarefs = {0: &quot;sim/test/alt&quot;}
+        packet = make_rref_packet([(0, 5000.0)])
+        api.socket.recvfrom.return_value = (packet, (&quot;127.0.0.1&quot;, 49000))
+        with patch.object(XPUDPAPI, &quot;connected&quot;, new_callable=PropertyMock, return_value=True):
+            result = api.read_monitored_dataref_values()
+            self.assertIn(&quot;sim/test/alt&quot;, result)
+            self.assertAlmostEqual(result[&quot;sim/test/alt&quot;], 5000.0)
+
+    def test_read_timeout_raises(self):
+        api = self._make_api()
+        api.socket.recvfrom.side_effect = Exception(&quot;timeout&quot;)
+        with patch.object(XPUDPAPI, &quot;connected&quot;, new_callable=PropertyMock, return_value=True):
+            with self.assertRaises(XPlaneTimeout):
+                api.read_monitored_dataref_values()
+
+    def test_read_negative_zero_corrected(self):
+        api = self._make_api()
+        api.datarefs = {0: &quot;sim/test/val&quot;}
+        packet = make_rref_packet([(0, -0.0001)])
+        api.socket.recvfrom.return_value = (packet, (&quot;127.0.0.1&quot;, 49000))
+        with patch.object(XPUDPAPI, &quot;connected&quot;, new_callable=PropertyMock, return_value=True):
+            result = api.read_monitored_dataref_values()
+            self.assertEqual(result[&quot;sim/test/val&quot;], 0.0)
+
+
+class TestXPUDPAPIRequestDataref(unittest.TestCase):
+    def _make_api(self):
+        with patch(&quot;xpwebapi.udp.socket.socket&quot;):
+            api = XPUDPAPI(host=&quot;127.0.0.1&quot;, port=49000)
+        api.socket = MagicMock()
+        return api
+
+    def test_request_dataref_sends_rref(self):
+        api = self._make_api()
+        with patch.object(XPUDPAPI, &quot;connected&quot;, new_callable=PropertyMock, return_value=True):
+            result = api._request_dataref(&quot;sim/test/alt&quot;, freq=1)
+            self.assertTrue(result)
+            api.socket.sendto.assert_called_once()
+            args = api.socket.sendto.call_args
+            message = args[0][0]
+            self.assertTrue(message.startswith(b&quot;RREF\x00&quot;))
+
+    def test_request_dataref_not_connected(self):
+        api = self._make_api()
+        with patch.object(XPUDPAPI, &quot;connected&quot;, new_callable=PropertyMock, return_value=False):
+            result = api._request_dataref(&quot;sim/test/alt&quot;, freq=1)
+            self.assertFalse(result)
+
+
+if __name__ == &quot;__main__&quot;:
+    unittest.main()
+</code></pre>
+<ul>
+<li>[ ] <strong>Step 2: Run tests</strong></li>
+</ul>
+<p>Run: <code>uv run python -m unittest tests.test_udp -v</code>
+Expected: All tests PASS</p>
+<ul>
+<li>[ ] <strong>Step 3: Commit</strong></li>
+</ul>
+<pre><code class="language-bash">git add tests/test_udp.py
+git commit -m &quot;test: add unittest suite for udp.py (XPUDPAPI)&quot;
+</code></pre>
+<hr />
+<h3 id="task-9-full-suite-verification">Task 9: Full Suite Verification</h3>
+<p><strong>Files:</strong> None (verification only)</p>
+<ul>
+<li>[ ] <strong>Step 1: Run full test suite</strong></li>
+</ul>
+<p>Run: <code>uv run python -m unittest discover -v</code>
+Expected: All tests PASS across all 6 test files</p>
+<ul>
+<li>[ ] <strong>Step 2: Run lint on all source and test files</strong></li>
+</ul>
+<p>Run: <code>uv run ruff check xpwebapi/ tests/</code>
+Expected: No errors</p>
+<ul>
+<li>[ ] <strong>Step 3: Run format check</strong></li>
+</ul>
+<p>Run: <code>uv run ruff format --check xpwebapi/ tests/</code>
+Expected: No formatting issues (or run <code>uv run ruff format xpwebapi/ tests/</code> to fix)</p>
+<ul>
+<li>[ ] <strong>Step 4: Verify package imports cleanly</strong></li>
+</ul>
+<p>Run: <code>uv run python -c "import xpwebapi; print(xpwebapi.version)"</code>
+Expected: <code>3.5.0</code></p>
+<ul>
+<li>[ ] <strong>Step 5: Final commit (if formatting fixes were applied)</strong></li>
+</ul>
+<pre><code class="language-bash">git add -A
+git commit -m &quot;chore: format and verify full P0 tranche&quot;
+</code></pre>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": [], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="../../../js/timeago.min.js"></script>
+      
+        <script src="../../../js/timeago_mkdocs_material.js"></script>
+      
+    
+  </body>
+</html>

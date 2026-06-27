@@ -1,0 +1,1221 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>P0 Tranche Design: Exceptions, LSP Fixes, Test Suite - Python wrapper for X-Plane Web API</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../css/timeago.css">
+    
+      <link rel="stylesheet" href="../../../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#p0-tranche-design-exceptions-lsp-fixes-test-suite" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="Python wrapper for X-Plane Web API" class="md-header__button md-logo" aria-label="Python wrapper for X-Plane Web API" data-md-component="logo">
+      
+  <img src="../../../x-plane.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Python wrapper for X-Plane Web API
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              P0 Tranche Design: Exceptions, LSP Fixes, Test Suite
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14.3 16-.7-2h-3.2l-.7 2H7.8L11 7h2l3.2 9zM20 8.69V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12zm-9.15 3.96h2.3L12 9z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="purple"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_2" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="lime"  aria-label="Switch to system preference"  type="radio" name="__palette" id="__palette_2">
+    
+      <label class="md-header__button md-icon" title="Switch to system preference" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="Python wrapper for X-Plane Web API" class="md-nav__button md-logo" aria-label="Python wrapper for X-Plane Web API" data-md-component="logo">
+      
+  <img src="../../../x-plane.svg" alt="logo">
+
+    </a>
+    Python wrapper for X-Plane Web API
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_1" id="__nav_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Home
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../changelog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../usage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Usage
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/package/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Package
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/core-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/rest/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    REST
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/async-rest/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Async REST
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/websocket/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    WebSocket
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/udp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    UDP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/beacon/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Beacon
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/exceptions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Exceptions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/logging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Logging
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-custom-exception-hierarchy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Custom Exception Hierarchy
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1. Custom Exception Hierarchy">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#new-file-xpwebapiexceptionspy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        New file: xpwebapi/exceptions.py
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#backward-compatibility" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Backward compatibility
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#call-site-updates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Call site updates
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exports" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exports
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-lsp-violation-fixes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. LSP Violation Fixes
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. LSP Violation Fixes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#file-xpwebapiapipy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        File: xpwebapi/api.py
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="File: xpwebapi/api.py">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#2a-remove-kwargs-from-dataref_value-abstract-signature" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2a. Remove **kwargs from dataref_value abstract signature
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2b-standardize-return-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2b. Standardize return types
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2c-remove-return-false-stubs-from-abstract-methods" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2c. Remove return False stubs from abstract methods
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2d-no-changes-to-overrides" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2d. No changes to overrides
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-test-suite" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Test Suite
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. Test Suite">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#framework" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Framework
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Structure
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#mocking-strategy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Mocking strategy
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#coverage-targets" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Coverage targets
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dev-workflow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dev workflow
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#out-of-scope-deferred-to-p1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Out of scope (deferred to P1+)
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="p0-tranche-design-exceptions-lsp-fixes-test-suite">P0 Tranche Design: Exceptions, LSP Fixes, Test Suite</h1>
+<p><strong>Date</strong>: 2026-06-19
+<strong>Scope</strong>: BACKLOG.md P0 items — Custom exception hierarchy, LSP violation fixes, unittest test suite
+<strong>Approach</strong>: Minimal &amp; focused (Approach A) — fix violations without redesigning return type contracts
+<strong>Implementation order</strong>: Exceptions → LSP fixes → Tests</p>
+<hr />
+<h2 id="1-custom-exception-hierarchy">1. Custom Exception Hierarchy</h2>
+<h3 id="new-file-xpwebapiexceptionspy">New file: <code>xpwebapi/exceptions.py</code></h3>
+<pre><code>XPWebAPIError(Exception)
+├── XPConnectionError
+│   └── XPBeaconError
+├── XPTimeoutError
+└── XPVersionError
+</code></pre>
+<p>All exceptions carry optional context via kwargs:</p>
+<pre><code class="language-python">class XPWebAPIError(Exception):
+    def __init__(self, message: str = &quot;&quot;, **context: Any):
+        self.context = context
+        super().__init__(message)
+
+class XPConnectionError(XPWebAPIError):
+    pass
+
+class XPBeaconError(XPConnectionError):
+    pass
+
+class XPTimeoutError(XPWebAPIError):
+    pass
+
+class XPVersionError(XPWebAPIError):
+    pass
+</code></pre>
+<h3 id="backward-compatibility">Backward compatibility</h3>
+<p>Existing exception classes become subclasses of the new hierarchy, preserving the old names for downstream consumers:</p>
+<p><strong><code>beacon.py</code></strong>:</p>
+<pre><code class="language-python">from .exceptions import XPBeaconError, XPVersionError
+
+class XPlaneNoBeacon(XPBeaconError):
+    pass
+
+class XPlaneVersionNotSupported(XPVersionError):
+    pass
+</code></pre>
+<p><strong><code>udp.py</code></strong>:</p>
+<pre><code class="language-python">from .exceptions import XPTimeoutError
+
+class XPlaneTimeout(XPTimeoutError):
+    pass
+</code></pre>
+<h3 id="call-site-updates">Call site updates</h3>
+<p>All <code>raise XPlaneNoBeacon()</code> and <code>raise XPlaneTimeout</code> sites updated to pass context:</p>
+<ul>
+<li><code>beacon.py:320</code> — <code>raise XPlaneNoBeacon("no beacon received", timeout=timeout)</code></li>
+<li><code>beacon.py:314</code> — <code>raise XPlaneVersionNotSupported(f"version {beacon_major_version}.{beacon_minor_version}.{application_host_id}")</code></li>
+<li><code>udp.py:337</code> — <code>raise XPlaneTimeout("UDP read timeout")</code></li>
+</ul>
+<h3 id="exports">Exports</h3>
+<p><code>__init__.py</code> updated to export new exceptions alongside existing ones:</p>
+<pre><code class="language-python">from .exceptions import XPWebAPIError, XPConnectionError, XPBeaconError, XPTimeoutError, XPVersionError
+</code></pre>
+<p>Old names (<code>XPlaneNoBeacon</code>, <code>XPlaneVersionNotSupported</code>, <code>XPlaneTimeout</code>) remain exported.</p>
+<hr />
+<h2 id="2-lsp-violation-fixes">2. LSP Violation Fixes</h2>
+<h3 id="file-xpwebapiapipy">File: <code>xpwebapi/api.py</code></h3>
+<h4 id="2a-remove-kwargs-from-dataref_value-abstract-signature">2a. Remove <code>**kwargs</code> from <code>dataref_value</code> abstract signature</h4>
+<p>Current:</p>
+<pre><code class="language-python">@abstractmethod
+def dataref_value(self, dataref: Dataref, raw: bool = False, **kwargs) -&gt; DatarefValueType | bytes | None:
+</code></pre>
+<p>Change to explicit parameters matching what REST override actually uses:</p>
+<pre><code class="language-python">@abstractmethod
+def dataref_value(self, dataref: Dataref, raw: bool = False, no_decode: bool = False) -&gt; DatarefValueType | bytes | None:
+</code></pre>
+<p>The UDP override (<code>udp.py:188</code>) currently accepts <code>**kwargs</code> — update to match:</p>
+<pre><code class="language-python">def dataref_value(self, dataref: Dataref, raw: bool = False, no_decode: bool = False) -&gt; DatarefValueType | bytes | None:
+</code></pre>
+<h4 id="2b-standardize-return-types">2b. Standardize return types</h4>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Current abstract return</th>
+<th>New abstract return</th>
+<th>Rationale</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>write_dataref</code></td>
+<td><code>bool \| int</code></td>
+<td><code>bool \| int</code></td>
+<td>No change needed. REST returns <code>bool</code>, WS returns <code>bool \| int</code>. Both satisfy contract.</td>
+</tr>
+<tr>
+<td><code>execute_command</code></td>
+<td><code>bool \| int</code></td>
+<td><code>bool \| int</code></td>
+<td>No change needed. Same as above.</td>
+</tr>
+<tr>
+<td><code>dataref_value</code></td>
+<td><code>DatarefValueType \| bytes \| None</code></td>
+<td><code>DatarefValueType \| bytes \| None</code></td>
+<td>No change needed.</td>
+</tr>
+</tbody>
+</table>
+<h4 id="2c-remove-return-false-stubs-from-abstract-methods">2c. Remove <code>return False</code> stubs from abstract methods</h4>
+<p>Replace <code>return False</code> with <code>...</code> (Ellipsis) in abstract method bodies:</p>
+<ul>
+<li><code>api.py:249</code> — <code>connected</code> property: <code>return False</code> → <code>...</code></li>
+<li><code>api.py:359</code> — <code>write_dataref</code>: <code>return False</code> → <code>...</code></li>
+<li><code>api.py:371</code> — <code>dataref_value</code>: <code>return False</code> → <code>...</code></li>
+<li><code>api.py:384</code> — <code>execute_command</code>: <code>return False</code> → <code>...</code></li>
+</ul>
+<p>Abstract methods should not have implementations. The <code>return False</code> stubs mislead type checkers and violate the Liskov Substitution Principle by implying a concrete return value.</p>
+<h4 id="2d-no-changes-to-overrides">2d. No changes to overrides</h4>
+<p><code>rest.py</code>, <code>ws.py</code>, and <code>udp.py</code> override signatures already satisfy the corrected abstract contracts. No changes needed beyond the <code>dataref_value</code> kwargs fix in <code>udp.py</code>.</p>
+<hr />
+<h2 id="3-test-suite">3. Test Suite</h2>
+<h3 id="framework">Framework</h3>
+<p><code>unittest</code> (Python stdlib). No additional dev dependencies.</p>
+<p>Run command: <code>uv run python -m unittest discover</code></p>
+<h3 id="structure">Structure</h3>
+<pre><code>tests/
+├── __init__.py
+├── test_exceptions.py   # Exception hierarchy, context, backward compat
+├── test_api.py          # Dataref, Command, Cache, ValueCache, APIObjMeta
+├── test_rest.py         # XPRestAPI (mocked httpx.Client)
+├── test_ws.py           # XPWebsocketAPI (mocked simple-websocket Client)
+├── test_beacon.py       # XPBeaconMonitor (mocked socket)
+└── test_udp.py          # XPUDPAPI (mocked socket)
+</code></pre>
+<h3 id="mocking-strategy">Mocking strategy</h3>
+<ul>
+<li><strong>REST tests</strong>: <code>unittest.mock.patch</code> on <code>httpx.Client.get</code>/<code>post</code>/<code>patch</code> — return mock <code>Response</code> objects with controlled <code>status_code</code> and <code>.json()</code></li>
+<li><strong>WebSocket tests</strong>: <code>unittest.mock.patch</code> on <code>simple_websocket.Client.connect</code> — return mock <code>Client</code> with <code>.send()</code>/<code>.receive()</code></li>
+<li><strong>Beacon/UDP tests</strong>: <code>unittest.mock.patch</code> on <code>socket.socket</code> — mock <code>recvfrom()</code> with crafted beacon/RREF packets</li>
+<li>No network access, no X-Plane instance required</li>
+</ul>
+<h3 id="coverage-targets">Coverage targets</h3>
+<p><strong><code>test_exceptions.py</code></strong>:
+- <code>XPWebAPIError</code> carries context kwargs
+- Inheritance chain: <code>XPBeaconError</code> is <code>XPConnectionError</code> is <code>XPWebAPIError</code>
+- <code>XPTimeoutError</code> is <code>XPWebAPIError</code>
+- <code>XPVersionError</code> is <code>XPWebAPIError</code>
+- Backward compat: <code>XPlaneNoBeacon</code> is <code>XPBeaconError</code>, <code>XPlaneTimeout</code> is <code>XPTimeoutError</code>, <code>XPlaneVersionNotSupported</code> is <code>XPVersionError</code></p>
+<p><strong><code>test_api.py</code></strong>:
+- <code>DatarefMeta</code> — construction, <code>is_array</code>, <code>append_index</code>/<code>remove_index</code>, <code>save_indices</code>/<code>last_indices</code>
+- <code>CommandMeta</code> — construction
+- <code>Cache</code> — <code>meta()</code> factory returns <code>DatarefMeta</code> or <code>CommandMeta</code> based on <code>is_writable</code> key, <code>get_by_name</code>/<code>get_by_id</code>
+- <code>ValueCache</code> — <code>get_rounding</code> (plain, array root, wildcard), <code>changed</code> (rounding applied, no change detected)
+- <code>Dataref</code> — <code>parse_raw_value</code> (scalar int/float, array with indices, base64 data), <code>value</code> property, <code>write()</code> delegation, <code>monitor()</code>/<code>unmonitor()</code> delegation
+- <code>Command</code> — <code>execute()</code> delegation, <code>monitor()</code>/<code>unmonitor()</code> delegation</p>
+<p><strong><code>test_rest.py</code></strong>:
+- <code>XPRestAPI.connected</code> — mocked 200 → True, mocked ConnectError → False
+- <code>XPRestAPI.dataref_value</code> — mocked 200 with JSON response, base64 decode path, error path
+- <code>XPRestAPI.write_dataref</code> — mocked 200 → True, mocked 400 → False, not connected → False, not writable → False
+- <code>XPRestAPI.execute_command</code> — mocked 200 → True, mocked error → False
+- <code>XPRestAPI.reload_caches</code> — mocked datarefs/commands responses
+- <code>XPRestAPI.get_rest_meta</code> — mocked filter response</p>
+<p><strong><code>test_ws.py</code></strong>:
+- <code>XPWebsocketAPI.send</code> — request ID increment, payload construction
+- <code>XPWebsocketAPI.connect_websocket</code> — mocked Client.connect success/failure
+- <code>XPWebsocketAPI.disconnect_websocket</code> — graceful close, callbacks executed
+- <code>XPWebsocketAPI.set_dataref_value</code> — payload construction with array index
+- <code>XPWebsocketAPI.register_bulk_dataref_value_event</code> — subscribe/unsubscribe payload</p>
+<p><strong><code>test_beacon.py</code></strong>:
+- <code>XPBeaconMonitor.get_beacon</code> — valid BECN packet decoded correctly, timeout raises <code>XPlaneNoBeacon</code>, bad header logged
+- <code>XPBeaconMonitor.start_monitor</code>/<code>stop_monitor</code> — thread lifecycle
+- <code>XPBeaconMonitor.same_host</code> — IP comparison logic
+- <code>XPBeaconMonitor.callback</code> — multiple callbacks executed, exception in callback handled</p>
+<p><strong><code>test_udp.py</code></strong>:
+- <code>XPUDPAPI.write_dataref</code> — correct struct packing, socket.sendto called
+- <code>XPUDPAPI.read_monitored_dataref_values</code> — RREF packet decoded, timeout raises <code>XPlaneTimeout</code>
+- <code>XPUDPAPI._request_dataref</code> — RREF request sent, subscribe/unsubscribe (freq=0)</p>
+<h3 id="dev-workflow">Dev workflow</h3>
+<p>No changes to <code>pyproject.toml</code> dependencies. Test command:</p>
+<pre><code>uv run python -m unittest discover
+</code></pre>
+<hr />
+<h2 id="out-of-scope-deferred-to-p1">Out of scope (deferred to P1+)</h2>
+<ul>
+<li><code>Cache.meta()</code> union return type (<code>DatarefMeta | CommandMeta</code>) — P1 "Separate DatarefCache and CommandCache"</li>
+<li><code>Protocol</code> vs <code>ABC</code> for <code>API</code> — P2</li>
+<li>Modernized type annotations (<code>list</code> vs <code>List</code>) — P2</li>
+<li>Async support — P1</li>
+<li>Context manager support — P1</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": [], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="../../../js/timeago.min.js"></script>
+      
+        <script src="../../../js/timeago_mkdocs_material.js"></script>
+      
+    
+  </body>
+</html>

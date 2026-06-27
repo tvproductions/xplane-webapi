@@ -1,0 +1,1171 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>WebSocket Library Migration Implementation Plan - Python wrapper for X-Plane Web API</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../css/timeago.css">
+    
+      <link rel="stylesheet" href="../../../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#websocket-library-migration-implementation-plan" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="Python wrapper for X-Plane Web API" class="md-header__button md-logo" aria-label="Python wrapper for X-Plane Web API" data-md-component="logo">
+      
+  <img src="../../../x-plane.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Python wrapper for X-Plane Web API
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              WebSocket Library Migration Implementation Plan
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14.3 16-.7-2h-3.2l-.7 2H7.8L11 7h2l3.2 9zM20 8.69V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12zm-9.15 3.96h2.3L12 9z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="purple"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_2" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="lime"  aria-label="Switch to system preference"  type="radio" name="__palette" id="__palette_2">
+    
+      <label class="md-header__button md-icon" title="Switch to system preference" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="Python wrapper for X-Plane Web API" class="md-nav__button md-logo" aria-label="Python wrapper for X-Plane Web API" data-md-component="logo">
+      
+  <img src="../../../x-plane.svg" alt="logo">
+
+    </a>
+    Python wrapper for X-Plane Web API
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_1" id="__nav_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Home
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../changelog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../usage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Usage
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/package/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Package
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/core-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/rest/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    REST
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/async-rest/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Async REST
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/websocket/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    WebSocket
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/udp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    UDP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/beacon/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Beacon
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/exceptions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Exceptions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/logging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Logging
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#global-constraints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Global Constraints
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#file-structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        File Structure
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="File Structure">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#task-1-update-websocket-unit-tests-for-the-target-library" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 1: Update WebSocket Unit Tests For The Target Library
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-2-migrate-xpwebsocketapi-to-websockets" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 2: Migrate XPWebsocketAPI To websockets
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-3-replace-the-dependency-and-refresh-the-lock" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 3: Replace The Dependency And Refresh The Lock
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-4-validate-update-backlog-and-finish" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 4: Validate, Update Backlog, And Finish
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#self-review" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Self-Review
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="websocket-library-migration-implementation-plan">WebSocket Library Migration Implementation Plan</h1>
+<blockquote>
+<p><strong>For agentic workers:</strong> REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (<code>- [ ]</code>) syntax for tracking.</p>
+</blockquote>
+<p><strong>Goal:</strong> Replace <code>simple-websocket</code> with <code>websockets.sync.client</code> while preserving the synchronous <code>XPWebsocketAPI</code> behavior.</p>
+<p><strong>Architecture:</strong> Keep <code>XPWebsocketAPI</code> thread-based and synchronous. Use <code>websockets.sync.client.connect</code> directly in <code>xpwebapi/ws.py</code>, translate idle receives from <code>TimeoutError</code> into the existing timeout logging path, and catch <code>websockets.exceptions.ConnectionClosed</code> for closed sockets.</p>
+<p><strong>Tech Stack:</strong> Python 3.12, stdlib <code>unittest</code>, stdlib <code>unittest.mock</code>, <code>websockets.sync.client</code>, <code>uv</code>, <code>ruff</code>, <code>ty</code>.</p>
+<h2 id="global-constraints">Global Constraints</h2>
+<ul>
+<li>Use stdlib <code>unittest</code> only.</li>
+<li>Preserve the public synchronous <code>XPWebsocketAPI</code> API.</li>
+<li>Do not add an async WebSocket client in this P2 item.</li>
+<li>Use <code>websockets&gt;=16,&lt;17</code>.</li>
+<li>Disable proxy discovery for X-Plane WebSocket connections with <code>proxy=None</code>.</li>
+<li>Use <code>uv run python -m unittest discover -v</code> as the test workflow.</li>
+</ul>
+<hr />
+<h2 id="file-structure">File Structure</h2>
+<ul>
+<li>Modify <code>tests/test_ws.py</code>: update connection patch points and add listener behavior coverage for <code>recv()</code> timeout and closed connections.</li>
+<li>Modify <code>xpwebapi/ws.py</code>: replace <code>simple_websocket</code> imports and API calls with <code>websockets</code>.</li>
+<li>Modify <code>pyproject.toml</code>: replace the dependency.</li>
+<li>Modify <code>uv.lock</code>: refresh the lock through <code>uv lock</code>.</li>
+<li>Modify <code>BACKLOG.md</code>: mark the P2 WebSocket library evaluation item complete after validation.</li>
+</ul>
+<h3 id="task-1-update-websocket-unit-tests-for-the-target-library">Task 1: Update WebSocket Unit Tests For The Target Library</h3>
+<p><strong>Files:</strong>
+- Modify: <code>tests/test_ws.py</code></p>
+<p><strong>Interfaces:</strong>
+- Consumes: existing <code>WebsocketAPITestCase.make_api() -&gt; XPWebsocketAPI</code>
+- Produces: tests that require <code>xpwebapi.ws.connect(url, proxy=None)</code>, <code>ws.recv(timeout=...)</code>, and <code>ConnectionClosed</code> handling.</p>
+<ul>
+<li>[ ] <strong>Step 1: Update connection patches and expected connect arguments</strong></li>
+</ul>
+<p>Replace the three <code>@patch("xpwebapi.ws.Client.connect")</code> decorators with:</p>
+<pre><code class="language-python">@patch(&quot;xpwebapi.ws.connect&quot;)
+</code></pre>
+<p>In <code>test_connect_websocket_success</code>, replace:</p>
+<pre><code class="language-python">mock_connect.assert_called_once_with(&quot;ws://127.0.0.1:8086/api/v2&quot;)
+</code></pre>
+<p>with:</p>
+<pre><code class="language-python">mock_connect.assert_called_once_with(&quot;ws://127.0.0.1:8086/api/v2&quot;, proxy=None)
+</code></pre>
+<ul>
+<li>[ ] <strong>Step 2: Add listener tests for <code>websockets</code> receive semantics</strong></li>
+</ul>
+<p>Add this import near the other imports:</p>
+<pre><code class="language-python">from websockets.exceptions import ConnectionClosedError
+</code></pre>
+<p>Add this test class after <code>TestXPWebsocketAPIMessageHandling</code>:</p>
+<pre><code class="language-python">class TestXPWebsocketAPIListener(WebsocketAPITestCase):
+    def test_ws_listener_treats_recv_timeout_as_idle_receive(self):
+        api = self.make_api()
+        api.RECEIVE_TIMEOUT = 0.01
+        api.ws.recv.side_effect = [TimeoutError, '{&quot;type&quot;: &quot;result&quot;, &quot;req_id&quot;: 1, &quot;success&quot;: true}']
+        api._requests[1] = MagicMock()
+
+        states = [True, True, False]
+        with patch.object(XPWebsocketAPI, &quot;websocket_listener_running&quot;, new_callable=PropertyMock, side_effect=states):
+            with patch.object(api, &quot;_log_receive_timeout&quot;) as log_timeout:
+                with patch.object(api, &quot;_close_websocket_listener&quot;):
+                    api.ws_listener()
+
+        api.ws.recv.assert_any_call(timeout=0.01)
+        log_timeout.assert_called_once_with(0)
+        self.assertEqual(api._stats[&quot;receive_raw&quot;], 1)
+        self.assertEqual(api._stats[&quot;receive&quot;], 1)
+
+    def test_ws_listener_handles_connection_closed(self):
+        api = self.make_api()
+        api.RECEIVE_TIMEOUT = 0.01
+        api.ws.recv.side_effect = ConnectionClosedError(None, None)
+
+        states = [True, False]
+        with patch.object(XPWebsocketAPI, &quot;websocket_listener_running&quot;, new_callable=PropertyMock, side_effect=states):
+            with patch.object(api, &quot;_handle_websocket_closed&quot;) as handle_closed:
+                with patch.object(api, &quot;_close_websocket_listener&quot;):
+                    api.ws_listener()
+
+        handle_closed.assert_called_once_with()
+</code></pre>
+<ul>
+<li>[ ] <strong>Step 3: Run focused tests and verify they fail for the expected reasons</strong></li>
+</ul>
+<p>Run:</p>
+<pre><code class="language-powershell">uv run python -m unittest tests.test_ws.TestXPWebsocketAPIConnect tests.test_ws.TestXPWebsocketAPIListener -v
+</code></pre>
+<p>Expected: failure before production changes because <code>xpwebapi.ws.connect</code> does not exist and <code>ws_listener()</code> still calls <code>receive()</code>.</p>
+<ul>
+<li>[ ] <strong>Step 4: Commit the red tests</strong></li>
+</ul>
+<pre><code class="language-powershell">git add tests/test_ws.py
+git commit -m &quot;test: capture websockets client behavior&quot;
+</code></pre>
+<h3 id="task-2-migrate-xpwebsocketapi-to-websockets">Task 2: Migrate <code>XPWebsocketAPI</code> To <code>websockets</code></h3>
+<p><strong>Files:</strong>
+- Modify: <code>xpwebapi/ws.py</code></p>
+<p><strong>Interfaces:</strong>
+- Consumes: <code>connect(uri: str, *, proxy=None)</code> from <code>websockets.sync.client</code>
+- Consumes: <code>ConnectionClosed</code> from <code>websockets.exceptions</code>
+- Produces: existing <code>XPWebsocketAPI.connect_websocket()</code>, <code>send()</code>, and <code>ws_listener()</code> behavior backed by <code>websockets</code>.</p>
+<ul>
+<li>[ ] <strong>Step 1: Replace imports</strong></li>
+</ul>
+<p>Replace:</p>
+<pre><code class="language-python">from simple_websocket import Client, ConnectionClosed
+</code></pre>
+<p>with:</p>
+<pre><code class="language-python">from websockets.exceptions import ConnectionClosed
+from websockets.sync.client import ClientConnection, connect
+</code></pre>
+<ul>
+<li>[ ] <strong>Step 2: Update the websocket attribute type</strong></li>
+</ul>
+<p>Replace:</p>
+<pre><code class="language-python">self.ws: Client | None = None  # None = no connection
+</code></pre>
+<p>with:</p>
+<pre><code class="language-python">self.ws: ClientConnection | None = None  # None = no connection
+</code></pre>
+<ul>
+<li>[ ] <strong>Step 3: Update connection creation</strong></li>
+</ul>
+<p>Replace:</p>
+<pre><code class="language-python">self.ws = Client.connect(url)
+</code></pre>
+<p>with:</p>
+<pre><code class="language-python">self.ws = connect(url, proxy=None)
+</code></pre>
+<ul>
+<li>[ ] <strong>Step 4: Update listener receive handling</strong></li>
+</ul>
+<p>Replace this block:</p>
+<pre><code class="language-python">message = self.ws.receive(timeout=self.RECEIVE_TIMEOUT)
+self.inc(&quot;receive_raw&quot;)
+# probably we don't receive messages because X-Plane has nothing to send...
+if message is None:
+    self._log_receive_timeout(to_count)
+    to_count = to_count + 1
+    continue
+</code></pre>
+<p>with:</p>
+<pre><code class="language-python">try:
+    message = self.ws.recv(timeout=self.RECEIVE_TIMEOUT)
+except TimeoutError:
+    self._log_receive_timeout(to_count)
+    to_count = to_count + 1
+    continue
+
+self.inc(&quot;receive_raw&quot;)
+</code></pre>
+<ul>
+<li>[ ] <strong>Step 5: Run focused tests and verify they pass</strong></li>
+</ul>
+<p>Run:</p>
+<pre><code class="language-powershell">uv run python -m unittest tests.test_ws.TestXPWebsocketAPIConnect tests.test_ws.TestXPWebsocketAPIListener -v
+</code></pre>
+<p>Expected: all selected tests pass.</p>
+<ul>
+<li>[ ] <strong>Step 6: Commit the migration</strong></li>
+</ul>
+<pre><code class="language-powershell">git add xpwebapi/ws.py tests/test_ws.py
+git commit -m &quot;feat: migrate websocket client to websockets&quot;
+</code></pre>
+<h3 id="task-3-replace-the-dependency-and-refresh-the-lock">Task 3: Replace The Dependency And Refresh The Lock</h3>
+<p><strong>Files:</strong>
+- Modify: <code>pyproject.toml</code>
+- Modify: <code>uv.lock</code></p>
+<p><strong>Interfaces:</strong>
+- Consumes: project dependency metadata.
+- Produces: project install using <code>websockets&gt;=16,&lt;17</code> and no direct <code>simple-websocket</code> dependency.</p>
+<ul>
+<li>[ ] <strong>Step 1: Update dependency metadata</strong></li>
+</ul>
+<p>In <code>pyproject.toml</code>, replace:</p>
+<pre><code class="language-toml">    &quot;simple-websocket~=1.1&quot;,
+</code></pre>
+<p>with:</p>
+<pre><code class="language-toml">    &quot;websockets&gt;=16,&lt;17&quot;,
+</code></pre>
+<ul>
+<li>[ ] <strong>Step 2: Refresh the lock file</strong></li>
+</ul>
+<p>Run:</p>
+<pre><code class="language-powershell">uv lock
+</code></pre>
+<p>Expected: <code>uv.lock</code> contains a <code>websockets</code> package entry compatible with <code>&gt;=16,&lt;17</code>, and <code>xpwebapi</code> depends on <code>websockets</code> instead of <code>simple-websocket</code>.</p>
+<ul>
+<li>[ ] <strong>Step 3: Verify dependency references</strong></li>
+</ul>
+<p>Run:</p>
+<pre><code class="language-powershell">rg -n &quot;simple-websocket|simple_websocket|websockets&quot; pyproject.toml uv.lock xpwebapi tests
+</code></pre>
+<p>Expected: no <code>simple-websocket</code> or <code>simple_websocket</code> references in <code>pyproject.toml</code>, <code>uv.lock</code>, <code>xpwebapi</code>, or <code>tests</code>; <code>websockets</code> references remain.</p>
+<ul>
+<li>[ ] <strong>Step 4: Run the full unit test suite</strong></li>
+</ul>
+<p>Run:</p>
+<pre><code class="language-powershell">uv run python -m unittest discover -v
+</code></pre>
+<p>Expected: all tests pass.</p>
+<ul>
+<li>[ ] <strong>Step 5: Commit dependency changes</strong></li>
+</ul>
+<pre><code class="language-powershell">git add pyproject.toml uv.lock
+git commit -m &quot;build: replace simple-websocket dependency&quot;
+</code></pre>
+<h3 id="task-4-validate-update-backlog-and-finish">Task 4: Validate, Update Backlog, And Finish</h3>
+<p><strong>Files:</strong>
+- Modify: <code>BACKLOG.md</code></p>
+<p><strong>Interfaces:</strong>
+- Consumes: completed migration from Tasks 1-3.
+- Produces: completed P2 backlog item and validation evidence.</p>
+<ul>
+<li>[ ] <strong>Step 1: Run lint</strong></li>
+</ul>
+<p>Run:</p>
+<pre><code class="language-powershell">uv run ruff check .
+</code></pre>
+<p>Expected: no lint violations.</p>
+<ul>
+<li>[ ] <strong>Step 2: Run type check</strong></li>
+</ul>
+<p>Run:</p>
+<pre><code class="language-powershell">uv run ty check
+</code></pre>
+<p>Expected: no type-checking errors. If the command is not available, run the repository's current type-check command and record the exact result.</p>
+<ul>
+<li>[ ] <strong>Step 3: Run final full unit tests</strong></li>
+</ul>
+<p>Run:</p>
+<pre><code class="language-powershell">uv run python -m unittest discover -v
+</code></pre>
+<p>Expected: all tests pass.</p>
+<ul>
+<li>[ ] <strong>Step 4: Mark the backlog item complete</strong></li>
+</ul>
+<p>In <code>BACKLOG.md</code>, replace:</p>
+<pre><code class="language-markdown">### [ ] WebSocket library evaluation
+- [ ] Evaluate `websockets` as replacement for `simple-websocket`
+- [ ] Better async support, more active maintenance
+- [ ] Benchmark and migrate if beneficial
+</code></pre>
+<p>with:</p>
+<pre><code class="language-markdown">### [x] WebSocket library evaluation
+- [x] Evaluate `websockets` as replacement for `simple-websocket`
+- [x] Better async support, more active maintenance
+- [x] Benchmark and migrate if beneficial
+</code></pre>
+<ul>
+<li>[ ] <strong>Step 5: Re-run final validation after backlog update</strong></li>
+</ul>
+<p>Run:</p>
+<pre><code class="language-powershell">uv run python -m unittest discover -v
+uv run ruff check .
+uv run ty check
+</code></pre>
+<p>Expected: all commands pass.</p>
+<ul>
+<li>[ ] <strong>Step 6: Commit backlog update</strong></li>
+</ul>
+<pre><code class="language-powershell">git add BACKLOG.md
+git commit -m &quot;docs: complete websocket library backlog item&quot;
+</code></pre>
+<ul>
+<li>[ ] <strong>Step 7: Inspect final status</strong></li>
+</ul>
+<p>Run:</p>
+<pre><code class="language-powershell">git status --short
+git log --oneline -5
+</code></pre>
+<p>Expected: working tree is clean and recent commits show the spec, tests, migration, dependency update, and backlog completion.</p>
+<h2 id="self-review">Self-Review</h2>
+<ul>
+<li>Spec coverage: covered dependency replacement, sync API preservation, proxy disabling, timeout translation, close handling, tests, validation, and backlog completion.</li>
+<li>Placeholder scan: no placeholders are intentionally left for implementers.</li>
+<li>Type consistency: production imports use <code>ClientConnection</code> and tests patch the module-local <code>connect</code> symbol used by <code>XPWebsocketAPI.connect_websocket()</code>.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": [], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="../../../js/timeago.min.js"></script>
+      
+        <script src="../../../js/timeago_mkdocs_material.js"></script>
+      
+    
+  </body>
+</html>
