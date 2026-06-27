@@ -1,3 +1,4 @@
+import importlib
 import socket
 import unittest
 from unittest.mock import MagicMock, patch
@@ -5,6 +6,8 @@ from unittest.mock import MagicMock, patch
 import xpwebapi
 from tests.helpers import make_beacon_packet
 from xpwebapi.beacon import BEACON_MONITOR_STATUS, BeaconData, XPBeaconMonitor, XPlaneNoBeacon, XPlaneVersionNotSupported
+
+beacon_module = importlib.import_module("xpwebapi.beacon")
 
 
 class BeaconMonitorTestCase(unittest.TestCase):
@@ -106,6 +109,23 @@ class TestXPBeaconMonitorGetBeacon(BeaconMonitorTestCase):
                 with patch("xpwebapi.beacon.logger.warning"):
                     with self.assertRaises(XPlaneVersionNotSupported):
                         monitor.get_beacon(timeout=1.0)
+
+    def test_get_beacon_skips_reuseport_when_constant_missing(self):
+        monitor = self.make_monitor()
+        socket_patch, beacon_socket = self.mock_sockets(socket.timeout("timed out"))
+        had_reuseport = hasattr(beacon_module.socket, "SO_REUSEPORT")
+        reuseport = getattr(beacon_module.socket, "SO_REUSEPORT", None)
+        if had_reuseport:
+            delattr(beacon_module.socket, "SO_REUSEPORT")
+            self.addCleanup(setattr, beacon_module.socket, "SO_REUSEPORT", reuseport)
+
+        with socket_patch:
+            with patch("xpwebapi.beacon.platform.system", return_value="Linux"):
+                with self.assertRaises(XPlaneNoBeacon):
+                    monitor.get_beacon(timeout=1.0)
+
+        for call in beacon_socket.setsockopt.call_args_list:
+            self.assertNotEqual(call.args[0], beacon_module.socket.SOL_SOCKET)
 
 
 class TestXPBeaconMonitorSameHost(BeaconMonitorTestCase):
