@@ -282,6 +282,17 @@ class TestXPWebsocketAPIListener(WebsocketAPITestCase):
 
         handle_closed.assert_called_once_with()
 
+    def test_ws_listener_sleeps_when_socket_missing(self):
+        api = self.make_api()
+        api.ws = None
+
+        states = [True, False]
+        with patch.object(XPWebsocketAPI, "websocket_listener_running", new_callable=PropertyMock, side_effect=states):
+            with patch("xpwebapi.ws.time.sleep") as sleep:
+                api.ws_listener()
+
+        sleep.assert_called_once_with(0.01)
+
 
 class TestXPWebsocketAPIMonitoring(WebsocketAPITestCase):
     def test_monitor_datarefs_accepts_iterable_and_sends_one_subscribe_request(self):

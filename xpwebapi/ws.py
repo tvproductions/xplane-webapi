@@ -864,6 +864,7 @@ class XPWebsocketAPI(XPRestAPI):
         while self.websocket_listener_running:
             try:
                 if self.ws is None:
+                    time.sleep(0.01)
                     continue
                 try:
                     message = self.ws.recv(timeout=self.RECEIVE_TIMEOUT)
