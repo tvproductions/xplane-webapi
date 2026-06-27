@@ -71,6 +71,22 @@ class TestXPWebsocketAPISend(WebsocketAPITestCase):
                 self.assertFalse(api.send({}))
         api.ws.send.assert_not_called()
 
+    def test_send_returns_false_without_allocating_request_when_socket_disappears(self):
+        api = self.make_api()
+        websocket = api.ws
+
+        def disconnect_during_check():
+            api.ws = None
+            return True
+
+        with patch.object(XPWebsocketAPI, "connected", new_callable=PropertyMock, side_effect=disconnect_during_check):
+            with patch("xpwebapi.ws.logger.warning"):
+                self.assertFalse(api.send({"type": "test"}))
+
+        self.assertEqual(api.req_number, 0)
+        self.assertEqual(api._requests, {})
+        websocket.send.assert_not_called()
+
 
 class TestXPWebsocketAPIConnect(WebsocketAPITestCase):
     @patch("xpwebapi.ws.connect")
@@ -265,6 +281,17 @@ class TestXPWebsocketAPIListener(WebsocketAPITestCase):
                     api.ws_listener()
 
         handle_closed.assert_called_once_with()
+
+    def test_ws_listener_sleeps_when_socket_missing(self):
+        api = self.make_api()
+        api.ws = None
+
+        states = [True, False]
+        with patch.object(XPWebsocketAPI, "websocket_listener_running", new_callable=PropertyMock, side_effect=states):
+            with patch("xpwebapi.ws.time.sleep") as sleep:
+                api.ws_listener()
+
+        sleep.assert_called_once_with(0.01)
 
 
 class TestXPWebsocketAPIMonitoring(WebsocketAPITestCase):

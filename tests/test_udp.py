@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, PropertyMock, patch
 from tests.helpers import make_rref_packet
 from xpwebapi.api import Command, Dataref
 from xpwebapi.exceptions import XPPacketError
+from xpwebapi import udp as udp_module
 from xpwebapi.udp import XPUDPAPI, XPlaneTimeout
 
 
@@ -83,6 +84,24 @@ class TestXPUDPAPIExecuteCommand(UDPAPITestCase):
         message, _address = api.socket.sendto.call_args.args
         self.assertTrue(message.startswith(b"CMND\x00"))
         self.assertIn(b"sim/test/command", message)
+
+
+class TestXPUDPAPIConnectionProbe(UDPAPITestCase):
+    def test_simple_connection_probe_skips_reuseport_when_constant_missing(self):
+        api = self.make_api()
+        probe_socket = MagicMock()
+        probe_socket.recvfrom.side_effect = udp_module.socket.timeout
+        had_reuseport = hasattr(udp_module.socket, "SO_REUSEPORT")
+        reuseport = getattr(udp_module.socket, "SO_REUSEPORT", None)
+        if had_reuseport:
+            delattr(udp_module.socket, "SO_REUSEPORT")
+            self.addCleanup(setattr, udp_module.socket, "SO_REUSEPORT", reuseport)
+
+        with patch("xpwebapi.udp.socket.socket", return_value=probe_socket):
+            self.assertFalse(api.simple_connection_probe())
+
+        for call in probe_socket.setsockopt.call_args_list:
+            self.assertNotEqual(call.args[0], udp_module.socket.SOL_SOCKET)
 
 
 class TestXPUDPAPIReadValues(UDPAPITestCase):

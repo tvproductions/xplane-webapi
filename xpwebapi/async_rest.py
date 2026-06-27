@@ -160,6 +160,8 @@ class AsyncXPRestAPI:
 
     def dataref(self, path: str, auto_save: bool = False) -> Dataref:
         """Create a Dataref bound to this async API."""
+        if auto_save:
+            raise ValueError("auto_save is not supported by AsyncXPRestAPI")
         return Dataref(path=path, api=cast(API, self), auto_save=auto_save)
 
     def command(self, path: str) -> Command:

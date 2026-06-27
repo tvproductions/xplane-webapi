@@ -111,8 +111,9 @@ def _make_http_client(key: _RestClientPoolKey) -> httpx.Client:
         if limits is None:
             return httpx.Client(headers=REST_HEADERS, timeout=timeout)
         return httpx.Client(headers=REST_HEADERS, limits=limits, timeout=timeout)
-    assert limits is not None
-    return httpx.Client(headers=REST_HEADERS, limits=limits)
+    if limits is not None:
+        return httpx.Client(headers=REST_HEADERS, limits=limits)
+    return httpx.Client(headers=REST_HEADERS)
 
 
 # REST KEYWORDS

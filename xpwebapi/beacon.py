@@ -265,7 +265,9 @@ class XPBeaconMonitor:
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             sock.bind(("", self.MCAST_PORT))
         else:
-            sock.setsockopt(socket.SOL_SOCKET, getattr(socket, "SO_REUSEPORT"), 1)
+            reuse_port = getattr(socket, "SO_REUSEPORT", None)
+            if reuse_port is not None:
+                sock.setsockopt(socket.SOL_SOCKET, reuse_port, 1)
             sock.bind((self.MCAST_GRP, self.MCAST_PORT))
         mreq = struct.pack("=4sl", socket.inet_aton(self.MCAST_GRP), socket.INADDR_ANY)
         sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
