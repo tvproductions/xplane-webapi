@@ -441,12 +441,15 @@ class XPWebsocketAPI(XPRestAPI):
         if payload is None or len(payload) == 0:
             logger.warning("no payload")
             return False
+        websocket = self.ws
+        if websocket is None:
+            logger.warning("not connected")
+            return False
         req_id = self.next_req
         payload[REST_KW.REQID.value] = req_id
         self._requests[req_id] = Request(r_id=req_id, body=payload, ts=now())
         self.inc("send")
-        if self.ws is not None:
-            self.ws.send(json.dumps(payload))
+        websocket.send(json.dumps(payload))
         webapi_logger.info(f">>SENT {payload}")
         if len(mapping) > 0:
             maps = [f"{k}={v}" for k, v in mapping.items()]
