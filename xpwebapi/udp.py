@@ -111,7 +111,9 @@ class XPUDPAPI(API):
 
         logger.warning("no beacon monitor, cannot test connection")
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
-        sock.setsockopt(socket.SOL_SOCKET, getattr(socket, "SO_REUSEPORT"), 1)  # SO_REUSEPORT?
+        reuse_port = getattr(socket, "SO_REUSEPORT", None)
+        if reuse_port is not None:
+            sock.setsockopt(socket.SOL_SOCKET, reuse_port, 1)  # SO_REUSEPORT?
         if platform.system() == "Windows":
             sock.bind(("", MCAST_PORT))
         else:
