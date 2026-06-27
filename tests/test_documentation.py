@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 from pathlib import Path
+import tomllib
 import unittest
 
 
@@ -43,6 +44,17 @@ class TestExampleAnnotations(unittest.TestCase):
 
 
 class TestDocumentationContent(unittest.TestCase):
+    def test_readme_development_install_matches_project_metadata(self) -> None:
+        readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+        pyproject = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+        dev_extra = pyproject.get("project", {}).get("optional-dependencies", {}).get("dev")
+
+        if dev_extra is None:
+            self.assertNotIn("xpwebapi[dev]", readme)
+            self.assertIn("uv sync", readme)
+        else:
+            self.assertIn("xpwebapi[dev]", readme)
+
     def test_usage_docs_include_required_patterns(self) -> None:
         usage = (DOCS_DIR / "usage" / "index.md").read_text(encoding="utf-8")
 

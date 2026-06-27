@@ -327,6 +327,14 @@ class TestAsyncXPRestAPIExecuteCommand(AsyncRestAPITestCase):
 
 
 class TestAsyncXPRestAPIExports(AsyncRestAPITestCase):
+    async def test_dataref_rejects_auto_save_for_async_api(self):
+        api = self.make_api()
+
+        with self.assertRaises(ValueError) as caught:
+            api.dataref("sim/test/value", auto_save=True)
+
+        self.assertEqual(str(caught.exception), "auto_save is not supported by AsyncXPRestAPI")
+
     async def test_package_factory_returns_async_rest_api(self):
         api = xpwebapi.async_rest_api()
         try:
