@@ -437,9 +437,32 @@ updates:
     open-pull-requests-limit: 4
     groups:
       runtime-dependencies:
-        dependency-type: "production"
+        patterns:
+          - "ifaddr"
+          - "natsort"
+          - "packaging"
+          - "httpx"
+          - "websockets"
+          - "pydantic"
       development-dependencies:
-        dependency-type: "development"
+        patterns:
+          - "bandit"
+          - "cohesion"
+          - "coverage"
+          - "detect-secrets"
+          - "interrogate"
+          - "lizard"
+          - "mkdocs"
+          - "mkdocs-git-revision-date-localized-plugin"
+          - "mkdocs-material"
+          - "mkdocstrings"
+          - "mkdocstrings-python"
+          - "pre-commit"
+          - "ruff"
+          - "ty"
+          - "vulture"
+          - "wily"
+          - "xenon"
 """
         self.assertEqual(config, expected)
 ```
@@ -534,9 +557,32 @@ updates:
     open-pull-requests-limit: 4
     groups:
       runtime-dependencies:
-        dependency-type: "production"
+        patterns:
+          - "ifaddr"
+          - "natsort"
+          - "packaging"
+          - "httpx"
+          - "websockets"
+          - "pydantic"
       development-dependencies:
-        dependency-type: "development"
+        patterns:
+          - "bandit"
+          - "cohesion"
+          - "coverage"
+          - "detect-secrets"
+          - "interrogate"
+          - "lizard"
+          - "mkdocs"
+          - "mkdocs-git-revision-date-localized-plugin"
+          - "mkdocs-material"
+          - "mkdocstrings"
+          - "mkdocstrings-python"
+          - "pre-commit"
+          - "ruff"
+          - "ty"
+          - "vulture"
+          - "wily"
+          - "xenon"
 ```
 
 - [ ] **Step 5: Run focused tests and verify green**

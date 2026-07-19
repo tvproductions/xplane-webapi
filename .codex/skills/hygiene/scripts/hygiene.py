@@ -44,30 +44,52 @@ class OutdatedDependency:
 
 def find_outdated_dependencies(payload: dict[str, Any]) -> list[OutdatedDependency]:
     """Return stale dependencies referenced directly by workspace roots."""
-    resolution = payload.get("resolution", {})
+    roots = payload.get("roots")
+    if not isinstance(roots, list) or not roots:
+        raise ValueError("uv dependency data has no non-empty roots list")
+
+    resolution = payload.get("resolution")
     if not isinstance(resolution, dict):
         raise ValueError("uv dependency data has no resolution mapping")
 
     outdated: list[OutdatedDependency] = []
-    for root_reference in payload.get("roots", []):
+    processed = 0
+    for root_reference in roots:
         root_id = root_reference.get("id") if isinstance(root_reference, dict) else root_reference
-        if not isinstance(root_id, str):
-            continue
-        root = resolution.get(root_id, {})
+        if not isinstance(root_id, str) or not root_id:
+            raise ValueError("uv dependency data contains an invalid root reference")
+        root = resolution.get(root_id)
         if not isinstance(root, dict):
-            continue
+            raise ValueError(f"uv dependency root does not resolve: {root_id}")
         kind = root.get("kind")
-        group = "development" if isinstance(kind, dict) and kind.get("group") else "runtime"
-        for dependency in root.get("dependencies", []):
-            if not isinstance(dependency, dict):
-                continue
-            record = resolution.get(dependency.get("id"), {})
+        if kind == "package":
+            group = "runtime"
+        elif isinstance(kind, dict) and isinstance(kind.get("group"), str) and kind["group"]:
+            group = "development"
+        else:
+            raise ValueError(f"uv dependency root has an unsupported kind: {root_id}")
+
+        dependencies = root.get("dependencies")
+        if not isinstance(dependencies, list):
+            raise ValueError(f"uv dependency root has no dependencies list: {root_id}")
+        for dependency in dependencies:
+            dependency_id = dependency.get("id") if isinstance(dependency, dict) else None
+            if not isinstance(dependency_id, str) or not dependency_id:
+                raise ValueError(f"uv dependency root contains an invalid dependency reference: {root_id}")
+            record = resolution.get(dependency_id)
             if not isinstance(record, dict):
-                continue
+                raise ValueError(f"uv dependency does not resolve: {dependency_id}")
             latest = record.get("latest_version")
             current = record.get("version")
             name = record.get("name")
-            if not isinstance(name, str) or not isinstance(current, str) or not isinstance(latest, str):
+            if not isinstance(name, str) or not name:
+                raise ValueError(f"uv dependency has an invalid name: {dependency_id}")
+            if not isinstance(current, str) or not current:
+                raise ValueError(f"uv dependency has an invalid version: {dependency_id}")
+            if latest is not None and not isinstance(latest, str):
+                raise ValueError(f"uv dependency has an invalid latest version: {dependency_id}")
+            processed += 1
+            if latest is None:
                 continue
             outdated.append(
                 OutdatedDependency(
@@ -77,6 +99,8 @@ def find_outdated_dependencies(payload: dict[str, Any]) -> list[OutdatedDependen
                     group=group,
                 )
             )
+    if processed == 0:
+        raise ValueError("uv dependency data contains no direct dependencies")
     return sorted(set(outdated))
 
 
