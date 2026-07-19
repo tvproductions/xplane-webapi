@@ -60,6 +60,40 @@ def dependency_payload(*, stale: bool = True) -> dict[str, object]:
 
 
 class HygieneSkillTests(unittest.TestCase):
+    def test_skill_uses_script_as_canonical_full_strength_workflow(self) -> None:
+        skill = (ROOT / ".codex" / "skills" / "hygiene" / "SKILL.md").read_text(encoding="utf-8")
+
+        self.assertIn(
+            "uv run python .codex/skills/hygiene/scripts/hygiene.py",
+            skill,
+        )
+        self.assertIn(
+            "uv run python .codex/skills/hygiene/scripts/hygiene.py --dependencies",
+            skill,
+        )
+        self.assertIn("full-strength", skill)
+        self.assertIn("stdlib `unittest` only", skill)
+
+    def test_dependabot_config_matches_weekly_grouped_uv_policy(self) -> None:
+        config = (ROOT / ".github" / "dependabot.yml").read_text(encoding="utf-8")
+        expected = """version: 2
+updates:
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/Chicago"
+    open-pull-requests-limit: 4
+    groups:
+      runtime-dependencies:
+        dependency-type: "production"
+      development-dependencies:
+        dependency-type: "development"
+"""
+        self.assertEqual(config, expected)
+
     def test_local_hygiene_runs_full_deterministic_sequence(self) -> None:
         hygiene = load_hygiene_module()
         runner = MagicMock(return_value=SimpleNamespace(returncode=0))
