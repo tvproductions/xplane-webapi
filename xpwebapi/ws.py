@@ -6,6 +6,7 @@ import socket
 import threading
 import logging
 import json
+import math
 import time
 
 from collections.abc import Iterable, Mapping
@@ -75,6 +76,18 @@ class Request:
 
 def now() -> datetime:
     return datetime.now().astimezone()
+
+
+def _validated_timeout(value: float, name: str, *, allow_zero: bool) -> float:
+    if not math.isfinite(value) or value < 0 or (not allow_zero and value == 0):
+        qualifier = "non-negative" if allow_zero else "positive"
+        raise ValueError(f"{name} must be a finite {qualifier} value")
+    return value
+
+
+def _resolved_shutdown_timeout(value: float | None, default: float, name: str) -> float:
+    resolved = default if value is None else value
+    return _validated_timeout(resolved, name, allow_zero=True)
 
 
 # #############################################
@@ -271,6 +284,7 @@ class XPWebsocketAPI(XPRestAPI):
 
     def connect_websocket(self):
         """Create and open Websocket connection if REST API is reachable"""
+        close_timeout = _validated_timeout(self.close_timeout, "close_timeout", allow_zero=False)
         if self.ws is None:
             url = self.ws_url
             if url is not None:
@@ -281,7 +295,7 @@ class XPWebsocketAPI(XPRestAPI):
                                 url,
                                 proxy=None,
                                 open_timeout=self.open_timeout,
-                                close_timeout=self.close_timeout,
+                                close_timeout=close_timeout,
                             )
                             self.ws = _ReadOnlyWebsocketProxy(raw_websocket) if self.read_only else raw_websocket
                             self.status = CONNECTION_STATUS.WEBSOCKET_CONNNECTED
@@ -411,10 +425,10 @@ class XPWebsocketAPI(XPRestAPI):
         """
         Ends connection to Websocket monitor and closes websocket
         """
+        wait = _resolved_shutdown_timeout(timeout_seconds, self.RECONNECT_TIMEOUT, "timeout_seconds")
         if not self.should_not_connect.is_set():
             logger.debug("disconnecting..")
             self.should_not_connect.set()  # first stop the connection monitor.
-            wait = self.RECONNECT_TIMEOUT if timeout_seconds is None else timeout_seconds
             logger.debug(f"..asked to stop connection monitor.. (this may last {wait} secs.)")
             if self.connect_thread is not None:
                 self.connect_thread.join(timeout=wait)
@@ -951,6 +965,7 @@ class XPWebsocketAPI(XPRestAPI):
 
     def stop(self, timeout_seconds: float | None = None):
         """Stop Websocket monitoring"""
+        wait = _resolved_shutdown_timeout(timeout_seconds, self.RECEIVE_TIMEOUT, "timeout_seconds")
         if self.websocket_listener_running:
             # if self.all_datarefs is not None:
             #     self.all_datarefs.save("datarefs.json")
@@ -960,7 +975,6 @@ class XPWebsocketAPI(XPRestAPI):
             self.ws_lsnr_not_running.set()
             if self.ws_thread is not None and self.ws_thread.is_alive():
                 logger.debug("stopping websocket listener..")
-                wait = self.RECEIVE_TIMEOUT if timeout_seconds is None else timeout_seconds
                 logger.debug(f"..asked to stop websocket listener (this may last {wait} secs. for timeout)..")
                 self.ws_thread.join(wait)
                 if self.ws_thread.is_alive():

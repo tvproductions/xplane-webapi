@@ -11,6 +11,7 @@ import socket
 import struct
 import binascii
 import logging
+import math
 import threading
 import platform
 
@@ -30,6 +31,13 @@ logger = logging.getLogger(__name__)
 
 class XPlaneTimeout(XPTimeoutError):
     pass
+
+
+def _resolved_shutdown_timeout(value: float | None, default: float) -> float:
+    resolved = default if value is None else value
+    if not math.isfinite(resolved) or resolved < 0:
+        raise ValueError("timeout_seconds must be a finite non-negative value")
+    return resolved
 
 
 class XPUDPAPI(API):
@@ -424,11 +432,11 @@ class XPUDPAPI(API):
 
     def stop(self, timeout_seconds: float | None = None):
         """Stop UDP monitoring"""
+        wait = _resolved_shutdown_timeout(timeout_seconds, BEACON_TIMEOUT)
         if self.udp_listener_running:
             self.udp_lsnr_not_running.set()
             if self.udp_thread is not None and self.udp_thread.is_alive():
                 logger.debug("stopping udp listener..")
-                wait = BEACON_TIMEOUT if timeout_seconds is None else timeout_seconds
                 logger.debug(f"..asked to stop udp listener (this may last {wait} secs. for timeout)..")
                 self.udp_thread.join(wait)
                 if self.udp_thread.is_alive():

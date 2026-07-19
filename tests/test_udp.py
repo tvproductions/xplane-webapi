@@ -157,6 +157,44 @@ class TestXPUDPAPIConnectionProbe(UDPAPITestCase):
 
 
 class TestXPUDPAPIShutdown(UDPAPITestCase):
+    def test_stop_rejects_invalid_timeout_before_side_effects(self):
+        invalid_timeouts = (-1.0, float("nan"), float("inf"), float("-inf"))
+
+        for timeout_seconds in invalid_timeouts:
+            with self.subTest(timeout_seconds=timeout_seconds):
+                api = self.make_api()
+                api.udp_lsnr_not_running = MagicMock()
+                api.udp_lsnr_not_running.is_set.return_value = False
+                api.udp_thread = MagicMock()
+
+                with self.assertRaises(ValueError):
+                    api.stop(timeout_seconds=timeout_seconds)
+
+                api.udp_lsnr_not_running.set.assert_not_called()
+                api.udp_thread.join.assert_not_called()
+
+    def test_stop_accepts_zero_timeout(self):
+        api = self.make_api()
+        api.udp_lsnr_not_running = MagicMock()
+        api.udp_lsnr_not_running.is_set.return_value = False
+        api.udp_thread = MagicMock()
+        api.udp_thread.is_alive.side_effect = [True, False]
+
+        api.stop(timeout_seconds=0.0)
+
+        api.udp_thread.join.assert_called_once_with(0.0)
+
+    def test_stop_rejects_invalid_resolved_default_before_side_effects(self):
+        api = self.make_api()
+        api.udp_lsnr_not_running = MagicMock()
+        api.udp_lsnr_not_running.is_set.return_value = False
+
+        with patch.object(udp_module, "BEACON_TIMEOUT", float("nan")):
+            with self.assertRaises(ValueError):
+                api.stop()
+
+        api.udp_lsnr_not_running.set.assert_not_called()
+
     def test_stop_uses_supplied_timeout(self):
         api = self.make_api()
         api.udp_lsnr_not_running = MagicMock()

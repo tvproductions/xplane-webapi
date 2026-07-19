@@ -125,6 +125,25 @@ class TestXPWebsocketAPISend(WebsocketAPITestCase):
 
 class TestXPWebsocketAPIConnect(WebsocketAPITestCase):
     @patch("xpwebapi.ws.connect")
+    def test_connect_rejects_invalid_close_timeout_before_probe_or_socket(self, mock_connect):
+        for close_timeout in (-1.0, 0.0, float("nan"), float("inf"), float("-inf")):
+            with self.subTest(close_timeout=close_timeout):
+                api = self.make_api()
+                api.ws = None
+                api.close_timeout = close_timeout
+                with patch.object(
+                    XPWebsocketAPI,
+                    "rest_api_reachable",
+                    new_callable=PropertyMock,
+                    return_value=True,
+                ) as reachable:
+                    with self.assertRaises(ValueError):
+                        api.connect_websocket()
+                reachable.assert_not_called()
+
+        mock_connect.assert_not_called()
+
+    @patch("xpwebapi.ws.connect")
     def test_read_only_constructor_propagates_timeouts_and_wraps_websocket(self, mock_connect):
         raw_session = MagicMock()
         raw_websocket = MagicMock()
@@ -226,6 +245,33 @@ class TestXPWebsocketAPIConnect(WebsocketAPITestCase):
 
 
 class TestXPWebsocketAPIShutdown(WebsocketAPITestCase):
+    def test_disconnect_rejects_invalid_timeout_before_side_effects(self):
+        invalid_timeouts = (-1.0, float("nan"), float("inf"), float("-inf"))
+
+        for timeout_seconds in invalid_timeouts:
+            with self.subTest(timeout_seconds=timeout_seconds):
+                api = self.make_api()
+                api.should_not_connect.is_set.return_value = False
+                api.connect_thread = MagicMock()
+                with patch.object(api, "disconnect_websocket") as disconnect_websocket:
+                    with self.assertRaises(ValueError):
+                        api.disconnect(timeout_seconds=timeout_seconds)
+
+                api.should_not_connect.set.assert_not_called()
+                api.connect_thread.join.assert_not_called()
+                disconnect_websocket.assert_not_called()
+
+    def test_disconnect_accepts_zero_timeout(self):
+        api = self.make_api()
+        api.should_not_connect.is_set.return_value = False
+        api.connect_thread = MagicMock()
+        api.connect_thread.is_alive.return_value = False
+
+        with patch.object(api, "disconnect_websocket"):
+            api.disconnect(timeout_seconds=0.0)
+
+        api.connect_thread.join.assert_called_once_with(timeout=0.0)
+
     def test_disconnect_uses_supplied_timeout(self):
         api = self.make_api()
         api.should_not_connect.is_set.return_value = False
@@ -258,6 +304,37 @@ class TestXPWebsocketAPIShutdown(WebsocketAPITestCase):
         api.stop(timeout_seconds=0.5)
 
         api.ws_thread.join.assert_called_once_with(0.5)
+
+    def test_stop_rejects_invalid_timeout_before_side_effects(self):
+        invalid_timeouts = (-1.0, float("nan"), float("inf"), float("-inf"))
+
+        for timeout_seconds in invalid_timeouts:
+            with self.subTest(timeout_seconds=timeout_seconds):
+                api = self.make_api()
+                api.ws_lsnr_not_running = MagicMock()
+                api.ws_lsnr_not_running.is_set.return_value = False
+                api.ws_thread = MagicMock()
+                with patch.object(api, "execute_callbacks") as execute_callbacks:
+                    with patch.object(api, "invalidate_caches") as invalidate_caches:
+                        with self.assertRaises(ValueError):
+                            api.stop(timeout_seconds=timeout_seconds)
+
+                execute_callbacks.assert_not_called()
+                api.ws_lsnr_not_running.set.assert_not_called()
+                api.ws_thread.join.assert_not_called()
+                invalidate_caches.assert_not_called()
+
+    def test_stop_rejects_invalid_resolved_default_before_side_effects(self):
+        api = self.make_api()
+        api.ws_lsnr_not_running = MagicMock()
+        api.ws_lsnr_not_running.is_set.return_value = False
+        api.ws_thread = MagicMock()
+
+        with patch.object(api, "RECEIVE_TIMEOUT", float("inf")):
+            with self.assertRaises(ValueError):
+                api.stop()
+
+        api.ws_lsnr_not_running.set.assert_not_called()
 
     def test_stop_retains_default_timeout(self):
         api = self.make_api()
