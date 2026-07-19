@@ -18,7 +18,7 @@ requires-python = ">=3.12,<3.13"
 dependencies = [
     "ifaddr~=0.2",
     "natsort~=8.4",
-    "packaging~=25.0",
+    "packaging~=26.2",
     "httpx~=0.28",
     "websockets>=16,<17",
     "pydantic>=2,<3",

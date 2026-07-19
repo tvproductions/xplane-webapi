@@ -18,6 +18,7 @@
 - The hygiene script must not clean, format, update, stage, or otherwise mutate files itself.
 - Target `websockets==16.1.1`, `packaging==26.2`, `coverage==7.15.2`, `mkdocs-material==9.7.7`, `mkdocstrings==1.0.6`, `ruff==0.15.22`, and `ty==0.0.61` in `uv.lock`.
 - Raise the direct `packaging` constraint to the 26.x line; do not raise unrelated minimum-version constraints without a demonstrated need.
+- Keep `ambiguous-protocol-member` enabled; explicitly declare every instance member assigned by `API(Protocol)` helpers and cover that contract with `unittest`.
 - Dependabot must check the root `uv` project weekly and group production and development updates separately.
 
 ## File Structure
@@ -28,6 +29,8 @@
 - Create `.github/dependabot.yml`: schedule grouped weekly `uv` dependency updates.
 - Modify `pyproject.toml`: move the `packaging` requirement to the 26.x line.
 - Modify `uv.lock`: resolve the seven approved direct updates and any resolver-required transitive changes.
+- Modify `xpwebapi/api.py`: declare the existing Protocol instance-member contract required by `ty` 0.0.61.
+- Modify `tests/test_type_annotations.py`: enforce the Protocol member declarations with `unittest`.
 
 ---
 
@@ -571,11 +574,16 @@ git commit -m "chore: strengthen repository hygiene"
 **Files:**
 - Modify: `pyproject.toml`
 - Modify: `uv.lock`
+- Modify: `xpwebapi/api.py`
+- Modify: `tests/test_type_annotations.py`
+- Modify: `docs/superpowers/specs/2026-07-19-strong-hygiene-and-dependency-maintenance-design.md`
+- Modify: `docs/superpowers/plans/2026-07-19-strong-hygiene-and-dependency-maintenance.md`
 
 **Interfaces:**
 - Consumes: dependency audit implemented in Task 1.
 - Produces: a lockfile with no stale direct dependencies as of 2026-07-19.
 - Preserves: the existing Python requirement `>=3.12,<3.13` and all runtime APIs.
+- Produces: explicit `API(Protocol)` instance-member declarations accepted by `ty` 0.0.61 without rule suppression.
 
 - [ ] **Step 1: Run the local dependency audit and observe red**
 
@@ -624,7 +632,73 @@ uv tree --depth 1 --locked --color never
 
 Expected: `packaging` is constrained and locked at 26.2; the other six targets match the Global Constraints; no unapproved direct dependency changes appear.
 
-- [ ] **Step 5: Run compatibility-focused unit tests**
+- [ ] **Step 5: Add a failing Protocol declaration contract test**
+
+Add a `unittest` method to `TestTypeAnnotationModernization` in `tests/test_type_annotations.py` that asserts `API.__annotations__` contains exactly the existing instance members assigned by its helpers:
+
+```python
+    def test_api_protocol_declares_assigned_instance_members(self) -> None:
+        expected = {
+            "_api_root_path",
+            "_api_version",
+            "_roundings",
+            "_show_stats",
+            "_stats",
+            "_status",
+            "_use_cache",
+            "_use_rest",
+            "all_commands",
+            "all_datarefs",
+            "host",
+            "port",
+            "session",
+            "use_cache",
+            "version",
+        }
+
+        self.assertEqual(set(API.__annotations__), expected)
+```
+
+Run:
+
+```powershell
+uv run python -m unittest tests.test_type_annotations.TestTypeAnnotationModernization.test_api_protocol_declares_assigned_instance_members -v
+```
+
+Expected: FAIL because `API` does not yet declare these members.
+
+- [ ] **Step 6: Declare the existing Protocol instance members**
+
+Add these annotations immediately inside `class API(Protocol)`, before `__init__`, without changing runtime assignments or suppressing `ambiguous-protocol-member`:
+
+```python
+    host: str | None
+    port: int | None
+    version: str | None
+    _api_root_path: str | None
+    _api_version: str | None
+    _use_rest: bool
+    _status: CONNECTION_STATUS
+    _use_cache: bool
+    _roundings: ValueCache | None
+    _show_stats: bool
+    _stats: dict[str, int]
+    session: httpx.Client
+    use_cache: bool
+    all_datarefs: DatarefCache | None
+    all_commands: CommandCache | None
+```
+
+Run:
+
+```powershell
+uv run python -m unittest tests.test_type_annotations -v
+uv run ty check
+```
+
+Expected: the Protocol declaration tests pass and `ty` exits 0 without an ignore for `ambiguous-protocol-member`.
+
+- [ ] **Step 7: Run compatibility-focused unit tests**
 
 Run:
 
@@ -634,7 +708,7 @@ uv run python -m unittest tests.test_ws tests.test_rest tests.test_async_rest te
 
 Expected: all selected compatibility and tooling tests pass with no failures or skips.
 
-- [ ] **Step 6: Rerun dependency inquiry and observe green**
+- [ ] **Step 8: Rerun dependency inquiry and observe green**
 
 Run:
 
@@ -644,10 +718,10 @@ uv run python .codex/skills/hygiene/scripts/hygiene.py --dependencies
 
 Expected: `All direct dependencies are current.` followed by successful full local hygiene.
 
-- [ ] **Step 7: Commit the dependency refresh**
+- [ ] **Step 9: Commit the dependency refresh and required compatibility fix**
 
 ```powershell
-git add pyproject.toml uv.lock
+git add pyproject.toml uv.lock xpwebapi/api.py tests/test_type_annotations.py docs/superpowers/specs/2026-07-19-strong-hygiene-and-dependency-maintenance-design.md docs/superpowers/plans/2026-07-19-strong-hygiene-and-dependency-maintenance.md
 git commit -m "chore: refresh project dependencies"
 ```
 

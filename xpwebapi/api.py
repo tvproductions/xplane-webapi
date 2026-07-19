@@ -197,6 +197,22 @@ class ValueCache:
 class API(Protocol):
     """Protocol with shared API connection helpers."""
 
+    host: str | None
+    port: int | None
+    version: str | None
+    _api_root_path: str | None
+    _api_version: str | None
+    _use_rest: bool
+    _status: CONNECTION_STATUS
+    _use_cache: bool
+    _roundings: ValueCache | None
+    _show_stats: bool
+    _stats: dict[str, int]
+    session: httpx.Client
+    use_cache: bool
+    all_datarefs: DatarefCache | None
+    all_commands: CommandCache | None
+
     def __init__(self, host: str, port: int, api: str, api_version: str) -> None:
         self.host = None
         self.port = None

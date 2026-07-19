@@ -51,6 +51,15 @@ Update the direct dependency set identified on 2026-07-19:
 Regenerate `uv.lock` through `uv` after changing the `packaging` constraint.
 The update is accepted only if the complete repository quality gate passes.
 
+### Approved compatibility amendment
+
+During implementation, `ty` 0.0.61 activated its stable
+`ambiguous-protocol-member` diagnostic for attributes assigned by the concrete
+helpers on `API(Protocol)`. On 2026-07-19, scope was explicitly expanded to fix
+the protocol contract instead of suppressing the rule. Declare every instance
+member assigned by those helpers in the protocol body, add a `unittest`
+contract for the declarations, and keep the rule enabled at error level.
+
 ## Local Hygiene Architecture
 
 Add `.codex/skills/hygiene/scripts/hygiene.py` as a standard-library command

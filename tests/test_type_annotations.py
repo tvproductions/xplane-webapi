@@ -2,12 +2,35 @@ import ast
 import unittest
 from pathlib import Path
 
+from xpwebapi.api import API
+
 
 SOURCE_ROOT = Path(__file__).resolve().parents[1] / "xpwebapi"
 LEGACY_TYPING_ALIASES = {"Dict", "List", "Optional", "Tuple"}
 
 
 class TestTypeAnnotationModernization(unittest.TestCase):
+    def test_api_protocol_declares_assigned_instance_members(self) -> None:
+        expected = {
+            "_api_root_path",
+            "_api_version",
+            "_roundings",
+            "_show_stats",
+            "_stats",
+            "_status",
+            "_use_cache",
+            "_use_rest",
+            "all_commands",
+            "all_datarefs",
+            "host",
+            "port",
+            "session",
+            "use_cache",
+            "version",
+        }
+
+        self.assertEqual(set(API.__annotations__), expected)
+
     def test_source_does_not_use_legacy_collection_or_optional_aliases(self):
         offenders = []
         for filename in SOURCE_ROOT.glob("*.py"):
