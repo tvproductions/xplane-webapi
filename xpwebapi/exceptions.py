@@ -7,6 +7,10 @@ class XPWebAPIError(Exception):
         super().__init__(message)
 
 
+class XPReadOnlyViolation(XPWebAPIError):
+    pass
+
+
 class XPConnectionError(XPWebAPIError):
     pass
 

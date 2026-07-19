@@ -16,6 +16,9 @@ if TYPE_CHECKING:
     import httpx
 
     from .beacon import BeaconData
+    from .read_only import _ReadOnlyHttpClientProxy
+
+from .exceptions import XPReadOnlyViolation
 
 type DatarefScalarType = bool | str | int | float
 type DatarefArrayType = list[int] | list[float]
@@ -208,12 +211,13 @@ class API(Protocol):
     _roundings: ValueCache | None
     _show_stats: bool
     _stats: dict[str, int]
-    session: httpx.Client
+    read_only: bool
+    session: httpx.Client | _ReadOnlyHttpClientProxy
     use_cache: bool
     all_datarefs: DatarefCache | None
     all_commands: CommandCache | None
 
-    def __init__(self, host: str, port: int, api: str, api_version: str) -> None:
+    def __init__(self, host: str, port: int, api: str, api_version: str, read_only: bool = False) -> None:
         self.host = None
         self.port = None
         self.version = None
@@ -228,13 +232,18 @@ class API(Protocol):
 
         self._show_stats = True
         self._stats = {}
+        self.read_only = read_only
 
-        self.session: httpx.Client
+        self.session: httpx.Client | _ReadOnlyHttpClientProxy
         self.use_cache: bool = False
         self.all_datarefs: DatarefCache | None = None
         self.all_commands: CommandCache | None = None
 
         self.set_network(host=host, port=port, api=api, api_version=api_version)
+
+    def _require_write_access(self, operation: str) -> None:
+        if self.read_only:
+            raise XPReadOnlyViolation(f"read-only API forbids {operation}")
 
     @property
     def use_rest(self) -> bool:
@@ -352,6 +361,8 @@ class API(Protocol):
         Returns:
             Dataref: Created dataref
         """
+        if auto_save:
+            self._require_write_access("auto-save dataref")
         return Dataref(path=path, api=self, auto_save=auto_save)
 
     def command(self, path: str) -> Command:
@@ -363,6 +374,7 @@ class API(Protocol):
         Returns:
             Command: Created command
         """
+        self._require_write_access("command construction")
         return Command(path=path, api=self)
 
     def write_dataref(self, dataref: Dataref) -> APIResult:

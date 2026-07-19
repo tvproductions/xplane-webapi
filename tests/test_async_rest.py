@@ -8,6 +8,7 @@ import xpwebapi
 from tests.helpers import mock_response
 from xpwebapi.api import CONNECTION_STATUS, DATAREF_DATATYPE, Command, CommandMeta, Dataref, DatarefMeta
 from xpwebapi.async_rest import AsyncXPRestAPI
+from xpwebapi.exceptions import XPReadOnlyViolation
 from xpwebapi.rest import V1_CAPABILITIES, XPRestAPI
 
 
@@ -34,6 +35,25 @@ class AsyncRestAPITestCase(unittest.IsolatedAsyncioTestCase):
 
 
 class TestAsyncXPRestAPILifecycle(AsyncRestAPITestCase):
+    async def test_read_only_async_rest_rejects_writes_before_http(self):
+        raw_session = MagicMock()
+        raw_session.post = AsyncMock()
+        raw_session.patch = AsyncMock()
+        with patch("xpwebapi.async_rest.httpx.AsyncClient", return_value=raw_session):
+            api = AsyncXPRestAPI(read_only=True)
+        dataref = Dataref(path="sim/test/value", api=api)
+        command = Command(path="sim/test/command", api=api)
+
+        with self.assertRaises(XPReadOnlyViolation):
+            await api.write_dataref(dataref)
+        with self.assertRaises(XPReadOnlyViolation):
+            await api.execute_command(command)
+        with self.assertRaises(XPReadOnlyViolation):
+            await api.session.post("http://127.0.0.1", json={"value": 1.0})
+
+        raw_session.post.assert_not_awaited()
+        raw_session.patch.assert_not_awaited()
+
     async def test_imports_async_rest_api(self):
         self.assertIs(AsyncXPRestAPI, xpwebapi.AsyncXPRestAPI)
 

@@ -29,6 +29,7 @@ from .api import (
     webapi_logger,
 )
 from .retry import RetryConfig, sleep_before_retry
+from .read_only import _ReadOnlyHttpClientProxy
 
 if TYPE_CHECKING:
     from .beacon import BeaconData
@@ -171,20 +172,18 @@ class XPRestAPI(API):
         max_keepalive_connections: int | None = None,
         keepalive_expiry: float | None = None,
         timeout: float | None = None,
+        read_only: bool = False,
     ) -> None:
-        API.__init__(self, host=host, port=port, api=api, api_version=api_version)
+        API.__init__(self, host=host, port=port, api=api, api_version=api_version, read_only=read_only)
         self._capabilities = {}
         self.retry_config = RetryConfig(attempts=retry_attempts, backoff=retry_backoff, max_backoff=retry_backoff_max)
-        self._session_pool_key = (
-            _RestClientPoolKey(
-                max_connections=max_connections,
-                max_keepalive_connections=max_keepalive_connections,
-                keepalive_expiry=keepalive_expiry,
-                timeout=timeout,
-            )
-            if pool_connections
-            else None
+        client_key = _RestClientPoolKey(
+            max_connections=max_connections,
+            max_keepalive_connections=max_keepalive_connections,
+            keepalive_expiry=keepalive_expiry,
+            timeout=timeout,
         )
+        self._session_pool_key = client_key if pool_connections else None
         self._session_closed = False
 
         self._first_try = True
@@ -200,10 +199,13 @@ class XPRestAPI(API):
         self._unreach_count = 0
         self._dataref_by_id = {}  # {dataref-id: Dataref}
 
-        self.session = (
+        raw_session = (
             _RestClientPool.acquire(self._session_pool_key)
             if self._session_pool_key is not None
-            else _make_http_client(_RestClientPoolKey(None, None, None, None))
+            else _make_http_client(client_key)
+        )
+        self.session: httpx.Client | _ReadOnlyHttpClientProxy = (
+            _ReadOnlyHttpClientProxy(raw_session) if self.read_only else raw_session
         )
 
     def __enter__(self) -> Self:
@@ -524,6 +526,7 @@ class XPRestAPI(API):
 
         bool: success of operation
         """
+        self._require_write_access("dataref write")
         if not self.connected:
             logger.warning("not connected")
             return False
@@ -562,6 +565,7 @@ class XPRestAPI(API):
 
         bool: success of operation
         """
+        self._require_write_access("command execution")
         if not self.connected:
             logger.warning("not connected")
             return False

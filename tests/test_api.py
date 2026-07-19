@@ -18,6 +18,7 @@ from xpwebapi.api import (
     DatarefMeta,
     ValueCache,
 )
+from xpwebapi.exceptions import XPReadOnlyViolation
 
 
 class TestAPIProtocol(unittest.TestCase):
@@ -25,6 +26,15 @@ class TestAPIProtocol(unittest.TestCase):
         self.assertIn(Protocol, API.__mro__)
         self.assertFalse(inspect.isabstract(API))
         self.assertEqual(API.__abstractmethods__, frozenset())
+
+    def test_read_only_api_rejects_command_and_auto_save(self):
+        api = DummyAPI()
+        api.read_only = True
+
+        with self.assertRaises(XPReadOnlyViolation):
+            api.command("sim/test/command")
+        with self.assertRaises(XPReadOnlyViolation):
+            api.dataref("sim/test/value", auto_save=True)
 
 
 class TestDatarefMeta(unittest.TestCase):

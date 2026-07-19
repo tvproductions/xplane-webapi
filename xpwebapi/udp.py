@@ -16,11 +16,12 @@ import platform
 
 from types import TracebackType
 from time import sleep
-from typing import Callable, Self
+from typing import Callable, Self, cast
 
 from .api import API, CONNECTION_STATUS, DatarefReadResult, Dataref, Command
 from .beacon import BeaconData, BEACON_TIMEOUT
 from .exceptions import XPPacketError, XPTimeoutError
+from .read_only import _ReadOnlyDatagramSocketProxy
 
 # local logging
 logger = logging.getLogger(__name__)
@@ -41,8 +42,9 @@ class XPUDPAPI(API):
         # Prepare a UDP Socket to read/write to X-Plane
         self.beacon = kwargs.get("beacon")
 
-        self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.socket.settimeout(10.0)
+        raw_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        raw_socket.settimeout(10.0)
+        self.socket: socket.socket | _ReadOnlyDatagramSocketProxy = raw_socket
         self._closed = False
 
         #
@@ -63,7 +65,16 @@ class XPUDPAPI(API):
         host = kwargs.get("host", "127.0.0.1")
         port = kwargs.get("port", 49000)
 
-        API.__init__(self, host=host, port=port, api="", api_version="")  # api, api_version unused, but could be compared to xplane_version_number
+        API.__init__(
+            self,
+            host=host,
+            port=port,
+            api="",
+            api_version="",
+            read_only=kwargs.get("read_only", False),
+        )  # api, api_version unused, but could be compared to xplane_version_number
+        if self.read_only:
+            self.socket = _ReadOnlyDatagramSocketProxy(raw_socket, (host, port))
 
         if self.beacon is not None:
             self.beacon.add_callback(self.beacon_callback)  # can only add after API.__init__() call since it creates class attributes
@@ -188,6 +199,7 @@ class XPUDPAPI(API):
         Returns:
             bool: Whether write operation was successful or not
         """
+        self._require_write_access("dataref write")
         path = dataref.path
         cmd = b"DREF\x00"
         path = path + "\x00"
@@ -204,7 +216,7 @@ class XPUDPAPI(API):
 
         if len(message) != 509:
             raise XPPacketError("invalid DREF packet length", packet_type="DREF", expected=509, actual=len(message))
-        self.socket.sendto(message, (self.host, self.port))
+        self._send_packet(message)
         return True
 
     def dataref_value(self, dataref: Dataref, raw: bool = False, no_decode: bool = False) -> DatarefReadResult:
@@ -244,11 +256,12 @@ class XPUDPAPI(API):
         Returns:
             bool: [description]
         """
+        self._require_write_access("command execution")
         message = struct.pack("<4sx500s", b"CMND", command.encode("utf-8"))
-        self.socket.sendto(message, (self.host, self.port))
+        self._send_packet(message)
         return True
 
-    def monitor_dataref(self, dataref: Dataref) -> bool | int:
+    def monitor_dataref(self, dataref: Dataref, frequency_hz: int = 1) -> bool | int:
         """Starts monitoring single dataref.
 
         [description]
@@ -260,7 +273,9 @@ class XPUDPAPI(API):
             bool if fails
             request id if succeeded
         """
-        ret = self._request_dataref(dataref=dataref.path, freq=1)
+        if not isinstance(frequency_hz, int) or isinstance(frequency_hz, bool) or frequency_hz <= 0:
+            raise ValueError("frequency_hz must be a positive integer")
+        ret = self._request_dataref(dataref=dataref.path, freq=frequency_hz)
         if ret is not False:
             dataref.inc_monitor()
         return ret
@@ -316,10 +331,14 @@ class XPUDPAPI(API):
         message = struct.pack("<5sii400s", cmd, freq, idx, string)
         if len(message) != 413:
             raise XPPacketError("invalid RREF packet length", packet_type="RREF", expected=413, actual=len(message))
-        self.socket.sendto(message, (self.host, self.port))
+        self._send_packet(message)
         if self.datarefidx % 100 == 0:
             sleep(0.2)
         return True
+
+    def _send_packet(self, message: bytes) -> int:
+        destination = (cast(str, self.host), cast(int, self.port))
+        return self.socket.sendto(message, destination)
 
     def read_monitored_dataref_values(self) -> dict:
         """Do a single read and populate dataref with values.
@@ -403,13 +422,13 @@ class XPUDPAPI(API):
                     pass
             logger.info("..terminated")
 
-    def stop(self):
+    def stop(self, timeout_seconds: float | None = None):
         """Stop UDP monitoring"""
         if self.udp_listener_running:
             self.udp_lsnr_not_running.set()
             if self.udp_thread is not None and self.udp_thread.is_alive():
                 logger.debug("stopping udp listener..")
-                wait = BEACON_TIMEOUT
+                wait = BEACON_TIMEOUT if timeout_seconds is None else timeout_seconds
                 logger.debug(f"..asked to stop udp listener (this may last {wait} secs. for timeout)..")
                 self.udp_thread.join(wait)
                 if self.udp_thread.is_alive():

@@ -24,6 +24,7 @@ class TestTypeAnnotationModernization(unittest.TestCase):
             "all_datarefs",
             "host",
             "port",
+            "read_only",
             "session",
             "use_cache",
             "version",

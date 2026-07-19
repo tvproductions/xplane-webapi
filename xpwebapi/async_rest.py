@@ -24,6 +24,8 @@ from .api import (
     webapi_logger,
 )
 from .retry import RetryConfig, async_sleep_before_retry
+from .exceptions import XPReadOnlyViolation
+from .read_only import _ReadOnlyAsyncHttpClientProxy
 from .rest import PROXY_TCP_PORT, REST_KW, V1_CAPABILITIES, XP_SUPER_MIN_VERSION
 
 logger = logging.getLogger(__name__)
@@ -42,6 +44,7 @@ class AsyncXPRestAPI:
         retry_attempts: int = 1,
         retry_backoff: float = 0.0,
         retry_backoff_max: float = 5.0,
+        read_only: bool = False,
     ) -> None:
         self.host = None
         self.port = None
@@ -57,6 +60,7 @@ class AsyncXPRestAPI:
 
         self._show_stats = True
         self._stats = {}
+        self.read_only = read_only
 
         self._capabilities = {}
         self.retry_config = RetryConfig(attempts=retry_attempts, backoff=retry_backoff, max_backoff=retry_backoff_max)
@@ -67,8 +71,15 @@ class AsyncXPRestAPI:
         self.all_datarefs: DatarefCache | None = None
         self.all_commands: CommandCache | None = None
 
-        self.session = httpx.AsyncClient(headers={"Accept": "application/json", "Content-Type": "application/json"})
+        raw_session = httpx.AsyncClient(headers={"Accept": "application/json", "Content-Type": "application/json"})
+        self.session: httpx.AsyncClient | _ReadOnlyAsyncHttpClientProxy = (
+            _ReadOnlyAsyncHttpClientProxy(raw_session) if self.read_only else raw_session
+        )
         self.set_network(host=host, port=port, api=api, api_version=api_version)
+
+    def _require_write_access(self, operation: str) -> None:
+        if self.read_only:
+            raise XPReadOnlyViolation(f"read-only API forbids {operation}")
 
     async def __aenter__(self) -> Self:
         return self
@@ -161,11 +172,13 @@ class AsyncXPRestAPI:
     def dataref(self, path: str, auto_save: bool = False) -> Dataref:
         """Create a Dataref bound to this async API."""
         if auto_save:
+            self._require_write_access("auto-save dataref")
             raise ValueError("auto_save is not supported by AsyncXPRestAPI")
         return Dataref(path=path, api=cast(API, self), auto_save=auto_save)
 
     def command(self, path: str) -> Command:
         """Create a Command bound to this async API."""
+        self._require_write_access("command construction")
         return Command(path=path, api=cast(API, self))
 
     def set_roundings(self, roundings: dict[str, int]) -> None:
@@ -324,6 +337,7 @@ class AsyncXPRestAPI:
 
     async def write_dataref(self, dataref: Dataref) -> bool:
         """Write single dataref value through REST API."""
+        self._require_write_access("dataref write")
         if not await self.rest_api_reachable():
             logger.warning("not connected")
             return False
@@ -356,6 +370,7 @@ class AsyncXPRestAPI:
 
     async def execute_command(self, command: Command, duration: float = 0.0) -> bool:
         """Execute command through REST API."""
+        self._require_write_access("command execution")
         if not await self.rest_api_reachable():
             logger.warning("not connected")
             return False

@@ -23,6 +23,7 @@ from websockets.sync.client import ClientConnection, connect
 from .api import APIResult, CONNECTION_STATUS, DATAREF_DATATYPE, webapi_logger, Dataref, Command
 from .rest import REST_KW, XPRestAPI
 from .beacon import BeaconData
+from .read_only import _ReadOnlyWebsocketProxy
 from .retry import sleep_before_retry
 
 # local logging
@@ -110,6 +111,10 @@ class XPWebsocketAPI(XPRestAPI):
         retry_attempts: int = 1,
         retry_backoff: float = 0.0,
         retry_backoff_max: float = 5.0,
+        http_timeout: float | None = None,
+        open_timeout: float = 10.0,
+        close_timeout: float = 10.0,
+        read_only: bool = False,
     ):
         # Open a UDP Socket to receive on Port 49000
         XPRestAPI.__init__(
@@ -122,14 +127,18 @@ class XPWebsocketAPI(XPRestAPI):
             retry_attempts=retry_attempts,
             retry_backoff=retry_backoff,
             retry_backoff_max=retry_backoff_max,
+            timeout=http_timeout,
+            read_only=read_only,
         )
 
         self.use_rest = use_rest  # setter in API
+        self.open_timeout = open_timeout
+        self.close_timeout = close_timeout
 
         hostname = socket.gethostname()
         self.local_ip = socket.gethostbyname(hostname)
 
-        self.ws: ClientConnection | None = None  # None = no connection
+        self.ws: ClientConnection | _ReadOnlyWebsocketProxy | None = None  # None = no connection
         self.ws_lsnr_not_running = threading.Event()
         self.ws_lsnr_not_running.set()  # means it is off
         self.ws_thread = None
@@ -268,7 +277,13 @@ class XPWebsocketAPI(XPRestAPI):
                 for attempt in range(self.retry_config.attempts):
                     try:
                         if self.rest_api_reachable:
-                            self.ws = connect(url, proxy=None)
+                            raw_websocket = connect(
+                                url,
+                                proxy=None,
+                                open_timeout=self.open_timeout,
+                                close_timeout=self.close_timeout,
+                            )
+                            self.ws = _ReadOnlyWebsocketProxy(raw_websocket) if self.read_only else raw_websocket
                             self.status = CONNECTION_STATUS.WEBSOCKET_CONNNECTED
                             self.reload_caches()
                             logger.info(f"websocket opened at {url}")
@@ -392,14 +407,14 @@ class XPWebsocketAPI(XPRestAPI):
                 self.reload_caches()
             logger.debug("connection monitor connected")
 
-    def disconnect(self):
+    def disconnect(self, timeout_seconds: float | None = None):
         """
         Ends connection to Websocket monitor and closes websocket
         """
         if not self.should_not_connect.is_set():
             logger.debug("disconnecting..")
             self.should_not_connect.set()  # first stop the connection monitor.
-            wait = self.RECONNECT_TIMEOUT  # If we close the connection first, it might be reopened by the connection monitor
+            wait = self.RECONNECT_TIMEOUT if timeout_seconds is None else timeout_seconds
             logger.debug(f"..asked to stop connection monitor.. (this may last {wait} secs.)")
             if self.connect_thread is not None:
                 self.connect_thread.join(timeout=wait)
@@ -474,6 +489,8 @@ class XPWebsocketAPI(XPRestAPI):
             bool if fails
             request id if succeeded
         """
+
+        self._require_write_access("dataref write")
 
         def split_dataref_path(path):
             name = path
@@ -608,6 +625,7 @@ class XPWebsocketAPI(XPRestAPI):
             bool if fails
             request id if succeeded
         """
+        self._require_write_access("command execution")
         cmdref = self.get_command_meta_by_name(path)
         if cmdref is not None:
             return self.send(
@@ -632,6 +650,7 @@ class XPWebsocketAPI(XPRestAPI):
             bool if fails
             request id if succeeded
         """
+        self._require_write_access("command state change")
         cmdref = self.get_command_meta_by_name(path)
         if cmdref is not None:
             return self.send(
@@ -930,7 +949,7 @@ class XPWebsocketAPI(XPRestAPI):
                     pass
             logger.info("..terminated")
 
-    def stop(self):
+    def stop(self, timeout_seconds: float | None = None):
         """Stop Websocket monitoring"""
         if self.websocket_listener_running:
             # if self.all_datarefs is not None:
@@ -941,7 +960,7 @@ class XPWebsocketAPI(XPRestAPI):
             self.ws_lsnr_not_running.set()
             if self.ws_thread is not None and self.ws_thread.is_alive():
                 logger.debug("stopping websocket listener..")
-                wait = self.RECEIVE_TIMEOUT
+                wait = self.RECEIVE_TIMEOUT if timeout_seconds is None else timeout_seconds
                 logger.debug(f"..asked to stop websocket listener (this may last {wait} secs. for timeout)..")
                 self.ws_thread.join(wait)
                 if self.ws_thread.is_alive():
@@ -1128,6 +1147,7 @@ class XPWebsocketAPI(XPRestAPI):
             bool if fails
             request id if succeeded
         """
+        self._require_write_access("dataref write")
         if self.use_rest:
             return super().write_dataref(dataref=dataref)
         if dataref.value_type == DATAREF_DATATYPE.DATA.value:
@@ -1174,6 +1194,7 @@ class XPWebsocketAPI(XPRestAPI):
             bool if fails
             request id if succeeded
         """
+        self._require_write_access("command execution")
         if self.use_rest:
             return super().execute_command(command=command, duration=duration)
         return self.set_command_is_active_with_duration(path=command.path, duration=duration)

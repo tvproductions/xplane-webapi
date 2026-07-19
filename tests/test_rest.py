@@ -6,6 +6,7 @@ import httpx
 
 from tests.helpers import mock_response
 from xpwebapi.api import DATAREF_DATATYPE, Command, CommandMeta, Dataref, DatarefCache, DatarefMeta
+from xpwebapi.exceptions import XPReadOnlyViolation
 from xpwebapi.rest import V1_CAPABILITIES, XPRestAPI
 
 
@@ -28,6 +29,22 @@ class RestAPITestCase(unittest.TestCase):
 
 
 class TestXPRestAPIConnected(RestAPITestCase):
+    def test_read_only_rest_rejects_write_and_raw_post_before_http(self):
+        raw_session = MagicMock()
+        with patch("xpwebapi.rest._make_http_client", return_value=raw_session):
+            api = XPRestAPI(read_only=True)
+        dataref = api.dataref("sim/test/value")
+        dataref.value = 1.0
+
+        with self.assertRaises(XPReadOnlyViolation):
+            api.write_dataref(dataref)
+        with self.assertRaises(XPReadOnlyViolation):
+            api.session.post("http://127.0.0.1", json={"value": 1.0})
+        with self.assertRaises(XPReadOnlyViolation):
+            api.session.headers
+
+        raw_session.post.assert_not_called()
+
     def test_context_manager_closes_session(self):
         api = self.make_api()
 

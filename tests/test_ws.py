@@ -6,6 +6,8 @@ from unittest.mock import MagicMock, PropertyMock, patch
 from websockets.exceptions import ConnectionClosedError
 
 from xpwebapi.api import DATAREF_DATATYPE, Command, CommandMeta, Dataref, DatarefMeta
+from xpwebapi.exceptions import XPReadOnlyViolation
+from xpwebapi.read_only import _ReadOnlyWebsocketProxy
 from xpwebapi.retry import RetryConfig
 from xpwebapi.rest import REST_KW
 from xpwebapi.ws import CALLBACK_TYPE, XPWebsocketAPI
@@ -24,11 +26,14 @@ class WebsocketAPITestCase(unittest.TestCase):
         api._show_stats = False
         api._use_rest = False
         api._use_cache = False
+        api.read_only = False
         api._should_use_cache = False
         api._first_try = False
         api._warning_count = 0
         api._unreach_count = 0
         api.retry_config = RetryConfig()
+        api.open_timeout = 10.0
+        api.close_timeout = 10.0
         api._already_warned = 0
         api.req_number = 0
         api._requests = {}
@@ -42,6 +47,36 @@ class WebsocketAPITestCase(unittest.TestCase):
         api.should_not_connect.is_set.return_value = True
         api.callbacks = {callback_type.value: set() for callback_type in CALLBACK_TYPE}
         return api
+
+
+class TestReadOnlyWebsocketProxy(unittest.TestCase):
+    def test_rejects_action_message_before_raw_send(self):
+        raw_websocket = MagicMock()
+        proxy = _ReadOnlyWebsocketProxy(raw_websocket)
+
+        with self.assertRaises(XPReadOnlyViolation):
+            proxy.send(json.dumps({"type": "dataref_set_values"}))
+
+        raw_websocket.send.assert_not_called()
+
+    def test_allows_dataref_subscription_message(self):
+        raw_websocket = MagicMock()
+        proxy = _ReadOnlyWebsocketProxy(raw_websocket)
+        message = json.dumps({"type": "dataref_subscribe_values"})
+
+        proxy.send(message)
+
+        raw_websocket.send.assert_called_once_with(message)
+
+    def test_rejects_non_json_and_unknown_attributes(self):
+        proxy = _ReadOnlyWebsocketProxy(MagicMock())
+
+        for message in (b"not text", "not json"):
+            with self.subTest(message=message):
+                with self.assertRaises(XPReadOnlyViolation):
+                    proxy.send(message)
+        with self.assertRaises(XPReadOnlyViolation):
+            proxy.ping()
 
 
 class TestXPWebsocketAPISend(WebsocketAPITestCase):
@@ -90,6 +125,36 @@ class TestXPWebsocketAPISend(WebsocketAPITestCase):
 
 class TestXPWebsocketAPIConnect(WebsocketAPITestCase):
     @patch("xpwebapi.ws.connect")
+    def test_read_only_constructor_propagates_timeouts_and_wraps_websocket(self, mock_connect):
+        raw_session = MagicMock()
+        raw_websocket = MagicMock()
+        mock_connect.return_value = raw_websocket
+        with patch("xpwebapi.rest._make_http_client", return_value=raw_session) as make_client:
+            with patch("xpwebapi.ws.socket.gethostname", return_value="testhost"):
+                with patch("xpwebapi.ws.socket.gethostbyname", return_value="127.0.0.1"):
+                    api = XPWebsocketAPI(
+                        read_only=True,
+                        http_timeout=2.5,
+                        open_timeout=3.0,
+                        close_timeout=4.0,
+                    )
+
+        with patch.object(XPWebsocketAPI, "rest_api_reachable", new_callable=PropertyMock, return_value=True):
+            with patch.object(XPWebsocketAPI, "reload_caches"):
+                api.connect_websocket()
+
+        self.assertEqual(make_client.call_args.args[0].timeout, 2.5)
+        mock_connect.assert_called_once_with(
+            "ws://127.0.0.1:8086/api/v2",
+            proxy=None,
+            open_timeout=3.0,
+            close_timeout=4.0,
+        )
+        with self.assertRaises(XPReadOnlyViolation):
+            api.ws.send(json.dumps({"type": "dataref_set_values"}))
+        raw_websocket.send.assert_not_called()
+
+    @patch("xpwebapi.ws.connect")
     def test_connect_websocket_success(self, mock_connect):
         api = self.make_api()
         api.ws = None
@@ -101,7 +166,12 @@ class TestXPWebsocketAPIConnect(WebsocketAPITestCase):
                 api.connect_websocket()
 
         self.assertIs(api.ws, websocket)
-        mock_connect.assert_called_once_with("ws://127.0.0.1:8086/api/v2", proxy=None)
+        mock_connect.assert_called_once_with(
+            "ws://127.0.0.1:8086/api/v2",
+            proxy=None,
+            open_timeout=10.0,
+            close_timeout=10.0,
+        )
 
     @patch("xpwebapi.ws.connect")
     def test_connect_websocket_does_not_connect_when_rest_unreachable(self, mock_connect):
@@ -153,6 +223,52 @@ class TestXPWebsocketAPIConnect(WebsocketAPITestCase):
                     connect.assert_called_once_with()
 
                 close.assert_called_once_with()
+
+
+class TestXPWebsocketAPIShutdown(WebsocketAPITestCase):
+    def test_disconnect_uses_supplied_timeout(self):
+        api = self.make_api()
+        api.should_not_connect.is_set.return_value = False
+        api.connect_thread = MagicMock()
+        api.connect_thread.is_alive.return_value = False
+
+        with patch.object(api, "disconnect_websocket"):
+            api.disconnect(timeout_seconds=0.25)
+
+        api.connect_thread.join.assert_called_once_with(timeout=0.25)
+
+    def test_disconnect_retains_default_timeout(self):
+        api = self.make_api()
+        api.should_not_connect.is_set.return_value = False
+        api.connect_thread = MagicMock()
+        api.connect_thread.is_alive.return_value = False
+
+        with patch.object(api, "disconnect_websocket"):
+            api.disconnect()
+
+        api.connect_thread.join.assert_called_once_with(timeout=api.RECONNECT_TIMEOUT)
+
+    def test_stop_uses_supplied_timeout(self):
+        api = self.make_api()
+        api.ws_lsnr_not_running = MagicMock()
+        api.ws_lsnr_not_running.is_set.return_value = False
+        api.ws_thread = MagicMock()
+        api.ws_thread.is_alive.side_effect = [True, False]
+
+        api.stop(timeout_seconds=0.5)
+
+        api.ws_thread.join.assert_called_once_with(0.5)
+
+    def test_stop_retains_default_timeout(self):
+        api = self.make_api()
+        api.ws_lsnr_not_running = MagicMock()
+        api.ws_lsnr_not_running.is_set.return_value = False
+        api.ws_thread = MagicMock()
+        api.ws_thread.is_alive.side_effect = [True, False]
+
+        api.stop()
+
+        api.ws_thread.join.assert_called_once_with(api.RECEIVE_TIMEOUT)
 
 
 class TestXPWebsocketAPICallbacks(WebsocketAPITestCase):
@@ -402,6 +518,22 @@ class TestXPWebsocketAPIMonitoring(WebsocketAPITestCase):
 
 
 class TestXPWebsocketAPIPayloads(WebsocketAPITestCase):
+    def test_read_only_rejects_high_level_write_and_command(self):
+        api = self.make_api()
+        api.read_only = True
+        dataref = Dataref(path="sim/test/value", api=api)
+        command = Command(path="sim/test/command", api=api)
+        api.set_dataref_value = MagicMock()
+        api.set_command_is_active_with_duration = MagicMock()
+
+        with self.assertRaises(XPReadOnlyViolation):
+            api.write_dataref(dataref)
+        with self.assertRaises(XPReadOnlyViolation):
+            api.execute_command(command)
+
+        api.set_dataref_value.assert_not_called()
+        api.set_command_is_active_with_duration.assert_not_called()
+
     def test_set_dataref_value_sends_scalar_payload(self):
         api = self.make_api()
         meta = DatarefMeta(name="sim/test/value", value_type="float", is_writable=True, id=11)
