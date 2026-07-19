@@ -41,7 +41,7 @@ def dependency_payload(*, stale: bool = True) -> dict[str, object]:
         coverage["latest_version"] = "7.15.2"
 
     return {
-        "roots": ["project:dev", "project"],
+        "roots": [{"id": "project:dev"}, {"id": "project"}],
         "resolution": {
             "project": {
                 "name": "xpwebapi",
@@ -143,6 +143,28 @@ updates:
         hygiene = load_hygiene_module()
 
         self.assertEqual(hygiene.find_outdated_dependencies(dependency_payload(stale=False)), [])
+
+    def test_dependency_parser_retains_scalar_root_compatibility(self) -> None:
+        hygiene = load_hygiene_module()
+        payload = dependency_payload()
+        payload["roots"] = ["project:dev", "project"]
+
+        outdated = hygiene.find_outdated_dependencies(payload)
+
+        self.assertEqual(
+            [(item.name, item.current, item.latest, item.group) for item in outdated],
+            [
+                ("coverage", "7.14.1", "7.15.2", "development"),
+                ("packaging", "25.0", "26.2", "runtime"),
+            ],
+        )
+
+    def test_dependency_parser_ignores_malformed_roots(self) -> None:
+        hygiene = load_hygiene_module()
+        payload = dependency_payload()
+        payload["roots"] = [{}, {"id": None}, {"id": 7}, 42]
+
+        self.assertEqual(hygiene.find_outdated_dependencies(payload), [])
 
     def test_dependency_audit_distinguishes_registry_failure_from_drift(self) -> None:
         hygiene = load_hygiene_module()

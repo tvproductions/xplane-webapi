@@ -49,7 +49,10 @@ def find_outdated_dependencies(payload: dict[str, Any]) -> list[OutdatedDependen
         raise ValueError("uv dependency data has no resolution mapping")
 
     outdated: list[OutdatedDependency] = []
-    for root_id in payload.get("roots", []):
+    for root_reference in payload.get("roots", []):
+        root_id = root_reference.get("id") if isinstance(root_reference, dict) else root_reference
+        if not isinstance(root_id, str):
+            continue
         root = resolution.get(root_id, {})
         if not isinstance(root, dict):
             continue
