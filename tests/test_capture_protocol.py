@@ -3,7 +3,7 @@ import json
 import math
 import os
 import unittest
-from enum import Enum
+from enum import Enum, IntEnum, StrEnum
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
@@ -19,6 +19,26 @@ from xpwebapi.capture_protocol import (
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+class CaptureSessionEnum(StrEnum):
+    SESSION = "capture-20260719-001"
+
+
+class AvailabilityEnum(str, Enum):
+    REQUIRED = "required"
+
+
+class ExpectedIntegerEnum(IntEnum):
+    TWO = 2
+
+
+class ExpectedFloatEnum(float, Enum):
+    TWO = 2.0
+
+
+class ExpectedStringEnum(StrEnum):
+    Q4XP = "Q4XP"
 
 
 def valid_request_payload(transport: str = "websocket") -> dict[str, Any]:
@@ -468,6 +488,38 @@ class TestCaptureRequestStrictModels(unittest.TestCase):
                 payload = valid_request_payload()
                 mutate(payload)
                 self.assert_invalid(payload)
+
+    def test_typed_string_enums_are_rejected_before_string_and_literal_coercion(self):
+        mutations = (
+            lambda payload: payload.__setitem__("capture_session_id", CaptureSessionEnum.SESSION),
+            lambda payload: payload["refs"][0].__setitem__("availability", AvailabilityEnum.REQUIRED),
+        )
+        for index, mutate in enumerate(mutations):
+            with self.subTest(case=index):
+                payload = valid_request_payload()
+                mutate(payload)
+                self.assert_invalid(payload)
+
+        CaptureRequest.model_validate(valid_request_payload())
+
+    def test_typed_enums_are_rejected_before_identity_expected_value_coercion(self):
+        cases = (
+            ("int", None, ExpectedIntegerEnum.TWO),
+            ("float", None, ExpectedFloatEnum.TWO),
+            ("string", "utf-8", ExpectedStringEnum.Q4XP),
+        )
+        for declared_type, encoding, expected_value in cases:
+            with self.subTest(declared_type=declared_type):
+                payload = valid_request_payload()
+                payload["identity_readiness"]["refs"][0].update(
+                    declared_type=declared_type,
+                    encoding=encoding,
+                    operator="equals",
+                    expected_value=expected_value,
+                )
+                self.assert_invalid(payload)
+
+        CaptureRequest.model_validate(valid_request_payload())
 
     def test_aircraft_identity_ref_is_strict_when_validated_directly(self):
         with self.assertRaises(ValidationError):

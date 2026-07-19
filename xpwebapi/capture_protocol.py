@@ -8,7 +8,9 @@ import json
 import math
 import os
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
@@ -73,10 +75,28 @@ def _unique(values: tuple[str, ...], *, name: str) -> None:
         raise ValueError(f"duplicate {name}")
 
 
+def _reject_enum_instances(value: Any) -> None:
+    if isinstance(value, Enum):
+        raise ValueError("Enum instances are not valid strict protocol values")
+    if isinstance(value, Mapping):
+        for key, item in value.items():
+            _reject_enum_instances(key)
+            _reject_enum_instances(item)
+    elif isinstance(value, (list, tuple, set, frozenset)):
+        for item in value:
+            _reject_enum_instances(item)
+
+
 class StrictModel(BaseModel):
     """Base for immutable protocol models without input coercion."""
 
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _reject_typed_enum_coercion(cls, value: Any) -> Any:
+        _reject_enum_instances(value)
+        return value
 
 
 class CaptureCorrelation(StrictModel):
