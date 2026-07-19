@@ -1,0 +1,471 @@
+{
+  "$defs": {
+    "AircraftIdentityRef": {
+      "additionalProperties": false,
+      "description": "One DataRef assertion proving the loaded aircraft is Q4XP.",
+      "properties": {
+        "declared_type": {
+          "enum": [
+            "int",
+            "float",
+            "double",
+            "string"
+          ],
+          "title": "Declared Type",
+          "type": "string"
+        },
+        "encoding": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Encoding"
+        },
+        "expected_value": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "title": "Expected Value"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "operator": {
+          "enum": [
+            "equals",
+            "contains"
+          ],
+          "title": "Operator",
+          "type": "string"
+        },
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "rate_hz": {
+          "default": 1.0,
+          "title": "Rate Hz",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "path",
+        "declared_type",
+        "operator",
+        "expected_value"
+      ],
+      "title": "AircraftIdentityRef",
+      "type": "object"
+    },
+    "CaptureCorrelation": {
+      "additionalProperties": false,
+      "description": "Cross-repository campaign, route, and scenario identifiers.",
+      "properties": {
+        "campaign_id": {
+          "title": "Campaign Id",
+          "type": "string"
+        },
+        "route_profile_id": {
+          "title": "Route Profile Id",
+          "type": "string"
+        },
+        "scenario_id": {
+          "title": "Scenario Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "campaign_id",
+        "route_profile_id",
+        "scenario_id"
+      ],
+      "title": "CaptureCorrelation",
+      "type": "object"
+    },
+    "CaptureRef": {
+      "additionalProperties": false,
+      "description": "One read-only DataRef captured in a sample group.",
+      "properties": {
+        "availability": {
+          "enum": [
+            "required",
+            "optional"
+          ],
+          "title": "Availability",
+          "type": "string"
+        },
+        "declared_type": {
+          "enum": [
+            "int",
+            "float",
+            "double",
+            "string"
+          ],
+          "title": "Declared Type",
+          "type": "string"
+        },
+        "encoding": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Encoding"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "sample_group_id": {
+          "title": "Sample Group Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "path",
+        "declared_type",
+        "availability",
+        "sample_group_id"
+      ],
+      "title": "CaptureRef",
+      "type": "object"
+    },
+    "CaptureRetryPolicy": {
+      "additionalProperties": false,
+      "description": "Bounded retry and lifecycle timeout policy.",
+      "properties": {
+        "aircraft_identity_timeout_seconds": {
+          "default": 300.0,
+          "title": "Aircraft Identity Timeout Seconds",
+          "type": "number"
+        },
+        "backoff_max_seconds": {
+          "default": 5.0,
+          "title": "Backoff Max Seconds",
+          "type": "number"
+        },
+        "backoff_seconds": {
+          "default": 0.5,
+          "title": "Backoff Seconds",
+          "type": "number"
+        },
+        "first_values_timeout_seconds": {
+          "default": 30.0,
+          "title": "First Values Timeout Seconds",
+          "type": "number"
+        },
+        "initial_attempts": {
+          "default": 3,
+          "title": "Initial Attempts",
+          "type": "integer"
+        },
+        "max_disconnect_seconds": {
+          "default": 30.0,
+          "title": "Max Disconnect Seconds",
+          "type": "number"
+        },
+        "poll_interval_seconds": {
+          "default": 0.25,
+          "title": "Poll Interval Seconds",
+          "type": "number"
+        },
+        "reconnect_attempts": {
+          "default": 3,
+          "title": "Reconnect Attempts",
+          "type": "integer"
+        },
+        "shutdown_timeout_seconds": {
+          "default": 10.0,
+          "title": "Shutdown Timeout Seconds",
+          "type": "number"
+        },
+        "stale_after_seconds": {
+          "default": 3.0,
+          "title": "Stale After Seconds",
+          "type": "number"
+        },
+        "subscription_timeout_seconds": {
+          "default": 10.0,
+          "title": "Subscription Timeout Seconds",
+          "type": "number"
+        }
+      },
+      "title": "CaptureRetryPolicy",
+      "type": "object"
+    },
+    "CaptureSampleGroup": {
+      "additionalProperties": false,
+      "description": "Fixed-cadence sampling group.",
+      "properties": {
+        "duration_seconds": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Duration Seconds"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "rate_hz": {
+          "title": "Rate Hz",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "rate_hz"
+      ],
+      "title": "CaptureSampleGroup",
+      "type": "object"
+    },
+    "DatarefMatchIdentityReadiness": {
+      "additionalProperties": false,
+      "description": "Q4XP identity readiness established from matching DataRefs.",
+      "properties": {
+        "kind": {
+          "const": "dataref_match",
+          "title": "Kind",
+          "type": "string"
+        },
+        "refs": {
+          "items": {
+            "$ref": "#/$defs/AircraftIdentityRef"
+          },
+          "title": "Refs",
+          "type": "array"
+        },
+        "target_aircraft": {
+          "const": "FlyJSim Q4XP",
+          "title": "Target Aircraft",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "target_aircraft",
+        "refs"
+      ],
+      "title": "DatarefMatchIdentityReadiness",
+      "type": "object"
+    },
+    "UdpCaptureConfig": {
+      "additionalProperties": false,
+      "description": "Bounded beacon-discovered UDP capture settings.",
+      "properties": {
+        "beacon_timeout_seconds": {
+          "default": 5.0,
+          "title": "Beacon Timeout Seconds",
+          "type": "number"
+        },
+        "kind": {
+          "const": "udp",
+          "title": "Kind",
+          "type": "string"
+        },
+        "liveness_timeout_seconds": {
+          "default": 3.0,
+          "title": "Liveness Timeout Seconds",
+          "type": "number"
+        },
+        "socket_timeout_seconds": {
+          "default": 1.0,
+          "title": "Socket Timeout Seconds",
+          "type": "number"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "UdpCaptureConfig",
+      "type": "object"
+    },
+    "WebsocketCaptureConfig": {
+      "additionalProperties": false,
+      "description": "Bounded WebSocket capture connection settings.",
+      "properties": {
+        "api_path": {
+          "default": "/api",
+          "title": "Api Path",
+          "type": "string"
+        },
+        "api_version": {
+          "default": "v2",
+          "title": "Api Version",
+          "type": "string"
+        },
+        "close_timeout_seconds": {
+          "default": 5.0,
+          "title": "Close Timeout Seconds",
+          "type": "number"
+        },
+        "host": {
+          "title": "Host",
+          "type": "string"
+        },
+        "http_timeout_seconds": {
+          "default": 5.0,
+          "title": "Http Timeout Seconds",
+          "type": "number"
+        },
+        "kind": {
+          "const": "websocket",
+          "title": "Kind",
+          "type": "string"
+        },
+        "open_timeout_seconds": {
+          "default": 5.0,
+          "title": "Open Timeout Seconds",
+          "type": "number"
+        },
+        "port": {
+          "title": "Port",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "kind",
+        "host",
+        "port"
+      ],
+      "title": "WebsocketCaptureConfig",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Canonical strict version-1 capture request.",
+  "properties": {
+    "capture_limit_seconds": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Capture Limit Seconds"
+    },
+    "capture_session_id": {
+      "title": "Capture Session Id",
+      "type": "string"
+    },
+    "correlation": {
+      "$ref": "#/$defs/CaptureCorrelation"
+    },
+    "identity_readiness": {
+      "discriminator": {
+        "mapping": {
+          "dataref_match": "#/$defs/DatarefMatchIdentityReadiness"
+        },
+        "propertyName": "kind"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/DatarefMatchIdentityReadiness"
+        }
+      ],
+      "title": "Identity Readiness"
+    },
+    "protocol_version": {
+      "const": 1,
+      "title": "Protocol Version",
+      "type": "integer"
+    },
+    "refs": {
+      "items": {
+        "$ref": "#/$defs/CaptureRef"
+      },
+      "title": "Refs",
+      "type": "array"
+    },
+    "retry": {
+      "$ref": "#/$defs/CaptureRetryPolicy"
+    },
+    "sample_groups": {
+      "items": {
+        "$ref": "#/$defs/CaptureSampleGroup"
+      },
+      "title": "Sample Groups",
+      "type": "array"
+    },
+    "sortie_id": {
+      "title": "Sortie Id",
+      "type": "string"
+    },
+    "stop_file": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Stop File"
+    },
+    "transport": {
+      "discriminator": {
+        "mapping": {
+          "udp": "#/$defs/UdpCaptureConfig",
+          "websocket": "#/$defs/WebsocketCaptureConfig"
+        },
+        "propertyName": "kind"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/WebsocketCaptureConfig"
+        },
+        {
+          "$ref": "#/$defs/UdpCaptureConfig"
+        }
+      ],
+      "title": "Transport"
+    }
+  },
+  "required": [
+    "protocol_version",
+    "capture_session_id",
+    "sortie_id",
+    "correlation",
+    "identity_readiness",
+    "transport",
+    "sample_groups",
+    "refs",
+    "retry"
+  ],
+  "title": "CaptureRequest",
+  "type": "object"
+}
