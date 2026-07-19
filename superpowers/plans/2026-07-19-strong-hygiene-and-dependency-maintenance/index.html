@@ -1,0 +1,1524 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Strong Hygiene and Dependency Maintenance Implementation Plan - Python wrapper for X-Plane Web API</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../css/timeago.css">
+    
+      <link rel="stylesheet" href="../../../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#strong-hygiene-and-dependency-maintenance-implementation-plan" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="Python wrapper for X-Plane Web API" class="md-header__button md-logo" aria-label="Python wrapper for X-Plane Web API" data-md-component="logo">
+      
+  <img src="../../../x-plane.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Python wrapper for X-Plane Web API
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Strong Hygiene and Dependency Maintenance Implementation Plan
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14.3 16-.7-2h-3.2l-.7 2H7.8L11 7h2l3.2 9zM20 8.69V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12zm-9.15 3.96h2.3L12 9z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="purple"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_2" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="lime"  aria-label="Switch to system preference"  type="radio" name="__palette" id="__palette_2">
+    
+      <label class="md-header__button md-icon" title="Switch to system preference" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="Python wrapper for X-Plane Web API" class="md-nav__button md-logo" aria-label="Python wrapper for X-Plane Web API" data-md-component="logo">
+      
+  <img src="../../../x-plane.svg" alt="logo">
+
+    </a>
+    Python wrapper for X-Plane Web API
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_1" id="__nav_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Home
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../changelog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../usage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Usage
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/package/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Package
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/core-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/rest/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    REST
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/async-rest/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Async REST
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/websocket/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    WebSocket
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/udp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    UDP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/beacon/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Beacon
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/exceptions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Exceptions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/logging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Logging
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#global-constraints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Global Constraints
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#file-structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        File Structure
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="File Structure">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#task-1-script-backed-local-hygiene-and-dependency-inquiry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 1: Script-backed local hygiene and dependency inquiry
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-2-canonical-skill-instructions-and-weekly-dependabot-policy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 2: Canonical skill instructions and weekly Dependabot policy
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-3-refresh-all-stale-direct-dependencies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 3: Refresh all stale direct dependencies
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-4-full-repository-verification-and-handoff-evidence" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 4: Full repository verification and handoff evidence
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="strong-hygiene-and-dependency-maintenance-implementation-plan">Strong Hygiene and Dependency Maintenance Implementation Plan</h1>
+<blockquote>
+<p><strong>For agentic workers:</strong> REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (<code>- [ ]</code>) syntax for tracking.</p>
+</blockquote>
+<p><strong>Goal:</strong> Refresh every stale direct dependency and add a script-backed, contract-tested hygiene workflow with both local dependency inquiry and weekly Dependabot updates.</p>
+<p><strong>Architecture:</strong> Keep <code>tools/quality.py</code> as the single quality-gate engine. Add a standard-library orchestrator under the existing hygiene skill for workflow sequencing and <code>uv</code> JSON interpretation, then add a grouped <code>uv</code> Dependabot configuration as the remote maintenance surface.</p>
+<p><strong>Tech Stack:</strong> Python 3.12 standard library, <code>unittest</code>, <code>uv</code>, existing repository quality tools, GitHub Dependabot.</p>
+<h2 id="global-constraints">Global Constraints</h2>
+<ul>
+<li>Source design: <code>docs/superpowers/specs/2026-07-19-strong-hygiene-and-dependency-maintenance-design.md</code>.</li>
+<li>Use standard-library <code>unittest</code> exclusively; never add or invoke another Python test runner.</li>
+<li>Do not replace or duplicate <code>tools/quality.py</code>.</li>
+<li>Normal hygiene must remain deterministic and usable without network access.</li>
+<li>Dependency inquiry must be explicit, network-backed, read-only, and fail on stale direct dependencies.</li>
+<li>The hygiene script must not clean, format, update, stage, or otherwise mutate files itself.</li>
+<li>Target <code>websockets==16.1.1</code>, <code>packaging==26.2</code>, <code>coverage==7.15.2</code>, <code>mkdocs-material==9.7.7</code>, <code>mkdocstrings==1.0.6</code>, <code>ruff==0.15.22</code>, and <code>ty==0.0.61</code> in <code>uv.lock</code>.</li>
+<li>Raise the direct <code>packaging</code> constraint to the 26.x line; do not raise unrelated minimum-version constraints without a demonstrated need.</li>
+<li>Dependabot must check the root <code>uv</code> project weekly and group production and development updates separately.</li>
+</ul>
+<h2 id="file-structure">File Structure</h2>
+<ul>
+<li>Create <code>.codex/skills/hygiene/scripts/hygiene.py</code>: orchestrate local hygiene and interpret direct-dependency freshness from <code>uv tree</code> JSON.</li>
+<li>Modify <code>.codex/skills/hygiene/SKILL.md</code>: make the script the canonical full-strength hygiene entrypoint and document dependency-chore behavior.</li>
+<li>Create <code>tests/test_hygiene_skill.py</code>: contract-test orchestration, failure propagation, dependency classification, skill instructions, and Dependabot policy.</li>
+<li>Create <code>.github/dependabot.yml</code>: schedule grouped weekly <code>uv</code> dependency updates.</li>
+<li>Modify <code>pyproject.toml</code>: move the <code>packaging</code> requirement to the 26.x line.</li>
+<li>Modify <code>uv.lock</code>: resolve the seven approved direct updates and any resolver-required transitive changes.</li>
+</ul>
+<hr />
+<h3 id="task-1-script-backed-local-hygiene-and-dependency-inquiry">Task 1: Script-backed local hygiene and dependency inquiry</h3>
+<p><strong>Files:</strong>
+- Create: <code>.codex/skills/hygiene/scripts/hygiene.py</code>
+- Create: <code>tests/test_hygiene_skill.py</code></p>
+<p><strong>Interfaces:</strong>
+- Produces: <code>OutdatedDependency(name: str, current: str, latest: str, group: str)</code>.
+- Produces: <code>find_outdated_dependencies(payload: dict[str, object]) -&gt; list[OutdatedDependency]</code>.
+- Produces: <code>run_local_hygiene(runner: Runner = subprocess.run) -&gt; int</code>.
+- Produces: <code>audit_dependencies(runner: Runner = subprocess.run) -&gt; int</code>.
+- Produces: <code>main(argv: Sequence[str] | None = None) -&gt; int</code> with additive <code>--dependencies</code>.
+- Consumes: <code>tools/quality.py</code> command-line gates; does not import their internals.</p>
+<ul>
+<li>[ ] <strong>Step 1: Write failing orchestration and dependency tests</strong></li>
+</ul>
+<p>Create <code>tests/test_hygiene_skill.py</code> with a module loader, a representative <code>uv tree --format json</code> fixture, and these initial tests:</p>
+<pre><code class="language-python">&quot;&quot;&quot;Contract tests for the repository hygiene skill.&quot;&quot;&quot;
+
+from __future__ import annotations
+
+import importlib.util
+import io
+import sys
+import unittest
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
+
+
+ROOT = Path(__file__).resolve().parents[1]
+SCRIPT = ROOT / &quot;.codex&quot; / &quot;skills&quot; / &quot;hygiene&quot; / &quot;scripts&quot; / &quot;hygiene.py&quot;
+
+
+def load_hygiene_module():
+    spec = importlib.util.spec_from_file_location(&quot;xplane_webapi_hygiene&quot;, SCRIPT)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f&quot;Could not load {SCRIPT}&quot;)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def dependency_payload(*, stale: bool = True) -&gt; dict[str, object]:
+    packaging = {
+        &quot;name&quot;: &quot;packaging&quot;,
+        &quot;version&quot;: &quot;25.0&quot;,
+        &quot;kind&quot;: &quot;package&quot;,
+    }
+    coverage = {
+        &quot;name&quot;: &quot;coverage&quot;,
+        &quot;version&quot;: &quot;7.14.1&quot;,
+        &quot;kind&quot;: &quot;package&quot;,
+    }
+    if stale:
+        packaging[&quot;latest_version&quot;] = &quot;26.2&quot;
+        coverage[&quot;latest_version&quot;] = &quot;7.15.2&quot;
+
+    return {
+        &quot;roots&quot;: [&quot;project:dev&quot;, &quot;project&quot;],
+        &quot;resolution&quot;: {
+            &quot;project&quot;: {
+                &quot;name&quot;: &quot;xpwebapi&quot;,
+                &quot;kind&quot;: &quot;package&quot;,
+                &quot;dependencies&quot;: [{&quot;id&quot;: &quot;packaging&quot;}],
+            },
+            &quot;project:dev&quot;: {
+                &quot;name&quot;: &quot;xpwebapi&quot;,
+                &quot;kind&quot;: {&quot;group&quot;: &quot;dev&quot;},
+                &quot;dependencies&quot;: [{&quot;id&quot;: &quot;coverage&quot;}],
+            },
+            &quot;packaging&quot;: packaging,
+            &quot;coverage&quot;: coverage,
+        },
+    }
+
+
+class HygieneSkillTests(unittest.TestCase):
+    def test_local_hygiene_runs_full_deterministic_sequence(self) -&gt; None:
+        hygiene = load_hygiene_module()
+        runner = MagicMock(return_value=SimpleNamespace(returncode=0))
+
+        result = hygiene.run_local_hygiene(runner=runner)
+
+        self.assertEqual(result, 0)
+        self.assertEqual(
+            [call.args[0] for call in runner.call_args_list],
+            [
+                (&quot;git&quot;, &quot;status&quot;, &quot;--short&quot;, &quot;--branch&quot;),
+                (&quot;uv&quot;, &quot;lock&quot;, &quot;--check&quot;, &quot;--offline&quot;),
+                (&quot;uv&quot;, &quot;run&quot;, &quot;python&quot;, &quot;tools/quality.py&quot;, &quot;check&quot;),
+                (&quot;uv&quot;, &quot;run&quot;, &quot;python&quot;, &quot;tools/quality.py&quot;, &quot;pre-commit&quot;),
+            ],
+        )
+
+    def test_local_hygiene_stops_on_first_failure(self) -&gt; None:
+        hygiene = load_hygiene_module()
+        runner = MagicMock(
+            side_effect=[
+                SimpleNamespace(returncode=0),
+                SimpleNamespace(returncode=7),
+                SimpleNamespace(returncode=0),
+            ]
+        )
+
+        result = hygiene.run_local_hygiene(runner=runner)
+
+        self.assertEqual(result, 7)
+        self.assertEqual(runner.call_count, 2)
+
+    def test_dependency_parser_classifies_runtime_and_development_drift(self) -&gt; None:
+        hygiene = load_hygiene_module()
+
+        outdated = hygiene.find_outdated_dependencies(dependency_payload())
+
+        self.assertEqual(
+            [(item.name, item.current, item.latest, item.group) for item in outdated],
+            [
+                (&quot;coverage&quot;, &quot;7.14.1&quot;, &quot;7.15.2&quot;, &quot;development&quot;),
+                (&quot;packaging&quot;, &quot;25.0&quot;, &quot;26.2&quot;, &quot;runtime&quot;),
+            ],
+        )
+
+    def test_dependency_parser_accepts_current_direct_dependencies(self) -&gt; None:
+        hygiene = load_hygiene_module()
+
+        self.assertEqual(hygiene.find_outdated_dependencies(dependency_payload(stale=False)), [])
+
+    def test_dependency_audit_distinguishes_registry_failure_from_drift(self) -&gt; None:
+        hygiene = load_hygiene_module()
+        registry_runner = MagicMock(
+            return_value=SimpleNamespace(returncode=9, stdout=&quot;&quot;, stderr=&quot;registry unavailable&quot;)
+        )
+
+        with patch(&quot;sys.stderr&quot;, new_callable=io.StringIO) as stderr:
+            result = hygiene.audit_dependencies(runner=registry_runner)
+
+        self.assertEqual(result, 9)
+        self.assertIn(&quot;registry unavailable&quot;, stderr.getvalue())
+
+    def test_dependency_audit_fails_when_direct_dependencies_are_stale(self) -&gt; None:
+        hygiene = load_hygiene_module()
+        import json
+
+        runner = MagicMock(
+            return_value=SimpleNamespace(
+                returncode=0,
+                stdout=json.dumps(dependency_payload()),
+                stderr=&quot;&quot;,
+            )
+        )
+
+        with patch(&quot;sys.stdout&quot;, new_callable=io.StringIO) as stdout:
+            result = hygiene.audit_dependencies(runner=runner)
+
+        self.assertEqual(result, 1)
+        self.assertIn(&quot;development: coverage 7.14.1 -&gt; 7.15.2&quot;, stdout.getvalue())
+        self.assertIn(&quot;runtime: packaging 25.0 -&gt; 26.2&quot;, stdout.getvalue())
+
+
+if __name__ == &quot;__main__&quot;:
+    unittest.main()
+</code></pre>
+<ul>
+<li>[ ] <strong>Step 2: Run the tests and verify the missing-script failure</strong></li>
+</ul>
+<p>Run:</p>
+<pre><code class="language-powershell">uv run python -m unittest tests.test_hygiene_skill -v
+</code></pre>
+<p>Expected: ERROR while loading <code>.codex/skills/hygiene/scripts/hygiene.py</code> because the script does not exist.</p>
+<ul>
+<li>[ ] <strong>Step 3: Implement the minimum standard-library hygiene script</strong></li>
+</ul>
+<p>Create <code>.codex/skills/hygiene/scripts/hygiene.py</code> with the following implementation:</p>
+<pre><code class="language-python">&quot;&quot;&quot;Run deterministic repository hygiene and optional dependency inquiry.&quot;&quot;&quot;
+
+from __future__ import annotations
+
+import argparse
+import json
+import subprocess
+import sys
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+
+ROOT = Path(__file__).resolve().parents[4]
+Runner = Callable[..., subprocess.CompletedProcess[str]]
+LOCAL_COMMANDS = (
+    (&quot;git&quot;, &quot;status&quot;, &quot;--short&quot;, &quot;--branch&quot;),
+    (&quot;uv&quot;, &quot;lock&quot;, &quot;--check&quot;, &quot;--offline&quot;),
+    (&quot;uv&quot;, &quot;run&quot;, &quot;python&quot;, &quot;tools/quality.py&quot;, &quot;check&quot;),
+    (&quot;uv&quot;, &quot;run&quot;, &quot;python&quot;, &quot;tools/quality.py&quot;, &quot;pre-commit&quot;),
+)
+DEPENDENCY_COMMAND = (
+    &quot;uv&quot;,
+    &quot;tree&quot;,
+    &quot;--outdated&quot;,
+    &quot;--depth&quot;,
+    &quot;1&quot;,
+    &quot;--locked&quot;,
+    &quot;--format&quot;,
+    &quot;json&quot;,
+)
+
+
+@dataclass(frozen=True, order=True)
+class OutdatedDependency:
+    &quot;&quot;&quot;Describe one stale direct dependency.&quot;&quot;&quot;
+
+    name: str
+    current: str
+    latest: str
+    group: str
+
+
+def find_outdated_dependencies(payload: dict[str, Any]) -&gt; list[OutdatedDependency]:
+    &quot;&quot;&quot;Return stale dependencies referenced directly by workspace roots.&quot;&quot;&quot;
+    resolution = payload.get(&quot;resolution&quot;, {})
+    if not isinstance(resolution, dict):
+        raise ValueError(&quot;uv dependency data has no resolution mapping&quot;)
+
+    outdated: list[OutdatedDependency] = []
+    for root_id in payload.get(&quot;roots&quot;, []):
+        root = resolution.get(root_id, {})
+        if not isinstance(root, dict):
+            continue
+        kind = root.get(&quot;kind&quot;)
+        group = &quot;development&quot; if isinstance(kind, dict) and kind.get(&quot;group&quot;) else &quot;runtime&quot;
+        for dependency in root.get(&quot;dependencies&quot;, []):
+            if not isinstance(dependency, dict):
+                continue
+            record = resolution.get(dependency.get(&quot;id&quot;), {})
+            if not isinstance(record, dict):
+                continue
+            latest = record.get(&quot;latest_version&quot;)
+            current = record.get(&quot;version&quot;)
+            name = record.get(&quot;name&quot;)
+            if not isinstance(name, str) or not isinstance(current, str) or not isinstance(latest, str):
+                continue
+            outdated.append(
+                OutdatedDependency(
+                    name=name,
+                    current=current,
+                    latest=latest,
+                    group=group,
+                )
+            )
+    return sorted(set(outdated))
+
+
+def run_local_hygiene(runner: Runner = subprocess.run) -&gt; int:
+    &quot;&quot;&quot;Run the full deterministic local hygiene sequence.&quot;&quot;&quot;
+    for command in LOCAL_COMMANDS:
+        print(&quot;+ &quot; + &quot; &quot;.join(command), flush=True)
+        result = runner(command, cwd=ROOT, check=False)
+        if result.returncode != 0:
+            return result.returncode
+    return 0
+
+
+def audit_dependencies(runner: Runner = subprocess.run) -&gt; int:
+    &quot;&quot;&quot;Query and report stale direct dependencies without changing files.&quot;&quot;&quot;
+    print(&quot;+ &quot; + &quot; &quot;.join(DEPENDENCY_COMMAND), flush=True)
+    result = runner(
+        DEPENDENCY_COMMAND,
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        print(result.stderr or &quot;dependency registry inquiry failed&quot;, file=sys.stderr)
+        return result.returncode
+
+    try:
+        payload = json.loads(result.stdout)
+        if not isinstance(payload, dict):
+            raise ValueError(&quot;uv dependency data is not an object&quot;)
+        outdated = find_outdated_dependencies(payload)
+    except (json.JSONDecodeError, ValueError) as exc:
+        print(f&quot;invalid uv dependency data: {exc}&quot;, file=sys.stderr)
+        return 2
+
+    if outdated:
+        print(&quot;Outdated direct dependencies:&quot;)
+        for item in outdated:
+            print(f&quot;  {item.group}: {item.name} {item.current} -&gt; {item.latest}&quot;)
+        return 1
+
+    print(&quot;All direct dependencies are current.&quot;)
+    return 0
+
+
+def parse_args(argv: Sequence[str]) -&gt; argparse.Namespace:
+    &quot;&quot;&quot;Parse hygiene command-line options.&quot;&quot;&quot;
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        &quot;--dependencies&quot;,
+        action=&quot;store_true&quot;,
+        help=&quot;Query PyPI for stale direct dependencies before local hygiene.&quot;,
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: Sequence[str] | None = None) -&gt; int:
+    &quot;&quot;&quot;Run the requested hygiene workflow.&quot;&quot;&quot;
+    args = parse_args(sys.argv[1:] if argv is None else argv)
+    if args.dependencies:
+        dependency_result = audit_dependencies()
+        if dependency_result != 0:
+            return dependency_result
+    return run_local_hygiene()
+
+
+if __name__ == &quot;__main__&quot;:
+    raise SystemExit(main())
+</code></pre>
+<ul>
+<li>[ ] <strong>Step 4: Run the focused tests and verify green</strong></li>
+</ul>
+<p>Run:</p>
+<pre><code class="language-powershell">uv run python -m unittest tests.test_hygiene_skill -v
+</code></pre>
+<p>Expected: six tests pass with no failures or skips.</p>
+<ul>
+<li>[ ] <strong>Step 5: Run focused lint and type checks</strong></li>
+</ul>
+<p>Run:</p>
+<pre><code class="language-powershell">uv run ruff check .codex/skills/hygiene/scripts/hygiene.py tests/test_hygiene_skill.py
+uv run ruff format --check .codex/skills/hygiene/scripts/hygiene.py tests/test_hygiene_skill.py
+uv run ty check .codex/skills/hygiene/scripts/hygiene.py tests/test_hygiene_skill.py
+</code></pre>
+<p>Expected: all commands exit 0. If formatting is required, run <code>uv run ruff format</code> on only these two files, inspect the diff, and rerun all three commands.</p>
+<ul>
+<li>[ ] <strong>Step 6: Commit the executable hygiene contract</strong></li>
+</ul>
+<pre><code class="language-powershell">git add .codex/skills/hygiene/scripts/hygiene.py tests/test_hygiene_skill.py
+git commit -m &quot;feat: make hygiene workflow executable&quot;
+</code></pre>
+<h3 id="task-2-canonical-skill-instructions-and-weekly-dependabot-policy">Task 2: Canonical skill instructions and weekly Dependabot policy</h3>
+<p><strong>Files:</strong>
+- Modify: <code>.codex/skills/hygiene/SKILL.md</code>
+- Modify: <code>tests/test_hygiene_skill.py</code>
+- Create: <code>.github/dependabot.yml</code></p>
+<p><strong>Interfaces:</strong>
+- Consumes: <code>.codex/skills/hygiene/scripts/hygiene.py</code> from Task 1.
+- Produces: canonical commands <code>uv run python .codex/skills/hygiene/scripts/hygiene.py</code> and <code>uv run python .codex/skills/hygiene/scripts/hygiene.py --dependencies</code>.
+- Produces: weekly root-level Dependabot updates for package ecosystem <code>uv</code>.</p>
+<ul>
+<li>[ ] <strong>Step 1: Add failing documentation and Dependabot contract tests</strong></li>
+</ul>
+<p>Add these methods to <code>HygieneSkillTests</code> in <code>tests/test_hygiene_skill.py</code>:</p>
+<pre><code class="language-python">    def test_skill_uses_script_as_canonical_full_strength_workflow(self) -&gt; None:
+        skill = (ROOT / &quot;.codex&quot; / &quot;skills&quot; / &quot;hygiene&quot; / &quot;SKILL.md&quot;).read_text(encoding=&quot;utf-8&quot;)
+
+        self.assertIn(
+            &quot;uv run python .codex/skills/hygiene/scripts/hygiene.py&quot;,
+            skill,
+        )
+        self.assertIn(
+            &quot;uv run python .codex/skills/hygiene/scripts/hygiene.py --dependencies&quot;,
+            skill,
+        )
+        self.assertIn(&quot;full-strength&quot;, skill)
+        self.assertIn(&quot;stdlib `unittest` only&quot;, skill)
+
+    def test_dependabot_config_matches_weekly_grouped_uv_policy(self) -&gt; None:
+        config = (ROOT / &quot;.github&quot; / &quot;dependabot.yml&quot;).read_text(encoding=&quot;utf-8&quot;)
+        expected = &quot;&quot;&quot;version: 2
+updates:
+  - package-ecosystem: &quot;uv&quot;
+    directory: &quot;/&quot;
+    schedule:
+      interval: &quot;weekly&quot;
+      day: &quot;monday&quot;
+      time: &quot;09:00&quot;
+      timezone: &quot;America/Chicago&quot;
+    open-pull-requests-limit: 4
+    groups:
+      runtime-dependencies:
+        dependency-type: &quot;production&quot;
+      development-dependencies:
+        dependency-type: &quot;development&quot;
+&quot;&quot;&quot;
+        self.assertEqual(config, expected)
+</code></pre>
+<ul>
+<li>[ ] <strong>Step 2: Run the two tests and verify their expected failures</strong></li>
+</ul>
+<p>Run:</p>
+<pre><code class="language-powershell">uv run python -m unittest tests.test_hygiene_skill.HygieneSkillTests.test_skill_uses_script_as_canonical_full_strength_workflow tests.test_hygiene_skill.HygieneSkillTests.test_dependabot_config_matches_weekly_grouped_uv_policy -v
+</code></pre>
+<p>Expected: the skill test fails because the canonical commands are absent, and the Dependabot test errors because <code>.github/dependabot.yml</code> is absent.</p>
+<ul>
+<li>[ ] <strong>Step 3: Replace the hygiene skill with the canonical workflow</strong></li>
+</ul>
+<p>Replace <code>.codex/skills/hygiene/SKILL.md</code> with:</p>
+<pre><code class="language-markdown">---
+name: hygiene
+description: Run the full-strength xplane-webapi repository hygiene contract for workspace state, lockfile validity, quality gates, pre-commit verification, and optional direct-dependency freshness. Use for hygiene, cleanup, tidy, dependency chores, maintenance checks, or pre-handoff verification.
+---
+
+# Hygiene
+
+## Overview
+
+Run the executable project-local hygiene contract. The script sequences repository checks and delegates quality details to `tools/quality.py`; do not reproduce its command list manually.
+
+## Full-strength local workflow
+
+Inspect the worktree, then run the deterministic workflow:
+
+```powershell
+git status --short --branch
+git diff --stat
+git diff --cached --stat
+uv run python .codex/skills/hygiene/scripts/hygiene.py
+```
+
+Always use the full-strength workflow. It validates the lockfile offline, runs the complete quality gate, and runs repository pre-commit hooks.
+
+## Dependency chores
+
+For dependency freshness requests and before completing a dependency chore, run:
+
+```powershell
+uv run python .codex/skills/hygiene/scripts/hygiene.py --dependencies
+```
+
+This mode queries package metadata, reports stale direct runtime and development dependencies separately, and then runs the full local workflow when dependency versions are current.
+
+When updates are approved:
+
+1. Review constraint changes in `pyproject.toml` intentionally.
+2. Update selected packages with `uv lock --upgrade-package &lt;name&gt;`; do not hand-edit `uv.lock`.
+3. Inspect both `pyproject.toml` and `uv.lock` diffs.
+4. Rerun dependency inquiry until it reports all direct dependencies current.
+5. Rerun the full-strength workflow after every edit required by updated tools or libraries.
+
+## Boundaries
+
+- Use stdlib `unittest` only.
+- Do not use or introduce another Python test framework.
+- Do not touch `examples/` unless the user explicitly asks.
+- Do not silently clean, format, update, stage, or delete files.
+- Do not make the default hygiene workflow depend on network access.
+- Do not delete code solely because a tool reports it; inspect references and public API exposure first.
+- Keep generated `.coverage`, `.wily/`, `.ruff_cache/`, `.ty_cache/`, and pre-commit artifacts out of commits.
+- Treat broad design debt as a separate tracked change rather than mixing it into mechanical hygiene.
+
+## Evidence
+
+Report commands run, exit status, test counts, warnings, dependency drift, skipped checks, and changed-file scope.
+</code></pre>
+<ul>
+<li>[ ] <strong>Step 4: Add the weekly grouped <code>uv</code> Dependabot configuration</strong></li>
+</ul>
+<p>Create <code>.github/dependabot.yml</code> with:</p>
+<pre><code class="language-yaml">version: 2
+updates:
+  - package-ecosystem: &quot;uv&quot;
+    directory: &quot;/&quot;
+    schedule:
+      interval: &quot;weekly&quot;
+      day: &quot;monday&quot;
+      time: &quot;09:00&quot;
+      timezone: &quot;America/Chicago&quot;
+    open-pull-requests-limit: 4
+    groups:
+      runtime-dependencies:
+        dependency-type: &quot;production&quot;
+      development-dependencies:
+        dependency-type: &quot;development&quot;
+</code></pre>
+<ul>
+<li>[ ] <strong>Step 5: Run focused tests and verify green</strong></li>
+</ul>
+<p>Run:</p>
+<pre><code class="language-powershell">uv run python -m unittest tests.test_hygiene_skill -v
+</code></pre>
+<p>Expected: eight tests pass with no failures or skips.</p>
+<ul>
+<li>[ ] <strong>Step 6: Validate skill and configuration formatting</strong></li>
+</ul>
+<p>Run:</p>
+<pre><code class="language-powershell">git diff --check
+uv run ruff check tests/test_hygiene_skill.py .codex/skills/hygiene/scripts/hygiene.py
+uv run ruff format --check tests/test_hygiene_skill.py .codex/skills/hygiene/scripts/hygiene.py
+python C:/Users/Jeff/.codex/skills/.system/skill-creator/scripts/quick_validate.py .codex/skills/hygiene
+</code></pre>
+<p>Expected: all commands exit 0.</p>
+<ul>
+<li>[ ] <strong>Step 7: Commit the skill and automation policy</strong></li>
+</ul>
+<pre><code class="language-powershell">git add .codex/skills/hygiene/SKILL.md .github/dependabot.yml tests/test_hygiene_skill.py
+git commit -m &quot;chore: strengthen repository hygiene&quot;
+</code></pre>
+<h3 id="task-3-refresh-all-stale-direct-dependencies">Task 3: Refresh all stale direct dependencies</h3>
+<p><strong>Files:</strong>
+- Modify: <code>pyproject.toml</code>
+- Modify: <code>uv.lock</code></p>
+<p><strong>Interfaces:</strong>
+- Consumes: dependency audit implemented in Task 1.
+- Produces: a lockfile with no stale direct dependencies as of 2026-07-19.
+- Preserves: the existing Python requirement <code>&gt;=3.12,&lt;3.13</code> and all runtime APIs.</p>
+<ul>
+<li>[ ] <strong>Step 1: Run the local dependency audit and observe red</strong></li>
+</ul>
+<p>Run:</p>
+<pre><code class="language-powershell">uv run python .codex/skills/hygiene/scripts/hygiene.py --dependencies
+</code></pre>
+<p>Expected: exit 1 before local quality gates and a report containing exactly these stale direct packages: <code>websockets 16.0 -&gt; 16.1.1</code>, <code>packaging 25.0 -&gt; 26.2</code>, <code>coverage 7.14.1 -&gt; 7.15.2</code>, <code>mkdocs-material 9.7.6 -&gt; 9.7.7</code>, <code>mkdocstrings 1.0.4 -&gt; 1.0.6</code>, <code>ruff 0.15.18 -&gt; 0.15.22</code>, and <code>ty 0.0.51 -&gt; 0.0.61</code>.</p>
+<ul>
+<li>[ ] <strong>Step 2: Raise only the required direct constraint</strong></li>
+</ul>
+<p>Change this line in <code>pyproject.toml</code>:</p>
+<pre><code class="language-toml">    &quot;packaging~=25.0&quot;,
+</code></pre>
+<p>to:</p>
+<pre><code class="language-toml">    &quot;packaging~=26.2&quot;,
+</code></pre>
+<p>Keep all other declared lower bounds unchanged.</p>
+<ul>
+<li>[ ] <strong>Step 3: Resolve only the approved package upgrades</strong></li>
+</ul>
+<p>Run:</p>
+<pre><code class="language-powershell">uv lock --upgrade-package packaging --upgrade-package websockets --upgrade-package coverage --upgrade-package mkdocs-material --upgrade-package mkdocstrings --upgrade-package ruff --upgrade-package ty
+</code></pre>
+<p>Expected: <code>uv.lock</code> is rewritten with the seven target direct versions and only resolver-required transitive changes.</p>
+<ul>
+<li>[ ] <strong>Step 4: Inspect dependency metadata and lockfile scope</strong></li>
+</ul>
+<p>Run:</p>
+<pre><code class="language-powershell">git diff -- pyproject.toml uv.lock
+uv tree --depth 1 --locked --color never
+</code></pre>
+<p>Expected: <code>packaging</code> is constrained and locked at 26.2; the other six targets match the Global Constraints; no unapproved direct dependency changes appear.</p>
+<ul>
+<li>[ ] <strong>Step 5: Run compatibility-focused unit tests</strong></li>
+</ul>
+<p>Run:</p>
+<pre><code class="language-powershell">uv run python -m unittest tests.test_ws tests.test_rest tests.test_async_rest tests.test_quality_tool tests.test_documentation -v
+</code></pre>
+<p>Expected: all selected compatibility and tooling tests pass with no failures or skips.</p>
+<ul>
+<li>[ ] <strong>Step 6: Rerun dependency inquiry and observe green</strong></li>
+</ul>
+<p>Run:</p>
+<pre><code class="language-powershell">uv run python .codex/skills/hygiene/scripts/hygiene.py --dependencies
+</code></pre>
+<p>Expected: <code>All direct dependencies are current.</code> followed by successful full local hygiene.</p>
+<ul>
+<li>[ ] <strong>Step 7: Commit the dependency refresh</strong></li>
+</ul>
+<pre><code class="language-powershell">git add pyproject.toml uv.lock
+git commit -m &quot;chore: refresh project dependencies&quot;
+</code></pre>
+<h3 id="task-4-full-repository-verification-and-handoff-evidence">Task 4: Full repository verification and handoff evidence</h3>
+<p><strong>Files:</strong>
+- Verify only; modify files only if a required formatter or hook makes an intentional, reviewed correction.</p>
+<p><strong>Interfaces:</strong>
+- Consumes: all deliverables from Tasks 1-3.
+- Produces: fresh evidence that dependency inquiry, the CI-equivalent gate, pre-commit, and diff hygiene pass together.</p>
+<ul>
+<li>[ ] <strong>Step 1: Run the complete <code>unittest</code> suite explicitly</strong></li>
+</ul>
+<p>Run:</p>
+<pre><code class="language-powershell">uv run python -m unittest discover -v
+</code></pre>
+<p>Expected: all tests pass with zero failures, errors, or skips.</p>
+<ul>
+<li>[ ] <strong>Step 2: Run the network-backed dependency inquiry</strong></li>
+</ul>
+<p>Run:</p>
+<pre><code class="language-powershell">uv run python .codex/skills/hygiene/scripts/hygiene.py --dependencies
+</code></pre>
+<p>Expected: no stale direct dependencies, followed by successful offline lock, quality, and pre-commit gates.</p>
+<ul>
+<li>[ ] <strong>Step 3: Run the CI-equivalent gate directly</strong></li>
+</ul>
+<p>Run:</p>
+<pre><code class="language-powershell">uv run python tools/quality.py check
+</code></pre>
+<p>Expected: ruff, format check, ty, <code>unittest</code>, coverage, Bandit, detect-secrets, Interrogate, Vulture, and Xenon all exit 0.</p>
+<ul>
+<li>[ ] <strong>Step 4: Run the pre-commit aggregation directly</strong></li>
+</ul>
+<p>Run:</p>
+<pre><code class="language-powershell">uv run python tools/quality.py pre-commit
+</code></pre>
+<p>Expected: all repository hooks pass. If a hook changes a file, inspect it, rerun Steps 1-4, and commit only the reviewed correction.</p>
+<ul>
+<li>[ ] <strong>Step 5: Verify diff and repository scope</strong></li>
+</ul>
+<p>Run:</p>
+<pre><code class="language-powershell">git diff --check
+git status --short --branch
+git log --oneline -5
+</code></pre>
+<p>Expected: no whitespace errors or uncommitted generated artifacts; commits are limited to the approved spec, plan, hygiene workflow, Dependabot configuration, tests, and dependency refresh.</p>
+<ul>
+<li>[ ] <strong>Step 6: Prepare the final evidence summary</strong></li>
+</ul>
+<p>Report:</p>
+<ul>
+<li>Exact dependency versions resolved.</li>
+<li>Exact test count and exit result.</li>
+<li>Results of dependency inquiry, quality, and pre-commit commands.</li>
+<li>Any warnings or hook-produced corrections.</li>
+<li>Final changed-file and commit scope.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": [], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="../../../js/timeago.min.js"></script>
+      
+        <script src="../../../js/timeago_mkdocs_material.js"></script>
+      
+    
+  </body>
+</html>
