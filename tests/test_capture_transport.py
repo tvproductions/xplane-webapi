@@ -9,7 +9,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import Any, cast
-from unittest.mock import PropertyMock, patch
+from unittest.mock import MagicMock, PropertyMock, patch
 
 from xpwebapi.capture_protocol import (
     AircraftIdentityRef,
@@ -25,6 +25,7 @@ from xpwebapi.capture_protocol import (
 from xpwebapi.capture_transport import Observation, create_capture_transport
 from xpwebapi.exceptions import XPReadOnlyViolation
 from xpwebapi.read_only import _ReadOnlyDatagramSocketProxy
+from xpwebapi.udp import XPUDPAPI, XPlaneTimeout
 from xpwebapi.ws import CALLBACK_TYPE, XPWebsocketAPI
 
 
@@ -62,7 +63,9 @@ class FakeWebsocketClient:
     def set_callback(self, kind: CALLBACK_TYPE, callback: Callable[..., None]) -> None:
         self.callbacks.setdefault(kind, []).append(callback)
 
-    def connect_websocket(self) -> None:
+    def connect_websocket(self, timeout_resolver: Callable[[], tuple[float, float]] | None = None) -> None:
+        if timeout_resolver is not None:
+            self.events.append(("connect.timeouts", timeout_resolver()))
         self.events.append("connect_websocket")
         self.connected = True
 
@@ -83,13 +86,19 @@ class FakeWebsocketClient:
     def start(self, release: bool = False) -> None:
         self.events.append(("start", release))
 
-    def monitor_datarefs(self, datarefs: dict[str, FakeDataref], reason: str | None = None) -> tuple[int, dict[str, FakeDataref]]:
+    def monitor_datarefs(self, datarefs: dict[str, FakeDataref], reason: str | None = None) -> tuple[int | bool, dict[str, FakeDataref]]:
         self.events.append(("monitor", tuple(datarefs), reason))
         self.subscribe_calls += 1
+        if self.feedback == "invalid-request":
+            return False, datarefs
         callbacks = self.callbacks.get(CALLBACK_TYPE.ON_REQUEST_FEEDBACK, [])
         if self.feedback == "early-other-then-success":
             for callback in callbacks:
                 callback(request_id=999, payload={"success": True})
+                callback(request_id=self.request_id, payload={"success": True})
+        elif self.feedback == "early-observation-then-success":
+            self.emit("sim/test/identity", b"FlyJSim Q4XP")
+            for callback in callbacks:
                 callback(request_id=self.request_id, payload={"success": True})
         elif self.feedback == "success":
             for callback in callbacks:
@@ -106,7 +115,9 @@ class FakeWebsocketClient:
     def stop(self, timeout_seconds: float | None = None) -> None:
         self.events.append(("stop", timeout_seconds))
 
-    def disconnect_websocket(self) -> None:
+    def disconnect_websocket(self, timeout_resolver: Callable[[], float] | None = None) -> None:
+        timeout = timeout_resolver() if timeout_resolver is not None else None
+        self.events.append(("websocket.close.timeout", timeout))
         self.events.append("disconnect_websocket")
         self.connected = False
 
@@ -143,6 +154,9 @@ class FakeBeacon:
 
     def stop_monitor(self) -> None:
         self.stopped = True
+
+    def add_callback(self, _callback: Callable[..., None]) -> None:
+        return None
 
 
 class BeaconFactory:
@@ -298,13 +312,28 @@ class WebsocketCaptureTransportTests(unittest.TestCase):
             factory.clients[0].events.index(("start", True)), factory.clients[0].events.index(("monitor", ("sim/test/identity",), "aircraft_identity"))
         )
 
+    def test_observation_before_success_feedback_is_published_only_after_acceptance(self) -> None:
+        factory = WebsocketFactory(feedback="early-observation-then-success", metadata={"sim/test/identity": "data"})
+        request = make_request()
+        adapter = create_capture_transport(request, client_factory=factory, clock=FakeClock().monotonic)
+        adapter.open(deadline=10.0)
+        observations: list[Observation] = []
+
+        result = adapter.subscribe(request.identity_readiness.refs, "aircraft_identity", observations.append, deadline=10.0)
+
+        self.assertEqual(("identity",), result.accepted_ref_ids)
+        self.assertEqual(1, len(observations))
+        capture = adapter.subscribe(request.refs, "capture", lambda _: None, deadline=10.0)
+        self.assertEqual(("capture",), capture.accepted_ref_ids)
+
     def test_failed_and_timed_out_feedback_rejects_the_batch(self) -> None:
-        for feedback in ("failure", "timeout"):
+        for feedback in ("failure", "timeout", "invalid-request"):
             with self.subTest(feedback=feedback):
                 clock = FakeClock()
                 factory = WebsocketFactory(feedback=feedback, metadata={"sim/test/identity": "data"})
                 adapter = create_capture_transport(make_request(), client_factory=factory, clock=clock.monotonic)
                 adapter.open(deadline=10.0)
+                observations: list[Observation] = []
                 if feedback == "timeout":
 
                     def expire(timeout: float | None = None) -> bool:
@@ -312,11 +341,28 @@ class WebsocketCaptureTransportTests(unittest.TestCase):
                         return False
 
                     adapter._feedback_condition.wait = expire  # type: ignore[attr-defined]
-                result = adapter.subscribe(make_request().identity_readiness.refs, "aircraft_identity", lambda _: None, deadline=10.0)
-                self.assertEqual((), result.accepted_ref_ids)
-                self.assertEqual(
-                    {"identity": "subscription feedback failed" if feedback == "failure" else "subscription feedback timeout"}, dict(result.rejected)
+                result = adapter.subscribe(
+                    make_request().identity_readiness.refs,
+                    "aircraft_identity",
+                    observations.append,
+                    deadline=10.0,
                 )
+                self.assertEqual((), result.accepted_ref_ids)
+                expected_reason = {
+                    "failure": "subscription feedback failed",
+                    "timeout": "subscription feedback timeout",
+                    "invalid-request": "subscription request failed",
+                }[feedback]
+                self.assertEqual(
+                    {"identity": expected_reason},
+                    dict(result.rejected),
+                )
+                factory.clients[0].emit("sim/test/identity", b"FlyJSim Q4XP")
+                self.assertEqual([], observations)
+                with self.assertRaises(RuntimeError):
+                    adapter.subscribe(make_request().refs, "capture", lambda _: None, deadline=10.0)
+                unmonitor_events = [event for event in factory.clients[0].events if isinstance(event, tuple) and event[0] == "unmonitor"]
+                self.assertEqual(1, len(unmonitor_events))
 
     def test_capture_datarefs_are_deferred_until_fresh_identity_match(self) -> None:
         clock = FakeClock()
@@ -375,17 +421,71 @@ class WebsocketCaptureTransportTests(unittest.TestCase):
 
     def test_actual_websocket_connect_receives_bounded_open_and_close_timeouts(self) -> None:
         request = make_request()
+        clock = FakeClock(7.0)
         raw = SimpleNamespace(close=lambda: None, send=lambda _message: None, recv=lambda: "")
+
+        def advance_during_rest_probe() -> bool:
+            clock.now = 8.5
+            return True
+
         with (
             patch("xpwebapi.ws.connect", return_value=raw) as connect,
-            patch.object(XPWebsocketAPI, "rest_api_reachable", new_callable=PropertyMock, return_value=True),
+            patch.object(XPWebsocketAPI, "rest_api_reachable", new_callable=PropertyMock, side_effect=advance_during_rest_probe),
             patch.object(XPWebsocketAPI, "reload_caches", return_value=None),
         ):
-            adapter = create_capture_transport(request, clock=FakeClock(7.0).monotonic)
+            adapter = create_capture_transport(request, clock=clock.monotonic)
             adapter.open(deadline=9.0)
             adapter.close(deadline=9.0)
-        self.assertLessEqual(connect.call_args.kwargs["open_timeout"], 2.0)
-        self.assertLessEqual(connect.call_args.kwargs["close_timeout"], 2.0)
+        self.assertLessEqual(connect.call_args.kwargs["open_timeout"], 0.5)
+        self.assertLessEqual(connect.call_args.kwargs["close_timeout"], 0.5)
+        self.assertLessEqual(raw.close_timeout, 0.5)
+
+    def test_actual_rest_and_cache_gets_reclamp_the_absolute_deadline(self) -> None:
+        clock = FakeClock()
+        raw_session = MagicMock()
+        calls: list[tuple[float, float]] = []
+
+        def get(_url: str, *, timeout: float) -> SimpleNamespace:
+            calls.append((clock.now, timeout))
+            clock.now += 0.25
+            return SimpleNamespace(status_code=200, json=lambda: {"data": []})
+
+        raw_session.get.side_effect = get
+        raw_websocket = SimpleNamespace(close=lambda: None, send=lambda _message: None, recv=lambda: "")
+        with (
+            patch("xpwebapi.rest._make_http_client", return_value=raw_session),
+            patch("xpwebapi.ws.connect", return_value=raw_websocket),
+            patch("xpwebapi.ws.socket.gethostname", return_value="testhost"),
+            patch("xpwebapi.ws.socket.gethostbyname", return_value="127.0.0.1"),
+        ):
+            adapter = create_capture_transport(make_request(), clock=clock.monotonic)
+            adapter.open(deadline=5.0)
+            adapter.close(deadline=5.0)
+
+        self.assertGreaterEqual(len(calls), 2)
+        for before, timeout in calls:
+            self.assertGreater(timeout, 0.0)
+            self.assertLessEqual(timeout, 5.0 - before)
+        raw_session.close.assert_called_once_with()
+
+    def test_shutdown_reclamps_listener_and_websocket_close_after_each_boundary(self) -> None:
+        clock = FakeClock()
+        factory = WebsocketFactory(metadata={"sim/test/identity": "data"})
+        adapter = create_capture_transport(make_request(), client_factory=factory, clock=clock.monotonic)
+        adapter.open(deadline=10.0)
+        client = factory.clients[0]
+        original_stop = client.stop
+
+        def advancing_stop(timeout_seconds: float | None = None) -> None:
+            original_stop(timeout_seconds)
+            clock.now = 3.0
+
+        cast(Any, client).stop = advancing_stop
+        adapter.close(deadline=4.0)
+        stop_event = next(event for event in client.events if isinstance(event, tuple) and event[0] == "stop")
+        close_event = next(event for event in client.events if isinstance(event, tuple) and event[0] == "websocket.close.timeout")
+        self.assertEqual(4.0, stop_event[1])
+        self.assertLessEqual(cast(float, close_event[1]), 1.0)
 
 
 class UdpCaptureTransportTests(unittest.TestCase):
@@ -451,7 +551,7 @@ class UdpCaptureTransportTests(unittest.TestCase):
         adapter, _udp_factory, _beacon_factory, request = self.make_adapter(clock)
         adapter.open(deadline=10.0)
         adapter.subscribe(request.identity_readiness.refs, "aircraft_identity", lambda _: None, deadline=2.0)
-        clock.now = 2.1
+        clock.now = 2.0
         self.assertEqual("disconnected", adapter.liveness_state)
 
     def test_udp_defers_capture_until_fresh_identity_and_closes_bounded(self) -> None:
@@ -498,6 +598,7 @@ class ReadOnlyUdpWireTests(unittest.TestCase):
             (struct.pack("<5sii400s", b"RREF\x00", -1, 0, b"sim/test/value"), destination),
             (struct.pack("<5sii400s", b"RREF\x00", 101, 0, b"sim/test/value"), destination),
             (struct.pack("<5sii400s", b"RREF\x00", 1, -1, b"sim/test/value"), destination),
+            (struct.pack("<5sii400s", b"RREF\x00", 1, 0, b""), destination),
             (struct.pack("<5sii400s", b"RREF\x00", 1, 0, b"x" * 400), destination),
             (struct.pack("<5sii400s", b"RREF\x00", 1, 0, b"\xff"), destination),
             (struct.pack("<5sii400s", b"RREF\x00", 1, 0, b"sim/x\x00bad"), destination),
@@ -506,6 +607,54 @@ class ReadOnlyUdpWireTests(unittest.TestCase):
             with self.subTest(message=message[:16], address=address), self.assertRaises(XPReadOnlyViolation):
                 proxy.sendto(message, address)
         self.assertEqual(1, len(raw.sent))
+
+    def test_actual_udp_decoder_only_valid_configured_index_establishes_liveness(self) -> None:
+        clock = FakeClock()
+        beacon_factory = BeaconFactory()
+        request = make_request("udp")
+
+        class PacketSocket:
+            def __init__(self) -> None:
+                self.packets: list[bytes | BaseException] = []
+
+            def settimeout(self, _value: float) -> None:
+                return None
+
+            def sendto(self, message: bytes, _address: tuple[str, int]) -> int:
+                return len(message)
+
+            def recvfrom(self, _size: int) -> tuple[bytes, tuple[str, int]]:
+                item = self.packets.pop(0)
+                if isinstance(item, BaseException):
+                    raise item
+                return item, ("192.0.2.10", 49001)
+
+            def close(self) -> None:
+                return None
+
+        raw = PacketSocket()
+        with patch("xpwebapi.udp.socket.socket", return_value=raw), patch.object(XPUDPAPI, "start", return_value=None):
+            adapter = create_capture_transport(request, beacon_factory=beacon_factory, clock=clock.monotonic)
+            adapter.open(deadline=10.0)
+            adapter.subscribe(request.identity_readiness.refs, "aircraft_identity", lambda _: None, deadline=8.0)
+            client = cast(Any, adapter)._client
+
+            raw.packets.append(b"NOPE," + struct.pack("<if", 0, 1.0))
+            client.read_monitored_dataref_values()
+            self.assertEqual("awaiting_first_identity_packet", adapter.liveness_state)
+
+            raw.packets.append(b"RREF," + struct.pack("<if", 999, 1.0))
+            client.read_monitored_dataref_values()
+            self.assertEqual("awaiting_first_identity_packet", adapter.liveness_state)
+
+            raw.packets.append(socket.timeout())
+            with self.assertRaises(XPlaneTimeout):
+                client.read_monitored_dataref_values()
+            self.assertEqual("awaiting_first_identity_packet", adapter.liveness_state)
+
+            raw.packets.append(b"RREF," + struct.pack("<if", 0, 1.0))
+            client.read_monitored_dataref_values()
+            self.assertEqual("connected", adapter.liveness_state)
 
     def test_adapters_expose_no_public_client_or_socket(self) -> None:
         ws = create_capture_transport(make_request(), client_factory=WebsocketFactory(), clock=FakeClock().monotonic)

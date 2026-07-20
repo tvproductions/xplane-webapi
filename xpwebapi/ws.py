@@ -41,6 +41,8 @@ MAX_WARNING_COUNT = 5
 type DatarefBatch = Mapping[str, Dataref] | Iterable[Dataref]
 type BulkDatarefValue = Dataref | list[Dataref]
 type BulkDatarefBatch = Mapping[int, BulkDatarefValue]
+type WebsocketTimeoutResolver = Callable[[], tuple[float, float]]
+type WebsocketCloseTimeoutResolver = Callable[[], float]
 
 
 # WEB API RETURN CODES
@@ -282,19 +284,26 @@ class XPWebsocketAPI(XPRestAPI):
     def websocket_connection_monitor_running(self) -> bool:
         return not self.should_not_connect.is_set()
 
-    def connect_websocket(self):
+    def connect_websocket(self, timeout_resolver: WebsocketTimeoutResolver | None = None):
         """Create and open Websocket connection if REST API is reachable"""
-        close_timeout = _validated_timeout(self.close_timeout, "close_timeout", allow_zero=False)
+        _validated_timeout(self.close_timeout, "close_timeout", allow_zero=False)
         if self.ws is None:
             url = self.ws_url
             if url is not None:
                 for attempt in range(self.retry_config.attempts):
                     try:
                         if self.rest_api_reachable:
+                            if timeout_resolver is None:
+                                open_timeout = self.open_timeout
+                                close_timeout = self.close_timeout
+                            else:
+                                open_timeout, close_timeout = timeout_resolver()
+                            open_timeout = _validated_timeout(open_timeout, "open_timeout", allow_zero=False)
+                            close_timeout = _validated_timeout(close_timeout, "close_timeout", allow_zero=False)
                             raw_websocket = connect(
                                 url,
                                 proxy=None,
-                                open_timeout=self.open_timeout,
+                                open_timeout=open_timeout,
                                 close_timeout=close_timeout,
                             )
                             self.ws = _ReadOnlyWebsocketProxy(raw_websocket) if self.read_only else raw_websocket
@@ -318,10 +327,22 @@ class XPWebsocketAPI(XPRestAPI):
         else:
             logger.warning("already connected")
 
-    def disconnect_websocket(self, silent: bool = False):
+    def disconnect_websocket(
+        self,
+        silent: bool = False,
+        timeout_resolver: WebsocketCloseTimeoutResolver | None = None,
+    ):
         """Gracefully closes Websocket connection"""
         if self.ws is not None:
-            self.ws.close()
+            if timeout_resolver is None:
+                self.ws.close()
+            else:
+                close_timeout = _validated_timeout(timeout_resolver(), "close_timeout", allow_zero=False)
+                if isinstance(self.ws, _ReadOnlyWebsocketProxy):
+                    self.ws.close(timeout_seconds=close_timeout)
+                else:
+                    self.ws.close_timeout = close_timeout
+                    self.ws.close()
             self.ws = None
             self.status = CONNECTION_STATUS.WEBSOCKET_DISCONNNECTED
             super().connected

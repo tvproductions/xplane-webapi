@@ -81,6 +81,43 @@ def _remaining(deadline: float, clock: Clock) -> float:
     return remaining
 
 
+def _bounded_call(call: Callable[[], None], timeout_seconds: float) -> None:
+    failure: list[BaseException] = []
+
+    def invoke() -> None:
+        try:
+            call()
+        except BaseException as exc:
+            failure.append(exc)
+
+    thread = threading.Thread(target=invoke, name="xpwebapi-capture-bounded-close", daemon=True)
+    thread.start()
+    thread.join(timeout_seconds)
+    if thread.is_alive():
+        raise TimeoutError("capture transport shutdown deadline expired")
+    if failure:
+        raise failure[0]
+
+
+class _DeadlineHttpSession:
+    def __init__(self, session: Any, max_timeout: float, deadline: float, clock: Clock) -> None:
+        self._session = session
+        self._max_timeout = max_timeout
+        self._deadline = deadline
+        self._clock = clock
+
+    def set_deadline(self, deadline: float) -> None:
+        self._deadline = deadline
+
+    def get(self, *args: Any, **kwargs: Any) -> Any:
+        remaining = _remaining(self._deadline, self._clock)
+        kwargs["timeout"] = min(self._max_timeout, remaining)
+        return self._session.get(*args, **kwargs)
+
+    def close(self) -> None:
+        self._session.close()
+
+
 def _indexed(path: str) -> bool:
     return "[" in path
 
@@ -136,12 +173,13 @@ class _TransportBase:
         if purpose == "capture" and not self._capture_allowed():
             raise RuntimeError("capture refs require fresh matching aircraft identity observations")
 
-    def _record_observation(self, path: str, value: object) -> bool:
+    def _record_observation(self, path: str, value: object, observed_at: float | None = None) -> bool:
         ref = self._refs_by_path.get(path)
         callback = self._callbacks.get(path)
         if ref is None or callback is None:
             return False
-        observed_at = self._clock()
+        if observed_at is None:
+            observed_at = self._clock()
         identity_ref = self._identity_refs.get(path)
         if identity_ref is not None:
             if _identity_matches(identity_ref, value):
@@ -160,6 +198,11 @@ class _WebsocketCaptureTransport(_TransportBase):
         self._client: Any | None = None
         self._feedback: dict[int, Mapping[str, object]] = {}
         self._feedback_condition = threading.Condition()
+        self._pending_lock = threading.Lock()
+        self._pending_refs: dict[str, tuple[AircraftIdentityRef | CaptureRef, Callable[[Observation], None], Any]] = {}
+        self._pending_observations: list[tuple[str, object, float]] = []
+        self._cleanup_datarefs: dict[str, Any] = {}
+        self._http_session: _DeadlineHttpSession | None = None
         self._connected = False
 
     @property
@@ -179,7 +222,22 @@ class _WebsocketCaptureTransport(_TransportBase):
         self._connected = False
 
     def _on_dataref(self, dataref: str, value: object) -> None:
+        with self._pending_lock:
+            if dataref in self._pending_refs:
+                self._pending_observations.append((dataref, value, self._clock()))
+                return
         self._record_observation(dataref, value)
+
+    def _resolve_connect_timeouts(self, deadline: float) -> tuple[float, float]:
+        remaining = _remaining(deadline, self._clock)
+        return (
+            min(self._config.open_timeout_seconds, remaining),
+            min(self._config.close_timeout_seconds, remaining),
+        )
+
+    def _set_http_deadline(self, deadline: float) -> None:
+        if self._http_session is not None:
+            self._http_session.set_deadline(deadline)
 
     def open(self, deadline: float) -> TransportCapabilities:
         remaining = _remaining(deadline, self._clock)
@@ -197,13 +255,18 @@ class _WebsocketCaptureTransport(_TransportBase):
             close_timeout=min(self._config.close_timeout_seconds, remaining),
             read_only=True,
         )
+        if hasattr(self._client, "session"):
+            self._http_session = _DeadlineHttpSession(
+                self._client.session,
+                self._config.http_timeout_seconds,
+                deadline,
+                self._clock,
+            )
+            self._client.session = self._http_session
         self._client.set_callback(CALLBACK_TYPE.ON_DATAREF_UPDATE, self._on_dataref)
         self._client.set_callback(CALLBACK_TYPE.ON_REQUEST_FEEDBACK, self._on_feedback)
         self._client.set_callback(CALLBACK_TYPE.ON_CLOSE, self._on_close)
-        remaining = _remaining(deadline, self._clock)
-        self._client.open_timeout = min(self._config.open_timeout_seconds, remaining)
-        self._client.close_timeout = min(self._config.close_timeout_seconds, remaining)
-        self._client.connect_websocket()
+        self._client.connect_websocket(timeout_resolver=lambda: self._resolve_connect_timeouts(deadline))
         if not self._client.connected:
             raise ConnectionError("WebSocket capture endpoint did not connect")
         self._connected = True
@@ -225,6 +288,7 @@ class _WebsocketCaptureTransport(_TransportBase):
             raise RuntimeError("capture transport is not open")
         accepted: dict[str, Any] = {}
         rejected: dict[str, str] = {}
+        self._set_http_deadline(deadline)
         for ref in refs:
             _remaining(deadline, self._clock)
             dataref = self._client.dataref(ref.path, auto_save=False)
@@ -236,9 +300,42 @@ class _WebsocketCaptureTransport(_TransportBase):
                 rejected[ref.id] = f"incompatible dataref type {meta.value_type!r}"
                 continue
             accepted[ref.path] = dataref
-            self._refs_by_path[ref.path] = ref
-            self._callbacks[ref.path] = callback
         return accepted, rejected
+
+    def _stage_refs(
+        self,
+        refs: Sequence[AircraftIdentityRef | CaptureRef],
+        prepared: Mapping[str, Any],
+        callback: Callable[[Observation], None],
+    ) -> None:
+        refs_by_path = {ref.path: ref for ref in refs}
+        with self._pending_lock:
+            self._pending_refs = {path: (refs_by_path[path], callback, dataref) for path, dataref in prepared.items()}
+            self._pending_observations = []
+
+    def _activate_staged_refs(self) -> None:
+        with self._pending_lock:
+            for path, (ref, callback, dataref) in self._pending_refs.items():
+                self._refs_by_path[path] = ref
+                self._callbacks[path] = callback
+                self._datarefs[path] = dataref
+            observations = tuple(self._pending_observations)
+            self._pending_refs = {}
+            self._pending_observations = []
+        for path, value, observed_at in observations:
+            self._record_observation(path, value, observed_at)
+
+    def _discard_staged_refs(self, prepared: Mapping[str, Any], deadline: float) -> None:
+        with self._pending_lock:
+            self._pending_refs = {}
+            self._pending_observations = []
+        if self._client is None:
+            return
+        try:
+            _remaining(deadline, self._clock)
+            self._client.unmonitor_datarefs(prepared, reason="subscription_rollback")
+        except TimeoutError:
+            self._cleanup_datarefs.update(prepared)
 
     def _feedback_for(self, request_id: int, deadline: float) -> Mapping[str, object] | None:
         feedback_deadline = min(deadline, self._clock() + self._request.retry.subscription_timeout_seconds)
@@ -264,11 +361,18 @@ class _WebsocketCaptureTransport(_TransportBase):
             return SubscriptionResult(purpose, (), rejected, None)
         if self._client is None:
             raise RuntimeError("capture transport is not open")
-        _remaining(deadline, self._clock)
-        self._client.start(release=True)
-        _remaining(deadline, self._clock)
-        request_id, _effective = self._client.monitor_datarefs(prepared, reason=purpose)
+        self._stage_refs(refs, prepared, callback)
+        self._set_http_deadline(deadline)
+        try:
+            _remaining(deadline, self._clock)
+            self._client.start(release=True)
+            _remaining(deadline, self._clock)
+            request_id, _effective = self._client.monitor_datarefs(prepared, reason=purpose)
+        except BaseException:
+            self._discard_staged_refs(prepared, deadline)
+            raise
         if type(request_id) is not int:
+            self._discard_staged_refs(prepared, deadline)
             failed = {ref.id: "subscription request failed" for ref in refs if ref.id not in rejected}
             return SubscriptionResult(purpose, (), rejected | failed, None)
         feedback = self._feedback_for(request_id, deadline)
@@ -279,10 +383,11 @@ class _WebsocketCaptureTransport(_TransportBase):
         else:
             reason = ""
         if reason:
+            self._discard_staged_refs(prepared, deadline)
             failed = {ref.id: reason for ref in refs if ref.id not in rejected}
             return SubscriptionResult(purpose, (), rejected | failed, request_id)
         accepted_ids = tuple(ref.id for ref in refs if ref.id not in rejected)
-        self._datarefs.update(prepared)
+        self._activate_staged_refs()
         return SubscriptionResult(purpose, accepted_ids, rejected, request_id)
 
     def close(self, deadline: float) -> None:
@@ -291,19 +396,19 @@ class _WebsocketCaptureTransport(_TransportBase):
         if self._client is None:
             self._closed = True
             return
-        if self._datarefs:
+        cleanup_datarefs = self._datarefs | self._cleanup_datarefs
+        if cleanup_datarefs:
             _remaining(deadline, self._clock)
-            self._client.unmonitor_datarefs(self._datarefs, reason="capture_close")
+            self._client.unmonitor_datarefs(cleanup_datarefs, reason="capture_close")
         remaining = _remaining(deadline, self._clock)
         self._client.stop(timeout_seconds=min(self._request.retry.shutdown_timeout_seconds, remaining))
-        _remaining(deadline, self._clock)
-        self._client.disconnect_websocket()
-        _remaining(deadline, self._clock)
+        self._client.disconnect_websocket(timeout_resolver=lambda: min(self._config.close_timeout_seconds, _remaining(deadline, self._clock)))
+        remaining = _remaining(deadline, self._clock)
         close = getattr(self._client, "close", None)
         if close is not None:
-            close()
+            _bounded_call(close, remaining)
         else:
-            self._client.session.close()
+            _bounded_call(self._client.session.close, remaining)
         self._connected = False
         self._closed = True
 
@@ -332,7 +437,7 @@ class _UdpCaptureTransport(_TransportBase):
         now = self._clock()
         if self._last_valid_rref_monotonic is not None:
             return "connected" if now - self._last_valid_rref_monotonic <= self._config.liveness_timeout_seconds else "disconnected"
-        if self._identity_deadline is not None and now <= self._identity_deadline:
+        if self._identity_deadline is not None and now < self._identity_deadline:
             return "awaiting_first_identity_packet"
         return "disconnected"
 

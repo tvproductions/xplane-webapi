@@ -50,6 +50,15 @@ class WebsocketAPITestCase(unittest.TestCase):
 
 
 class TestReadOnlyWebsocketProxy(unittest.TestCase):
+    def test_close_applies_bounded_timeout_to_raw_connection(self):
+        raw_websocket = MagicMock()
+        proxy = _ReadOnlyWebsocketProxy(raw_websocket)
+
+        proxy.close(timeout_seconds=0.25)
+
+        self.assertEqual(0.25, raw_websocket.close_timeout)
+        raw_websocket.close.assert_called_once_with()
+
     def test_rejects_action_message_before_raw_send(self):
         raw_websocket = MagicMock()
         proxy = _ReadOnlyWebsocketProxy(raw_websocket)
@@ -193,6 +202,21 @@ class TestXPWebsocketAPIConnect(WebsocketAPITestCase):
         )
 
     @patch("xpwebapi.ws.connect")
+    def test_connect_websocket_resolves_timeouts_at_actual_socket_boundary(self, mock_connect):
+        api = self.make_api()
+        api.ws = None
+        mock_connect.return_value = MagicMock()
+        resolver = MagicMock(return_value=(0.75, 0.5))
+
+        with patch.object(XPWebsocketAPI, "rest_api_reachable", new_callable=PropertyMock, return_value=True):
+            with patch.object(XPWebsocketAPI, "reload_caches"):
+                api.connect_websocket(timeout_resolver=resolver)
+
+        resolver.assert_called_once_with()
+        self.assertEqual(0.75, mock_connect.call_args.kwargs["open_timeout"])
+        self.assertEqual(0.5, mock_connect.call_args.kwargs["close_timeout"])
+
+    @patch("xpwebapi.ws.connect")
     def test_connect_websocket_does_not_connect_when_rest_unreachable(self, mock_connect):
         api = self.make_api()
         api.ws = None
@@ -231,6 +255,16 @@ class TestXPWebsocketAPIConnect(WebsocketAPITestCase):
         websocket.close.assert_called_once()
         self.assertIsNone(api.ws)
         callback.assert_called_once()
+
+    def test_disconnect_websocket_resolves_close_timeout_at_actual_socket_boundary(self):
+        api = self.make_api()
+        websocket = api.ws
+        websocket.close_timeout = 10.0
+
+        api.disconnect_websocket(timeout_resolver=lambda: 0.25)
+
+        self.assertEqual(0.25, websocket.close_timeout)
+        websocket.close.assert_called_once()
 
     def test_context_manager_connects_on_enter_and_closes_on_exit(self):
         api = self.make_api()
