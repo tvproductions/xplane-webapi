@@ -1,0 +1,1354 @@
+{
+  "$defs": {
+    "AircraftReadyEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "capture_session_id": {
+          "title": "Capture Session Id",
+          "type": "string"
+        },
+        "connection_generation": {
+          "title": "Connection Generation",
+          "type": "integer"
+        },
+        "elapsed_seconds": {
+          "title": "Elapsed Seconds",
+          "type": "number"
+        },
+        "event": {
+          "const": "aircraft_ready",
+          "title": "Event",
+          "type": "string"
+        },
+        "identity_observations": {
+          "items": {
+            "$ref": "#/$defs/IdentityObservation"
+          },
+          "title": "Identity Observations",
+          "type": "array"
+        },
+        "optional_missing_ref_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Optional Missing Ref Ids",
+          "type": "array"
+        },
+        "protocol_version": {
+          "const": 1,
+          "title": "Protocol Version",
+          "type": "integer"
+        },
+        "ready_elapsed_seconds": {
+          "title": "Ready Elapsed Seconds",
+          "type": "number"
+        },
+        "required_ref_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Required Ref Ids",
+          "type": "array"
+        },
+        "sequence": {
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "sortie_id": {
+          "title": "Sortie Id",
+          "type": "string"
+        },
+        "target_aircraft": {
+          "const": "FlyJSim Q4XP",
+          "title": "Target Aircraft",
+          "type": "string"
+        },
+        "timestamp_utc": {
+          "title": "Timestamp Utc",
+          "type": "string"
+        }
+      },
+      "required": [
+        "event",
+        "connection_generation",
+        "target_aircraft",
+        "identity_observations",
+        "required_ref_ids",
+        "optional_missing_ref_ids",
+        "ready_elapsed_seconds",
+        "protocol_version",
+        "sequence",
+        "capture_session_id",
+        "sortie_id",
+        "timestamp_utc",
+        "elapsed_seconds"
+      ],
+      "title": "AircraftReadyEvent",
+      "type": "object"
+    },
+    "CaptureCorrelation": {
+      "additionalProperties": false,
+      "description": "Cross-repository campaign, route, and scenario identifiers.",
+      "properties": {
+        "campaign_id": {
+          "title": "Campaign Id",
+          "type": "string"
+        },
+        "route_profile_id": {
+          "title": "Route Profile Id",
+          "type": "string"
+        },
+        "scenario_id": {
+          "title": "Scenario Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "campaign_id",
+        "route_profile_id",
+        "scenario_id"
+      ],
+      "title": "CaptureCorrelation",
+      "type": "object"
+    },
+    "CaptureFailedEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "capture_session_id": {
+          "title": "Capture Session Id",
+          "type": "string"
+        },
+        "elapsed_seconds": {
+          "title": "Elapsed Seconds",
+          "type": "number"
+        },
+        "event": {
+          "const": "capture_failed",
+          "title": "Event",
+          "type": "string"
+        },
+        "gap_count": {
+          "title": "Gap Count",
+          "type": "integer"
+        },
+        "preceding_sha256": {
+          "title": "Preceding Sha256",
+          "type": "string"
+        },
+        "protocol_version": {
+          "const": 1,
+          "title": "Protocol Version",
+          "type": "integer"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "retry_count": {
+          "title": "Retry Count",
+          "type": "integer"
+        },
+        "sample_count": {
+          "title": "Sample Count",
+          "type": "integer"
+        },
+        "sequence": {
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "sortie_id": {
+          "title": "Sortie Id",
+          "type": "string"
+        },
+        "timestamp_utc": {
+          "title": "Timestamp Utc",
+          "type": "string"
+        }
+      },
+      "required": [
+        "sample_count",
+        "gap_count",
+        "retry_count",
+        "event",
+        "reason",
+        "protocol_version",
+        "sequence",
+        "capture_session_id",
+        "sortie_id",
+        "timestamp_utc",
+        "elapsed_seconds",
+        "preceding_sha256"
+      ],
+      "title": "CaptureFailedEvent",
+      "type": "object"
+    },
+    "CaptureInterruptedEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "capture_session_id": {
+          "title": "Capture Session Id",
+          "type": "string"
+        },
+        "elapsed_seconds": {
+          "title": "Elapsed Seconds",
+          "type": "number"
+        },
+        "event": {
+          "const": "capture_interrupted",
+          "title": "Event",
+          "type": "string"
+        },
+        "gap_count": {
+          "title": "Gap Count",
+          "type": "integer"
+        },
+        "preceding_sha256": {
+          "title": "Preceding Sha256",
+          "type": "string"
+        },
+        "protocol_version": {
+          "const": 1,
+          "title": "Protocol Version",
+          "type": "integer"
+        },
+        "retry_count": {
+          "title": "Retry Count",
+          "type": "integer"
+        },
+        "sample_count": {
+          "title": "Sample Count",
+          "type": "integer"
+        },
+        "sequence": {
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "signal": {
+          "enum": [
+            "SIGINT",
+            "SIGTERM"
+          ],
+          "title": "Signal",
+          "type": "string"
+        },
+        "sortie_id": {
+          "title": "Sortie Id",
+          "type": "string"
+        },
+        "timestamp_utc": {
+          "title": "Timestamp Utc",
+          "type": "string"
+        }
+      },
+      "required": [
+        "sample_count",
+        "gap_count",
+        "retry_count",
+        "event",
+        "signal",
+        "protocol_version",
+        "sequence",
+        "capture_session_id",
+        "sortie_id",
+        "timestamp_utc",
+        "elapsed_seconds",
+        "preceding_sha256"
+      ],
+      "title": "CaptureInterruptedEvent",
+      "type": "object"
+    },
+    "CaptureStartedEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "capture_session_id": {
+          "title": "Capture Session Id",
+          "type": "string"
+        },
+        "correlation": {
+          "$ref": "#/$defs/CaptureCorrelation"
+        },
+        "elapsed_seconds": {
+          "title": "Elapsed Seconds",
+          "type": "number"
+        },
+        "event": {
+          "const": "capture_started",
+          "title": "Event",
+          "type": "string"
+        },
+        "protocol_version": {
+          "const": 1,
+          "title": "Protocol Version",
+          "type": "integer"
+        },
+        "provenance": {
+          "$ref": "#/$defs/SourceProvenance"
+        },
+        "request_sha256": {
+          "title": "Request Sha256",
+          "type": "string"
+        },
+        "sequence": {
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "sortie_id": {
+          "title": "Sortie Id",
+          "type": "string"
+        },
+        "timestamp_utc": {
+          "title": "Timestamp Utc",
+          "type": "string"
+        },
+        "transport": {
+          "discriminator": {
+            "mapping": {
+              "udp": "#/$defs/UdpCaptureConfig",
+              "websocket": "#/$defs/WebsocketCaptureConfig"
+            },
+            "propertyName": "kind"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/WebsocketCaptureConfig"
+            },
+            {
+              "$ref": "#/$defs/UdpCaptureConfig"
+            }
+          ],
+          "title": "Transport"
+        }
+      },
+      "required": [
+        "event",
+        "request_sha256",
+        "correlation",
+        "transport",
+        "provenance",
+        "protocol_version",
+        "sequence",
+        "capture_session_id",
+        "sortie_id",
+        "timestamp_utc",
+        "elapsed_seconds"
+      ],
+      "title": "CaptureStartedEvent",
+      "type": "object"
+    },
+    "CaptureStoppedEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "capture_session_id": {
+          "title": "Capture Session Id",
+          "type": "string"
+        },
+        "elapsed_seconds": {
+          "title": "Elapsed Seconds",
+          "type": "number"
+        },
+        "event": {
+          "const": "capture_stopped",
+          "title": "Event",
+          "type": "string"
+        },
+        "gap_count": {
+          "title": "Gap Count",
+          "type": "integer"
+        },
+        "preceding_sha256": {
+          "title": "Preceding Sha256",
+          "type": "string"
+        },
+        "protocol_version": {
+          "const": 1,
+          "title": "Protocol Version",
+          "type": "integer"
+        },
+        "retry_count": {
+          "title": "Retry Count",
+          "type": "integer"
+        },
+        "sample_count": {
+          "title": "Sample Count",
+          "type": "integer"
+        },
+        "sequence": {
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "sortie_id": {
+          "title": "Sortie Id",
+          "type": "string"
+        },
+        "termination": {
+          "enum": [
+            "stop_file",
+            "capture_limit",
+            "requested",
+            "groups_complete"
+          ],
+          "title": "Termination",
+          "type": "string"
+        },
+        "timestamp_utc": {
+          "title": "Timestamp Utc",
+          "type": "string"
+        }
+      },
+      "required": [
+        "sample_count",
+        "gap_count",
+        "retry_count",
+        "event",
+        "termination",
+        "protocol_version",
+        "sequence",
+        "capture_session_id",
+        "sortie_id",
+        "timestamp_utc",
+        "elapsed_seconds",
+        "preceding_sha256"
+      ],
+      "title": "CaptureStoppedEvent",
+      "type": "object"
+    },
+    "GapEndedEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "affected_ref_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Affected Ref Ids",
+          "type": "array"
+        },
+        "capture_session_id": {
+          "title": "Capture Session Id",
+          "type": "string"
+        },
+        "elapsed_seconds": {
+          "title": "Elapsed Seconds",
+          "type": "number"
+        },
+        "event": {
+          "const": "gap_ended",
+          "title": "Event",
+          "type": "string"
+        },
+        "gap_duration_seconds": {
+          "title": "Gap Duration Seconds",
+          "type": "number"
+        },
+        "gap_start_elapsed_seconds": {
+          "title": "Gap Start Elapsed Seconds",
+          "type": "number"
+        },
+        "protocol_version": {
+          "const": 1,
+          "title": "Protocol Version",
+          "type": "integer"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "sequence": {
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "skipped_slot_count": {
+          "title": "Skipped Slot Count",
+          "type": "integer"
+        },
+        "sortie_id": {
+          "title": "Sortie Id",
+          "type": "string"
+        },
+        "timestamp_utc": {
+          "title": "Timestamp Utc",
+          "type": "string"
+        }
+      },
+      "required": [
+        "event",
+        "reason",
+        "affected_ref_ids",
+        "gap_start_elapsed_seconds",
+        "gap_duration_seconds",
+        "skipped_slot_count",
+        "protocol_version",
+        "sequence",
+        "capture_session_id",
+        "sortie_id",
+        "timestamp_utc",
+        "elapsed_seconds"
+      ],
+      "title": "GapEndedEvent",
+      "type": "object"
+    },
+    "GapStartedEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "affected_ref_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Affected Ref Ids",
+          "type": "array"
+        },
+        "capture_session_id": {
+          "title": "Capture Session Id",
+          "type": "string"
+        },
+        "elapsed_seconds": {
+          "title": "Elapsed Seconds",
+          "type": "number"
+        },
+        "event": {
+          "const": "gap_started",
+          "title": "Event",
+          "type": "string"
+        },
+        "gap_start_elapsed_seconds": {
+          "title": "Gap Start Elapsed Seconds",
+          "type": "number"
+        },
+        "protocol_version": {
+          "const": 1,
+          "title": "Protocol Version",
+          "type": "integer"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "sequence": {
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "sortie_id": {
+          "title": "Sortie Id",
+          "type": "string"
+        },
+        "timestamp_utc": {
+          "title": "Timestamp Utc",
+          "type": "string"
+        }
+      },
+      "required": [
+        "event",
+        "reason",
+        "affected_ref_ids",
+        "gap_start_elapsed_seconds",
+        "protocol_version",
+        "sequence",
+        "capture_session_id",
+        "sortie_id",
+        "timestamp_utc",
+        "elapsed_seconds"
+      ],
+      "title": "GapStartedEvent",
+      "type": "object"
+    },
+    "IdentityObservation": {
+      "additionalProperties": false,
+      "description": "One observation used to establish Q4XP aircraft readiness.",
+      "properties": {
+        "expected_value": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "title": "Expected Value"
+        },
+        "observed_value": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "title": "Observed Value"
+        },
+        "operator": {
+          "enum": [
+            "equals",
+            "contains"
+          ],
+          "title": "Operator",
+          "type": "string"
+        },
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "ref_id": {
+          "title": "Ref Id",
+          "type": "string"
+        },
+        "source_age_seconds": {
+          "title": "Source Age Seconds",
+          "type": "number"
+        },
+        "source_observed_elapsed_seconds": {
+          "title": "Source Observed Elapsed Seconds",
+          "type": "number"
+        }
+      },
+      "required": [
+        "ref_id",
+        "path",
+        "operator",
+        "expected_value",
+        "observed_value",
+        "source_observed_elapsed_seconds",
+        "source_age_seconds"
+      ],
+      "title": "IdentityObservation",
+      "type": "object"
+    },
+    "RetryEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "attempt": {
+          "title": "Attempt",
+          "type": "integer"
+        },
+        "capture_session_id": {
+          "title": "Capture Session Id",
+          "type": "string"
+        },
+        "delay_seconds": {
+          "title": "Delay Seconds",
+          "type": "number"
+        },
+        "elapsed_seconds": {
+          "title": "Elapsed Seconds",
+          "type": "number"
+        },
+        "event": {
+          "const": "retry",
+          "title": "Event",
+          "type": "string"
+        },
+        "maximum_attempts": {
+          "title": "Maximum Attempts",
+          "type": "integer"
+        },
+        "phase": {
+          "enum": [
+            "initial_connect",
+            "reconnect"
+          ],
+          "title": "Phase",
+          "type": "string"
+        },
+        "protocol_version": {
+          "const": 1,
+          "title": "Protocol Version",
+          "type": "integer"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "sequence": {
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "sortie_id": {
+          "title": "Sortie Id",
+          "type": "string"
+        },
+        "timestamp_utc": {
+          "title": "Timestamp Utc",
+          "type": "string"
+        }
+      },
+      "required": [
+        "event",
+        "phase",
+        "attempt",
+        "maximum_attempts",
+        "delay_seconds",
+        "reason",
+        "protocol_version",
+        "sequence",
+        "capture_session_id",
+        "sortie_id",
+        "timestamp_utc",
+        "elapsed_seconds"
+      ],
+      "title": "RetryEvent",
+      "type": "object"
+    },
+    "SampleEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "capture_session_id": {
+          "title": "Capture Session Id",
+          "type": "string"
+        },
+        "declared_type": {
+          "enum": [
+            "int",
+            "float",
+            "double",
+            "string"
+          ],
+          "title": "Declared Type",
+          "type": "string"
+        },
+        "elapsed_seconds": {
+          "title": "Elapsed Seconds",
+          "type": "number"
+        },
+        "event": {
+          "const": "sample",
+          "title": "Event",
+          "type": "string"
+        },
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "protocol_version": {
+          "const": 1,
+          "title": "Protocol Version",
+          "type": "integer"
+        },
+        "ref_id": {
+          "title": "Ref Id",
+          "type": "string"
+        },
+        "sample_group_id": {
+          "title": "Sample Group Id",
+          "type": "string"
+        },
+        "sequence": {
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "sortie_id": {
+          "title": "Sortie Id",
+          "type": "string"
+        },
+        "source_age_seconds": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Source Age Seconds"
+        },
+        "source_observed_elapsed_seconds": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Source Observed Elapsed Seconds"
+        },
+        "status": {
+          "enum": [
+            "sampled",
+            "missing",
+            "stale",
+            "disconnected",
+            "unsupported",
+            "invalid"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "timestamp_utc": {
+          "title": "Timestamp Utc",
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Value"
+        }
+      },
+      "required": [
+        "event",
+        "sample_group_id",
+        "ref_id",
+        "path",
+        "declared_type",
+        "status",
+        "value",
+        "source_observed_elapsed_seconds",
+        "source_age_seconds",
+        "protocol_version",
+        "sequence",
+        "capture_session_id",
+        "sortie_id",
+        "timestamp_utc",
+        "elapsed_seconds"
+      ],
+      "title": "SampleEvent",
+      "type": "object"
+    },
+    "SourceProvenance": {
+      "additionalProperties": false,
+      "description": "Source package and checkout identity embedded in capture evidence.",
+      "properties": {
+        "git_dirty": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Git Dirty"
+        },
+        "git_origin": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Git Origin"
+        },
+        "git_revision": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Git Revision"
+        },
+        "git_root": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Git Root"
+        },
+        "git_state": {
+          "enum": [
+            "available",
+            "unavailable"
+          ],
+          "title": "Git State",
+          "type": "string"
+        },
+        "package_name": {
+          "title": "Package Name",
+          "type": "string"
+        },
+        "package_version": {
+          "title": "Package Version",
+          "type": "string"
+        },
+        "python_version": {
+          "title": "Python Version",
+          "type": "string"
+        },
+        "read_only": {
+          "const": true,
+          "title": "Read Only",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "package_name",
+        "package_version",
+        "python_version",
+        "git_state",
+        "git_root",
+        "git_revision",
+        "git_origin",
+        "git_dirty",
+        "read_only"
+      ],
+      "title": "SourceProvenance",
+      "type": "object"
+    },
+    "SubscriptionResultEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "accepted_ref_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Accepted Ref Ids",
+          "type": "array"
+        },
+        "capture_session_id": {
+          "title": "Capture Session Id",
+          "type": "string"
+        },
+        "elapsed_seconds": {
+          "title": "Elapsed Seconds",
+          "type": "number"
+        },
+        "event": {
+          "const": "subscription_result",
+          "title": "Event",
+          "type": "string"
+        },
+        "protocol_version": {
+          "const": 1,
+          "title": "Protocol Version",
+          "type": "integer"
+        },
+        "purpose": {
+          "enum": [
+            "aircraft_identity",
+            "capture"
+          ],
+          "title": "Purpose",
+          "type": "string"
+        },
+        "rejected": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Rejected",
+          "type": "object"
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Request Id"
+        },
+        "sequence": {
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "sortie_id": {
+          "title": "Sortie Id",
+          "type": "string"
+        },
+        "timestamp_utc": {
+          "title": "Timestamp Utc",
+          "type": "string"
+        }
+      },
+      "required": [
+        "event",
+        "purpose",
+        "accepted_ref_ids",
+        "rejected",
+        "request_id",
+        "protocol_version",
+        "sequence",
+        "capture_session_id",
+        "sortie_id",
+        "timestamp_utc",
+        "elapsed_seconds"
+      ],
+      "title": "SubscriptionResultEvent",
+      "type": "object"
+    },
+    "TransportCapabilities": {
+      "additionalProperties": false,
+      "description": "Read-only values supported by one transport endpoint.",
+      "properties": {
+        "endpoint": {
+          "title": "Endpoint",
+          "type": "string"
+        },
+        "transport": {
+          "enum": [
+            "websocket",
+            "udp"
+          ],
+          "title": "Transport",
+          "type": "string"
+        },
+        "value_types": {
+          "items": {
+            "enum": [
+              "int",
+              "float",
+              "double",
+              "string"
+            ],
+            "type": "string"
+          },
+          "title": "Value Types",
+          "type": "array"
+        },
+        "xplane_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Xplane Version"
+        }
+      },
+      "required": [
+        "transport",
+        "endpoint",
+        "xplane_version",
+        "value_types"
+      ],
+      "title": "TransportCapabilities",
+      "type": "object"
+    },
+    "TransportReadyEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "capabilities": {
+          "$ref": "#/$defs/TransportCapabilities"
+        },
+        "capture_session_id": {
+          "title": "Capture Session Id",
+          "type": "string"
+        },
+        "connection_generation": {
+          "title": "Connection Generation",
+          "type": "integer"
+        },
+        "elapsed_seconds": {
+          "title": "Elapsed Seconds",
+          "type": "number"
+        },
+        "endpoint": {
+          "title": "Endpoint",
+          "type": "string"
+        },
+        "event": {
+          "const": "transport_ready",
+          "title": "Event",
+          "type": "string"
+        },
+        "git_dirty": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Git Dirty"
+        },
+        "git_revision": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Git Revision"
+        },
+        "package_version": {
+          "title": "Package Version",
+          "type": "string"
+        },
+        "protocol_version": {
+          "const": 1,
+          "title": "Protocol Version",
+          "type": "integer"
+        },
+        "read_only": {
+          "const": true,
+          "title": "Read Only",
+          "type": "boolean"
+        },
+        "sequence": {
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "sortie_id": {
+          "title": "Sortie Id",
+          "type": "string"
+        },
+        "timestamp_utc": {
+          "title": "Timestamp Utc",
+          "type": "string"
+        }
+      },
+      "required": [
+        "event",
+        "connection_generation",
+        "endpoint",
+        "read_only",
+        "package_version",
+        "git_revision",
+        "git_dirty",
+        "capabilities",
+        "protocol_version",
+        "sequence",
+        "capture_session_id",
+        "sortie_id",
+        "timestamp_utc",
+        "elapsed_seconds"
+      ],
+      "title": "TransportReadyEvent",
+      "type": "object"
+    },
+    "TransportStateEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "attempt": {
+          "title": "Attempt",
+          "type": "integer"
+        },
+        "capabilities": {
+          "$ref": "#/$defs/TransportCapabilities"
+        },
+        "capture_session_id": {
+          "title": "Capture Session Id",
+          "type": "string"
+        },
+        "elapsed_seconds": {
+          "title": "Elapsed Seconds",
+          "type": "number"
+        },
+        "event": {
+          "const": "transport_state",
+          "title": "Event",
+          "type": "string"
+        },
+        "protocol_version": {
+          "const": 1,
+          "title": "Protocol Version",
+          "type": "integer"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Reason"
+        },
+        "sequence": {
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "sortie_id": {
+          "title": "Sortie Id",
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "connected",
+            "disconnected"
+          ],
+          "title": "State",
+          "type": "string"
+        },
+        "timestamp_utc": {
+          "title": "Timestamp Utc",
+          "type": "string"
+        }
+      },
+      "required": [
+        "event",
+        "state",
+        "attempt",
+        "reason",
+        "capabilities",
+        "protocol_version",
+        "sequence",
+        "capture_session_id",
+        "sortie_id",
+        "timestamp_utc",
+        "elapsed_seconds"
+      ],
+      "title": "TransportStateEvent",
+      "type": "object"
+    },
+    "UdpCaptureConfig": {
+      "additionalProperties": false,
+      "description": "Bounded beacon-discovered UDP capture settings.",
+      "properties": {
+        "beacon_timeout_seconds": {
+          "default": 5.0,
+          "title": "Beacon Timeout Seconds",
+          "type": "number"
+        },
+        "kind": {
+          "const": "udp",
+          "title": "Kind",
+          "type": "string"
+        },
+        "liveness_timeout_seconds": {
+          "default": 3.0,
+          "title": "Liveness Timeout Seconds",
+          "type": "number"
+        },
+        "socket_timeout_seconds": {
+          "default": 1.0,
+          "title": "Socket Timeout Seconds",
+          "type": "number"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "UdpCaptureConfig",
+      "type": "object"
+    },
+    "WebsocketCaptureConfig": {
+      "additionalProperties": false,
+      "description": "Bounded WebSocket capture connection settings.",
+      "properties": {
+        "api_path": {
+          "default": "/api",
+          "title": "Api Path",
+          "type": "string"
+        },
+        "api_version": {
+          "default": "v2",
+          "title": "Api Version",
+          "type": "string"
+        },
+        "close_timeout_seconds": {
+          "default": 5.0,
+          "title": "Close Timeout Seconds",
+          "type": "number"
+        },
+        "host": {
+          "title": "Host",
+          "type": "string"
+        },
+        "http_timeout_seconds": {
+          "default": 5.0,
+          "title": "Http Timeout Seconds",
+          "type": "number"
+        },
+        "kind": {
+          "const": "websocket",
+          "title": "Kind",
+          "type": "string"
+        },
+        "open_timeout_seconds": {
+          "default": 5.0,
+          "title": "Open Timeout Seconds",
+          "type": "number"
+        },
+        "port": {
+          "title": "Port",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "kind",
+        "host",
+        "port"
+      ],
+      "title": "WebsocketCaptureConfig",
+      "type": "object"
+    }
+  },
+  "discriminator": {
+    "mapping": {
+      "aircraft_ready": "#/$defs/AircraftReadyEvent",
+      "capture_failed": "#/$defs/CaptureFailedEvent",
+      "capture_interrupted": "#/$defs/CaptureInterruptedEvent",
+      "capture_started": "#/$defs/CaptureStartedEvent",
+      "capture_stopped": "#/$defs/CaptureStoppedEvent",
+      "gap_ended": "#/$defs/GapEndedEvent",
+      "gap_started": "#/$defs/GapStartedEvent",
+      "retry": "#/$defs/RetryEvent",
+      "sample": "#/$defs/SampleEvent",
+      "subscription_result": "#/$defs/SubscriptionResultEvent",
+      "transport_ready": "#/$defs/TransportReadyEvent",
+      "transport_state": "#/$defs/TransportStateEvent"
+    },
+    "propertyName": "event"
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/CaptureStartedEvent"
+    },
+    {
+      "$ref": "#/$defs/TransportStateEvent"
+    },
+    {
+      "$ref": "#/$defs/TransportReadyEvent"
+    },
+    {
+      "$ref": "#/$defs/SubscriptionResultEvent"
+    },
+    {
+      "$ref": "#/$defs/AircraftReadyEvent"
+    },
+    {
+      "$ref": "#/$defs/SampleEvent"
+    },
+    {
+      "$ref": "#/$defs/GapStartedEvent"
+    },
+    {
+      "$ref": "#/$defs/GapEndedEvent"
+    },
+    {
+      "$ref": "#/$defs/RetryEvent"
+    },
+    {
+      "$ref": "#/$defs/CaptureStoppedEvent"
+    },
+    {
+      "$ref": "#/$defs/CaptureFailedEvent"
+    },
+    {
+      "$ref": "#/$defs/CaptureInterruptedEvent"
+    }
+  ]
+}

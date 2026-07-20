@@ -1,0 +1,117 @@
+{
+  "additionalProperties": false,
+  "description": "Machine-readable worker version and source provenance.",
+  "properties": {
+    "git_dirty": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Git Dirty"
+    },
+    "git_origin": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Git Origin"
+    },
+    "git_revision": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Git Revision"
+    },
+    "git_root": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Git Root"
+    },
+    "git_state": {
+      "enum": [
+        "available",
+        "unavailable"
+      ],
+      "title": "Git State",
+      "type": "string"
+    },
+    "package_name": {
+      "title": "Package Name",
+      "type": "string"
+    },
+    "package_version": {
+      "title": "Package Version",
+      "type": "string"
+    },
+    "python_version": {
+      "title": "Python Version",
+      "type": "string"
+    },
+    "read_only": {
+      "const": true,
+      "title": "Read Only",
+      "type": "boolean"
+    },
+    "supported_transports": {
+      "maxItems": 2,
+      "minItems": 2,
+      "prefixItems": [
+        {
+          "const": "udp",
+          "type": "string"
+        },
+        {
+          "const": "websocket",
+          "type": "string"
+        }
+      ],
+      "title": "Supported Transports",
+      "type": "array"
+    },
+    "worker": {
+      "const": "xpwebapi-capture",
+      "title": "Worker",
+      "type": "string"
+    },
+    "worker_protocol_version": {
+      "const": 1,
+      "title": "Worker Protocol Version",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "git_dirty",
+    "git_origin",
+    "git_revision",
+    "git_root",
+    "git_state",
+    "package_name",
+    "package_version",
+    "python_version",
+    "read_only",
+    "supported_transports",
+    "worker",
+    "worker_protocol_version"
+  ],
+  "title": "VersionJsonDocument",
+  "type": "object"
+}

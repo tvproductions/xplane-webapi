@@ -1,0 +1,784 @@
+{
+  "$defs": {
+    "CaptureCounters": {
+      "additionalProperties": false,
+      "description": "Cumulative capture lifecycle counters.",
+      "properties": {
+        "accepted_ref_count": {
+          "title": "Accepted Ref Count",
+          "type": "integer"
+        },
+        "gap_count": {
+          "title": "Gap Count",
+          "type": "integer"
+        },
+        "rejected_ref_count": {
+          "title": "Rejected Ref Count",
+          "type": "integer"
+        },
+        "retry_count": {
+          "title": "Retry Count",
+          "type": "integer"
+        },
+        "sample_count": {
+          "title": "Sample Count",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "sample_count",
+        "gap_count",
+        "retry_count",
+        "accepted_ref_count",
+        "rejected_ref_count"
+      ],
+      "title": "CaptureCounters",
+      "type": "object"
+    },
+    "CompleteStatus": {
+      "additionalProperties": false,
+      "properties": {
+        "aircraft_ready_at_utc": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Aircraft Ready At Utc"
+        },
+        "attempt_phase": {
+          "enum": [
+            "none",
+            "initial_connect",
+            "reconnect"
+          ],
+          "title": "Attempt Phase",
+          "type": "string"
+        },
+        "capture_session_id": {
+          "title": "Capture Session Id",
+          "type": "string"
+        },
+        "clean_shutdown": {
+          "const": true,
+          "title": "Clean Shutdown",
+          "type": "boolean"
+        },
+        "connection_generation": {
+          "title": "Connection Generation",
+          "type": "integer"
+        },
+        "counters": {
+          "$ref": "#/$defs/CaptureCounters"
+        },
+        "current_attempt": {
+          "title": "Current Attempt",
+          "type": "integer"
+        },
+        "elapsed_seconds": {
+          "title": "Elapsed Seconds",
+          "type": "number"
+        },
+        "events_path": {
+          "title": "Events Path",
+          "type": "string"
+        },
+        "events_sha256": {
+          "title": "Events Sha256",
+          "type": "string"
+        },
+        "events_size_bytes": {
+          "title": "Events Size Bytes",
+          "type": "integer"
+        },
+        "exit_code": {
+          "const": 0,
+          "title": "Exit Code",
+          "type": "integer"
+        },
+        "identity_ref_count": {
+          "title": "Identity Ref Count",
+          "type": "integer"
+        },
+        "matched_identity_ref_count": {
+          "title": "Matched Identity Ref Count",
+          "type": "integer"
+        },
+        "maximum_attempts": {
+          "title": "Maximum Attempts",
+          "type": "integer"
+        },
+        "observed_required_ref_count": {
+          "title": "Observed Required Ref Count",
+          "type": "integer"
+        },
+        "protocol_version": {
+          "const": 1,
+          "title": "Protocol Version",
+          "type": "integer"
+        },
+        "reason": {
+          "enum": [
+            "stop_file",
+            "capture_limit",
+            "requested",
+            "groups_complete"
+          ],
+          "title": "Reason",
+          "type": "string"
+        },
+        "request_sha256": {
+          "title": "Request Sha256",
+          "type": "string"
+        },
+        "required_capture_ref_count": {
+          "title": "Required Capture Ref Count",
+          "type": "integer"
+        },
+        "sortie_id": {
+          "title": "Sortie Id",
+          "type": "string"
+        },
+        "state": {
+          "const": "complete",
+          "title": "State",
+          "type": "string"
+        },
+        "target_aircraft": {
+          "const": "FlyJSim Q4XP",
+          "title": "Target Aircraft",
+          "type": "string"
+        },
+        "transport": {
+          "enum": [
+            "websocket",
+            "udp"
+          ],
+          "title": "Transport",
+          "type": "string"
+        },
+        "transport_connection_state": {
+          "enum": [
+            "not_connected",
+            "connected",
+            "awaiting_first_identity_packet",
+            "disconnected"
+          ],
+          "title": "Transport Connection State",
+          "type": "string"
+        },
+        "transport_ready_at_utc": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Transport Ready At Utc"
+        },
+        "updated_at_utc": {
+          "title": "Updated At Utc",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocol_version",
+        "capture_session_id",
+        "sortie_id",
+        "state",
+        "updated_at_utc",
+        "elapsed_seconds",
+        "events_path",
+        "request_sha256",
+        "transport",
+        "transport_connection_state",
+        "connection_generation",
+        "transport_ready_at_utc",
+        "aircraft_ready_at_utc",
+        "target_aircraft",
+        "identity_ref_count",
+        "matched_identity_ref_count",
+        "required_capture_ref_count",
+        "observed_required_ref_count",
+        "counters",
+        "attempt_phase",
+        "current_attempt",
+        "maximum_attempts",
+        "reason",
+        "events_sha256",
+        "events_size_bytes",
+        "exit_code",
+        "clean_shutdown"
+      ],
+      "title": "CompleteStatus",
+      "type": "object"
+    },
+    "FailedStatus": {
+      "additionalProperties": false,
+      "properties": {
+        "aircraft_ready_at_utc": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Aircraft Ready At Utc"
+        },
+        "attempt_phase": {
+          "enum": [
+            "none",
+            "initial_connect",
+            "reconnect"
+          ],
+          "title": "Attempt Phase",
+          "type": "string"
+        },
+        "capture_session_id": {
+          "title": "Capture Session Id",
+          "type": "string"
+        },
+        "clean_shutdown": {
+          "const": false,
+          "title": "Clean Shutdown",
+          "type": "boolean"
+        },
+        "connection_generation": {
+          "title": "Connection Generation",
+          "type": "integer"
+        },
+        "counters": {
+          "$ref": "#/$defs/CaptureCounters"
+        },
+        "current_attempt": {
+          "title": "Current Attempt",
+          "type": "integer"
+        },
+        "elapsed_seconds": {
+          "title": "Elapsed Seconds",
+          "type": "number"
+        },
+        "events_path": {
+          "title": "Events Path",
+          "type": "string"
+        },
+        "events_sha256": {
+          "title": "Events Sha256",
+          "type": "string"
+        },
+        "events_size_bytes": {
+          "title": "Events Size Bytes",
+          "type": "integer"
+        },
+        "exit_code": {
+          "const": 3,
+          "title": "Exit Code",
+          "type": "integer"
+        },
+        "identity_ref_count": {
+          "title": "Identity Ref Count",
+          "type": "integer"
+        },
+        "matched_identity_ref_count": {
+          "title": "Matched Identity Ref Count",
+          "type": "integer"
+        },
+        "maximum_attempts": {
+          "title": "Maximum Attempts",
+          "type": "integer"
+        },
+        "observed_required_ref_count": {
+          "title": "Observed Required Ref Count",
+          "type": "integer"
+        },
+        "protocol_version": {
+          "const": 1,
+          "title": "Protocol Version",
+          "type": "integer"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "request_sha256": {
+          "title": "Request Sha256",
+          "type": "string"
+        },
+        "required_capture_ref_count": {
+          "title": "Required Capture Ref Count",
+          "type": "integer"
+        },
+        "sortie_id": {
+          "title": "Sortie Id",
+          "type": "string"
+        },
+        "state": {
+          "const": "failed",
+          "title": "State",
+          "type": "string"
+        },
+        "target_aircraft": {
+          "const": "FlyJSim Q4XP",
+          "title": "Target Aircraft",
+          "type": "string"
+        },
+        "transport": {
+          "enum": [
+            "websocket",
+            "udp"
+          ],
+          "title": "Transport",
+          "type": "string"
+        },
+        "transport_connection_state": {
+          "enum": [
+            "not_connected",
+            "connected",
+            "awaiting_first_identity_packet",
+            "disconnected"
+          ],
+          "title": "Transport Connection State",
+          "type": "string"
+        },
+        "transport_ready_at_utc": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Transport Ready At Utc"
+        },
+        "updated_at_utc": {
+          "title": "Updated At Utc",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocol_version",
+        "capture_session_id",
+        "sortie_id",
+        "state",
+        "updated_at_utc",
+        "elapsed_seconds",
+        "events_path",
+        "request_sha256",
+        "transport",
+        "transport_connection_state",
+        "connection_generation",
+        "transport_ready_at_utc",
+        "aircraft_ready_at_utc",
+        "target_aircraft",
+        "identity_ref_count",
+        "matched_identity_ref_count",
+        "required_capture_ref_count",
+        "observed_required_ref_count",
+        "counters",
+        "attempt_phase",
+        "current_attempt",
+        "maximum_attempts",
+        "reason",
+        "events_sha256",
+        "events_size_bytes",
+        "exit_code",
+        "clean_shutdown"
+      ],
+      "title": "FailedStatus",
+      "type": "object"
+    },
+    "InterruptedStatus": {
+      "additionalProperties": false,
+      "properties": {
+        "aircraft_ready_at_utc": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Aircraft Ready At Utc"
+        },
+        "attempt_phase": {
+          "enum": [
+            "none",
+            "initial_connect",
+            "reconnect"
+          ],
+          "title": "Attempt Phase",
+          "type": "string"
+        },
+        "capture_session_id": {
+          "title": "Capture Session Id",
+          "type": "string"
+        },
+        "clean_shutdown": {
+          "title": "Clean Shutdown",
+          "type": "boolean"
+        },
+        "connection_generation": {
+          "title": "Connection Generation",
+          "type": "integer"
+        },
+        "counters": {
+          "$ref": "#/$defs/CaptureCounters"
+        },
+        "current_attempt": {
+          "title": "Current Attempt",
+          "type": "integer"
+        },
+        "elapsed_seconds": {
+          "title": "Elapsed Seconds",
+          "type": "number"
+        },
+        "events_path": {
+          "title": "Events Path",
+          "type": "string"
+        },
+        "events_sha256": {
+          "title": "Events Sha256",
+          "type": "string"
+        },
+        "events_size_bytes": {
+          "title": "Events Size Bytes",
+          "type": "integer"
+        },
+        "exit_code": {
+          "const": 130,
+          "title": "Exit Code",
+          "type": "integer"
+        },
+        "identity_ref_count": {
+          "title": "Identity Ref Count",
+          "type": "integer"
+        },
+        "matched_identity_ref_count": {
+          "title": "Matched Identity Ref Count",
+          "type": "integer"
+        },
+        "maximum_attempts": {
+          "title": "Maximum Attempts",
+          "type": "integer"
+        },
+        "observed_required_ref_count": {
+          "title": "Observed Required Ref Count",
+          "type": "integer"
+        },
+        "protocol_version": {
+          "const": 1,
+          "title": "Protocol Version",
+          "type": "integer"
+        },
+        "reason": {
+          "enum": [
+            "SIGINT",
+            "SIGTERM"
+          ],
+          "title": "Reason",
+          "type": "string"
+        },
+        "request_sha256": {
+          "title": "Request Sha256",
+          "type": "string"
+        },
+        "required_capture_ref_count": {
+          "title": "Required Capture Ref Count",
+          "type": "integer"
+        },
+        "sortie_id": {
+          "title": "Sortie Id",
+          "type": "string"
+        },
+        "state": {
+          "const": "interrupted",
+          "title": "State",
+          "type": "string"
+        },
+        "target_aircraft": {
+          "const": "FlyJSim Q4XP",
+          "title": "Target Aircraft",
+          "type": "string"
+        },
+        "transport": {
+          "enum": [
+            "websocket",
+            "udp"
+          ],
+          "title": "Transport",
+          "type": "string"
+        },
+        "transport_connection_state": {
+          "enum": [
+            "not_connected",
+            "connected",
+            "awaiting_first_identity_packet",
+            "disconnected"
+          ],
+          "title": "Transport Connection State",
+          "type": "string"
+        },
+        "transport_ready_at_utc": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Transport Ready At Utc"
+        },
+        "updated_at_utc": {
+          "title": "Updated At Utc",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocol_version",
+        "capture_session_id",
+        "sortie_id",
+        "state",
+        "updated_at_utc",
+        "elapsed_seconds",
+        "events_path",
+        "request_sha256",
+        "transport",
+        "transport_connection_state",
+        "connection_generation",
+        "transport_ready_at_utc",
+        "aircraft_ready_at_utc",
+        "target_aircraft",
+        "identity_ref_count",
+        "matched_identity_ref_count",
+        "required_capture_ref_count",
+        "observed_required_ref_count",
+        "counters",
+        "attempt_phase",
+        "current_attempt",
+        "maximum_attempts",
+        "reason",
+        "events_sha256",
+        "events_size_bytes",
+        "exit_code",
+        "clean_shutdown"
+      ],
+      "title": "InterruptedStatus",
+      "type": "object"
+    },
+    "NonterminalStatus": {
+      "additionalProperties": false,
+      "properties": {
+        "aircraft_ready_at_utc": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Aircraft Ready At Utc"
+        },
+        "attempt_phase": {
+          "enum": [
+            "none",
+            "initial_connect",
+            "reconnect"
+          ],
+          "title": "Attempt Phase",
+          "type": "string"
+        },
+        "capture_session_id": {
+          "title": "Capture Session Id",
+          "type": "string"
+        },
+        "connection_generation": {
+          "title": "Connection Generation",
+          "type": "integer"
+        },
+        "counters": {
+          "$ref": "#/$defs/CaptureCounters"
+        },
+        "current_attempt": {
+          "title": "Current Attempt",
+          "type": "integer"
+        },
+        "elapsed_seconds": {
+          "title": "Elapsed Seconds",
+          "type": "number"
+        },
+        "events_path": {
+          "title": "Events Path",
+          "type": "string"
+        },
+        "identity_ref_count": {
+          "title": "Identity Ref Count",
+          "type": "integer"
+        },
+        "matched_identity_ref_count": {
+          "title": "Matched Identity Ref Count",
+          "type": "integer"
+        },
+        "maximum_attempts": {
+          "title": "Maximum Attempts",
+          "type": "integer"
+        },
+        "observed_required_ref_count": {
+          "title": "Observed Required Ref Count",
+          "type": "integer"
+        },
+        "protocol_version": {
+          "const": 1,
+          "title": "Protocol Version",
+          "type": "integer"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Reason"
+        },
+        "request_sha256": {
+          "title": "Request Sha256",
+          "type": "string"
+        },
+        "required_capture_ref_count": {
+          "title": "Required Capture Ref Count",
+          "type": "integer"
+        },
+        "sortie_id": {
+          "title": "Sortie Id",
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "starting",
+            "connecting",
+            "transport_ready",
+            "awaiting_aircraft",
+            "subscribing",
+            "awaiting_first_values",
+            "aircraft_ready",
+            "capturing",
+            "reconnecting",
+            "finalizing"
+          ],
+          "title": "State",
+          "type": "string"
+        },
+        "target_aircraft": {
+          "const": "FlyJSim Q4XP",
+          "title": "Target Aircraft",
+          "type": "string"
+        },
+        "transport": {
+          "enum": [
+            "websocket",
+            "udp"
+          ],
+          "title": "Transport",
+          "type": "string"
+        },
+        "transport_connection_state": {
+          "enum": [
+            "not_connected",
+            "connected",
+            "awaiting_first_identity_packet",
+            "disconnected"
+          ],
+          "title": "Transport Connection State",
+          "type": "string"
+        },
+        "transport_ready_at_utc": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Transport Ready At Utc"
+        },
+        "updated_at_utc": {
+          "title": "Updated At Utc",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocol_version",
+        "capture_session_id",
+        "sortie_id",
+        "state",
+        "updated_at_utc",
+        "elapsed_seconds",
+        "events_path",
+        "request_sha256",
+        "transport",
+        "transport_connection_state",
+        "connection_generation",
+        "transport_ready_at_utc",
+        "aircraft_ready_at_utc",
+        "target_aircraft",
+        "identity_ref_count",
+        "matched_identity_ref_count",
+        "required_capture_ref_count",
+        "observed_required_ref_count",
+        "counters",
+        "attempt_phase",
+        "current_attempt",
+        "maximum_attempts",
+        "reason"
+      ],
+      "title": "NonterminalStatus",
+      "type": "object"
+    }
+  },
+  "discriminator": {
+    "mapping": {
+      "aircraft_ready": "#/$defs/NonterminalStatus",
+      "awaiting_aircraft": "#/$defs/NonterminalStatus",
+      "awaiting_first_values": "#/$defs/NonterminalStatus",
+      "capturing": "#/$defs/NonterminalStatus",
+      "complete": "#/$defs/CompleteStatus",
+      "connecting": "#/$defs/NonterminalStatus",
+      "failed": "#/$defs/FailedStatus",
+      "finalizing": "#/$defs/NonterminalStatus",
+      "interrupted": "#/$defs/InterruptedStatus",
+      "reconnecting": "#/$defs/NonterminalStatus",
+      "starting": "#/$defs/NonterminalStatus",
+      "subscribing": "#/$defs/NonterminalStatus",
+      "transport_ready": "#/$defs/NonterminalStatus"
+    },
+    "propertyName": "state"
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/NonterminalStatus"
+    },
+    {
+      "$ref": "#/$defs/CompleteStatus"
+    },
+    {
+      "$ref": "#/$defs/FailedStatus"
+    },
+    {
+      "$ref": "#/$defs/InterruptedStatus"
+    }
+  ]
+}
