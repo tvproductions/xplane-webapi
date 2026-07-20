@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import threading
 import unittest
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any, Literal, cast
+from unittest.mock import patch
 
 from xpwebapi.capture_events import CaptureEventIdentity, SourceProvenance, TransportCapabilities
 from xpwebapi.capture_output import AtomicStatusWriter, CaptureEventWriter
@@ -845,6 +847,62 @@ class CaptureRunnerTests(unittest.TestCase):
         self.assertEqual(2, len({row["elapsed_seconds"] for row in disconnected}))
         self.assertEqual("complete", outcome.terminal_state)
 
+    def test_reconnect_boundary_stop_precedes_disconnected_sample(self) -> None:
+        clock = FakeClock()
+        stop_event = threading.Event()
+        request = make_request(groups=({"id": "fast", "rate_hz": 10.0, "duration_seconds": 0.5},))
+        first = FakeTransport(
+            clock,
+            [],
+            observations={"aircraft": "Q4XP", "speed": 1.0},
+            disconnect_after_checks=4,
+        )
+        recovered = FakeTransport(
+            clock,
+            [],
+            observations={"aircraft": "Q4XP", "speed": 2.0},
+            open_advance=0.1,
+            on_open=stop_event.set,
+        )
+
+        outcome = self.build(request, [first, recovered], clock)[0].run(stop_event, threading.Event())
+
+        self.assertEqual("requested", outcome.termination)
+        self.assertNotIn("disconnected", {row.get("status") for row in self.rows() if row["event"] == "sample"})
+
+    def test_reconnect_subscription_boundary_sigterm_precedes_disconnected_sample(self) -> None:
+        clock = FakeClock()
+        interrupted = threading.Event()
+        request = make_request(groups=({"id": "fast", "rate_hz": 10.0, "duration_seconds": 0.5},))
+        first = FakeTransport(
+            clock,
+            [],
+            observations={"aircraft": "Q4XP", "speed": 1.0},
+            disconnect_after_checks=4,
+        )
+
+        def interrupt_during_capture_subscription(purpose: str) -> None:
+            if purpose == "capture":
+                clock.now += 0.1
+                interrupted.set()
+
+        recovered = FakeTransport(
+            clock,
+            [],
+            observations={"aircraft": "Q4XP", "speed": 2.0},
+            on_subscribe=interrupt_during_capture_subscription,
+        )
+
+        outcome = self.build(
+            request,
+            [first, recovered],
+            clock,
+            interruption_signal="SIGTERM",
+        )[0].run(threading.Event(), interrupted)
+
+        self.assertEqual("SIGTERM", outcome.termination)
+        self.assertNotIn("disconnected", {row.get("status") for row in self.rows() if row["event"] == "sample"})
+
     def test_sigterm_is_preserved_in_event_status_and_outcome(self) -> None:
         clock = FakeClock()
         transport = FakeTransport(clock, [], observations={"aircraft": "Q4XP", "speed": 1.0})
@@ -1005,6 +1063,30 @@ class CaptureRunnerTests(unittest.TestCase):
         self.assertTrue(outcome.clean_shutdown)
         self.assertEqual(hashlib.sha256(content).hexdigest(), status["events_sha256"])
         self.assertEqual(len(content), status["events_size_bytes"])
+
+    def test_late_terminal_status_replace_keeps_outcome_and_status_aligned(self) -> None:
+        clock = FakeClock()
+        transport = FakeTransport(clock, [], observations={"aircraft": "Q4XP", "speed": 1.0})
+        runner, statuses = self.build(make_request(), [transport], clock)
+        real_replace = os.replace
+
+        def advance_after_terminal_replace(source: str | os.PathLike[str], destination: str | os.PathLike[str]) -> None:
+            document = json.loads(Path(source).read_text(encoding="utf-8"))
+            real_replace(source, destination)
+            if document["state"] in {"complete", "failed", "interrupted"}:
+                clock.now += 1.0
+
+        with patch("xpwebapi.capture_output.os.replace", side_effect=advance_after_terminal_replace):
+            outcome = runner.run(threading.Event(), threading.Event())
+
+        status = json.loads(self.status.read_text(encoding="utf-8"))
+        self.assertEqual("complete", outcome.terminal_state)
+        self.assertTrue(outcome.clean_shutdown)
+        self.assertEqual(0, outcome.exit_code)
+        self.assertEqual("complete", status["state"])
+        self.assertTrue(status["clean_shutdown"])
+        self.assertEqual(0, status["exit_code"])
+        self.assertTrue(statuses.writer.terminal_commit_deadline_exceeded)
 
     def test_terminal_event_faults_do_not_publish_a_disagreeing_terminal_status(self) -> None:
         for index, fault in enumerate(("before", "after")):

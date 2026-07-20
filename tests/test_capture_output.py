@@ -391,21 +391,57 @@ class AtomicStatusWriterTests(unittest.TestCase):
             writer.prepare(status_document("connecting"), deadline=10.0, clock=clock)
         self.assertEqual([self.status_path.name], [path.name for path in self.status_path.parent.iterdir()])
 
-    def test_status_commit_checks_deadline_after_successful_replace(self) -> None:
+    def test_terminal_status_replace_is_commit_point_and_records_late_diagnostic(self) -> None:
         writer = AtomicStatusWriter(self.status_path)
-        writer.write(status_document("starting"))
+        for state in (
+            "starting",
+            "connecting",
+            "transport_ready",
+            "awaiting_aircraft",
+            "subscribing",
+            "awaiting_first_values",
+            "aircraft_ready",
+            "capturing",
+            "finalizing",
+        ):
+            writer.write(status_document(state))
         clock = ManualClock()
-        prepared = writer.prepare(status_document("connecting"), deadline=10.0, clock=clock)
+        prepared = writer.prepare(status_document("complete"), deadline=10.0, clock=clock)
         real_replace = os.replace
 
         def advancing_replace(source: str | os.PathLike[str], destination: str | os.PathLike[str]) -> None:
             real_replace(source, destination)
             clock.now = 10.0
 
-        with patch("xpwebapi.capture_output.os.replace", side_effect=advancing_replace), self.assertRaises(TimeoutError):
+        with patch("xpwebapi.capture_output.os.replace", side_effect=advancing_replace):
             writer.commit(prepared, deadline=10.0, clock=clock)
-        self.assertEqual("connecting", json.loads(self.status_path.read_text(encoding="utf-8"))["state"])
+        self.assertEqual("complete", json.loads(self.status_path.read_text(encoding="utf-8"))["state"])
+        self.assertTrue(writer.terminal_commit_deadline_exceeded)
         self.assertFalse(prepared.temporary_path.exists())
+
+    def test_terminal_status_deadline_before_replace_does_not_publish(self) -> None:
+        writer = AtomicStatusWriter(self.status_path)
+        for state in (
+            "starting",
+            "connecting",
+            "transport_ready",
+            "awaiting_aircraft",
+            "subscribing",
+            "awaiting_first_values",
+            "aircraft_ready",
+            "capturing",
+            "finalizing",
+        ):
+            writer.write(status_document(state))
+        clock = ManualClock()
+        prepared = writer.prepare(status_document("complete"), deadline=10.0, clock=clock)
+        clock.now = 10.0
+
+        with self.assertRaises(TimeoutError):
+            writer.commit(prepared, deadline=10.0, clock=clock)
+
+        self.assertEqual("finalizing", json.loads(self.status_path.read_text(encoding="utf-8"))["state"])
+        self.assertFalse(writer.terminal_commit_deadline_exceeded)
 
     def test_expired_status_abort_still_removes_temporary_file(self) -> None:
         writer = AtomicStatusWriter(self.status_path)

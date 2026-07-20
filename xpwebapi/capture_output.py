@@ -313,6 +313,18 @@ class AtomicStatusWriter:
         self._path = path
         self._previous: StatusDocument | None = None
         self._prepared: PreparedStatus | None = None
+        self._terminal_commit_deadline_exceeded = False
+
+    @property
+    def terminal_commit_deadline_exceeded(self) -> bool:
+        """Report a terminal replace that committed after its deadline.
+
+        A successful atomic replace is the terminal status commit point. A
+        deadline crossed inside that replace is diagnostic only because
+        raising would make the caller contradict the already-published status.
+        """
+
+        return self._terminal_commit_deadline_exceeded
 
     def _validate_transition(self, document: StatusDocument) -> None:
         previous = self._previous
@@ -386,13 +398,17 @@ class AtomicStatusWriter:
         try:
             _require_deadline(deadline, clock)
             os.replace(prepared.temporary_path, self._path)
-            self._previous = prepared.document
-            self._prepared = None
-            _require_deadline(deadline, clock)
         except BaseException:
             prepared.temporary_path.unlink(missing_ok=True)
             self._prepared = None
             raise
+        self._previous = prepared.document
+        self._prepared = None
+        if deadline is not None and clock() >= deadline:
+            if prepared.document.state in {"complete", "failed", "interrupted"}:
+                self._terminal_commit_deadline_exceeded = True
+                return
+            raise TimeoutError("capture output deadline expired")
 
     def abort(
         self,
