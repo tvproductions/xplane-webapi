@@ -455,6 +455,8 @@ class SampleInput(StrictModel):
                 raise ValueError("sampled values and source times must be present")
         elif self.value is not None:
             raise ValueError("non-sampled statuses require a null value")
+        if self.status == "missing" and source_times != (None, None):
+            raise ValueError("missing samples require null source times")
         return self
 
 
@@ -778,8 +780,11 @@ class NonterminalStatus(StatusBase):
             raise ValueError("aircraft-ready states require the aircraft readiness timestamp")
         if self.state in before_transport and self.aircraft_ready_at_utc is not None:
             raise ValueError("aircraft readiness timestamp is unavailable before aircraft_ready")
-        if self.state == "reconnecting" and self.reason is None:
-            raise ValueError("reconnecting status requires a reason")
+        if self.state == "reconnecting":
+            if self.reason is None:
+                raise ValueError("reconnecting status requires a reason")
+        elif self.reason is not None:
+            raise ValueError("healthy nonterminal status requires a null reason")
         return self
 
 

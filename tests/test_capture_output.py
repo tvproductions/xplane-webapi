@@ -135,10 +135,24 @@ class StatusModelTests(unittest.TestCase):
             ],
             [member.value for member in CaptureStatusState],
         )
-        self.assertEqual(frozenset({"connecting", "failed", "interrupted"}), LEGAL_STATUS_TRANSITIONS["starting"])
-        self.assertEqual(frozenset(), LEGAL_STATUS_TRANSITIONS["complete"])
-        self.assertEqual(frozenset(), LEGAL_STATUS_TRANSITIONS["failed"])
-        self.assertEqual(frozenset(), LEGAL_STATUS_TRANSITIONS["interrupted"])
+        self.assertEqual(
+            {
+                "starting": frozenset({"connecting", "failed", "interrupted"}),
+                "connecting": frozenset({"connecting", "transport_ready", "failed", "interrupted"}),
+                "transport_ready": frozenset({"awaiting_aircraft", "failed", "interrupted"}),
+                "awaiting_aircraft": frozenset({"subscribing", "reconnecting", "failed", "interrupted"}),
+                "subscribing": frozenset({"awaiting_first_values", "reconnecting", "failed", "interrupted"}),
+                "awaiting_first_values": frozenset({"aircraft_ready", "reconnecting", "failed", "interrupted"}),
+                "aircraft_ready": frozenset({"capturing", "finalizing", "failed", "interrupted"}),
+                "capturing": frozenset({"reconnecting", "finalizing", "failed", "interrupted"}),
+                "reconnecting": frozenset({"reconnecting", "transport_ready", "failed", "interrupted"}),
+                "finalizing": frozenset({"complete", "failed", "interrupted"}),
+                "complete": frozenset(),
+                "failed": frozenset(),
+                "interrupted": frozenset(),
+            },
+            LEGAL_STATUS_TRANSITIONS,
+        )
 
     def test_status_models_require_fields_reject_coercion_and_forbid_extra(self) -> None:
         for state in ("starting", "complete", "failed", "interrupted"):
@@ -194,6 +208,24 @@ class StatusModelTests(unittest.TestCase):
             NonterminalStatus.model_validate({**status_payload("transport_ready"), "transport_ready_at_utc": None})
         with self.assertRaises(ValidationError):
             NonterminalStatus.model_validate({**status_payload("capturing"), "aircraft_ready_at_utc": None})
+
+    def test_nonterminal_reason_is_null_except_while_reconnecting(self) -> None:
+        healthy_states = (
+            "starting",
+            "connecting",
+            "transport_ready",
+            "awaiting_aircraft",
+            "subscribing",
+            "awaiting_first_values",
+            "aircraft_ready",
+            "capturing",
+            "finalizing",
+        )
+        for state in healthy_states:
+            with self.subTest(state=state), self.assertRaises(ValidationError):
+                NonterminalStatus.model_validate({**status_payload(state), "reason": "unexpected"})
+        with self.assertRaises(ValidationError):
+            NonterminalStatus.model_validate({**status_payload("reconnecting"), "reason": None})
 
     def test_checked_status_schema_equals_generated_canonical_json(self) -> None:
         generated = TypeAdapter(StatusDocument).json_schema()

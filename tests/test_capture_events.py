@@ -1,9 +1,12 @@
 import hashlib
 import json
 import math
+import os
 import subprocess
 import unittest
+from contextlib import nullcontext
 from datetime import UTC, datetime, timedelta
+from io import BufferedWriter
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
@@ -67,6 +70,44 @@ class FakeClock:
         value = self._utc
         self._utc += timedelta(milliseconds=250)
         return value
+
+
+class ScriptedClock:
+    def __init__(self, monotonic_values: list[float]) -> None:
+        self._monotonic_values = iter(monotonic_values)
+        self._utc = datetime(2026, 7, 19, 12, 0, tzinfo=UTC)
+
+    def monotonic(self) -> float:
+        return next(self._monotonic_values)
+
+    def utcnow(self) -> datetime:
+        value = self._utc
+        self._utc += timedelta(milliseconds=250)
+        return value
+
+
+class FaultingStream:
+    def __init__(self, stream: BufferedWriter, fault: str) -> None:
+        self._stream = stream
+        self._fault = fault
+        self._flush_count = 0
+
+    def write(self, value: bytes) -> int:
+        return self._stream.write(value)
+
+    def flush(self) -> None:
+        self._flush_count += 1
+        if self._fault == "flush" and self._flush_count == 2:
+            raise OSError("final flush fault")
+        self._stream.flush()
+
+    def fileno(self) -> int:
+        return self._stream.fileno()
+
+    def close(self) -> None:
+        self._stream.close()
+        if self._fault == "close":
+            raise OSError("final close fault")
 
 
 def provenance_payload() -> dict[str, Any]:
@@ -422,6 +463,11 @@ class CaptureEventModelTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             SampleInput.model_validate({**sampled, "source_age_seconds": None})
 
+    def test_missing_sample_requires_both_source_times_to_be_null(self) -> None:
+        sampled = input_payloads()[5][1]
+        with self.assertRaises(ValidationError):
+            SampleInput.model_validate({**sampled, "status": "missing", "value": None})
+
     def test_identity_observation_rejects_mismatched_and_nonfinite_values(self) -> None:
         payload = identity_observation_payload()
         with self.assertRaises(ValidationError):
@@ -490,6 +536,52 @@ class CaptureEventWriterTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             writer.close(CaptureFailedInput.model_validate(input_payloads()[10][1]))
         self.assertEqual(1, good["sequence"])
+
+    def test_writer_rejects_elapsed_clock_regression_between_events(self) -> None:
+        clock = ScriptedClock([10.0, 12.0, 11.0])
+        writer = CaptureEventWriter(self.events_path, self.identity, clock)
+        self.addCleanup(writer._stream.close)
+        writer.write(CaptureStartedInput.model_validate(input_payloads()[0][1]))
+        original = self.events_path.read_bytes()
+
+        with self.assertRaises(ValueError):
+            writer.write(TransportStateInput.model_validate(input_payloads()[1][1]))
+
+        self.assertEqual(original, self.events_path.read_bytes())
+
+    def test_terminal_append_is_logically_immutable_after_finalization_faults(self) -> None:
+        for fault in ("flush", "fsync", "close"):
+            with self.subTest(fault=fault):
+                events_path = self.events_path.with_name(f"{fault}.jsonl")
+                writer = CaptureEventWriter(events_path, self.identity, FakeClock())
+                real_stream = writer._stream
+                self.addCleanup(real_stream.close)
+                writer_for_fault_injection: Any = writer
+                writer_for_fault_injection._stream = FaultingStream(real_stream, fault)
+                fsync_calls = 0
+                real_fsync = os.fsync
+
+                def faulting_fsync(file_descriptor: int) -> None:
+                    nonlocal fsync_calls
+                    fsync_calls += 1
+                    if fault == "fsync" and fsync_calls == 2:
+                        raise OSError("final fsync fault")
+                    real_fsync(file_descriptor)
+
+                fsync_context = patch("xpwebapi.capture_output.os.fsync", side_effect=faulting_fsync) if fault == "fsync" else nullcontext()
+                with fsync_context, self.assertRaises(OSError):
+                    writer.close(CaptureStoppedInput.model_validate(input_payloads()[9][1]))
+                terminal_bytes = events_path.read_bytes()
+
+                self.assertEqual(hashlib.sha256(terminal_bytes).hexdigest(), writer.events_sha256)
+                with self.assertRaisesRegex(ValueError, "capture event writer is closed"):
+                    writer.write(CaptureStartedInput.model_validate(input_payloads()[0][1]))
+                with self.assertRaisesRegex(ValueError, "capture event writer is closed"):
+                    writer.close(CaptureStoppedInput.model_validate(input_payloads()[9][1]))
+                self.assertEqual(terminal_bytes, events_path.read_bytes())
+                self.assertEqual(1, len(terminal_bytes.splitlines()))
+                if not real_stream.closed:
+                    real_stream.close()
 
     def test_writer_uses_exclusive_creation(self) -> None:
         self.events_path.write_text("competing data\n", encoding="utf-8")

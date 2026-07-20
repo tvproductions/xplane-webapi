@@ -88,6 +88,7 @@ class CaptureEventWriter:
         self._identity = CaptureEventIdentity.model_validate(identity.model_dump(mode="python"))
         self._clock = clock
         self._opened_monotonic = clock.monotonic()
+        self._last_elapsed_seconds = 0.0
         self._sequence = 0
         self._digest = hashlib.sha256()
         self._size_bytes = 0
@@ -114,7 +115,7 @@ class CaptureEventWriter:
 
     def _envelope(self) -> dict[str, object]:
         elapsed = self._clock.monotonic() - self._opened_monotonic
-        if not math.isfinite(elapsed) or elapsed < 0.0:
+        if not math.isfinite(elapsed) or elapsed < self._last_elapsed_seconds:
             raise ValueError("event clock must be finite and monotonic")
         return {
             "protocol_version": 1,
@@ -133,6 +134,7 @@ class CaptureEventWriter:
         self._digest.update(row_bytes)
         self._size_bytes += len(row_bytes)
         self._sequence += 1
+        self._last_elapsed_seconds = cast(float, document["elapsed_seconds"])
         return document
 
     def write(self, payload: CaptureEventPayload) -> dict[str, object]:
@@ -166,12 +168,22 @@ class CaptureEventWriter:
         }
         validated = event_type.model_validate(document).model_dump(mode="python")
         result = self._append(cast(dict[str, object], validated))
-        self._stream.flush()
-        os.fsync(self._stream.fileno())
-        self._stream.close()
         self._closed = True
         self._events_sha256 = self._digest.hexdigest()
         self._events_size_bytes = self._size_bytes
+        finalization_error: BaseException | None = None
+        try:
+            self._stream.flush()
+            os.fsync(self._stream.fileno())
+        except BaseException as exc:
+            finalization_error = exc
+        try:
+            self._stream.close()
+        except BaseException as exc:
+            if finalization_error is None:
+                finalization_error = exc
+        if finalization_error is not None:
+            raise finalization_error
         return result
 
 
