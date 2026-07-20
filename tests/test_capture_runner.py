@@ -657,8 +657,12 @@ class CaptureRunnerTests(unittest.TestCase):
             on_subscribe=emit_old_generation,
         )
         outcome = self.build(make_request(), [first, second], clock)[0].run(threading.Event(), threading.Event())
-        self.assertIn("first_values_timeout", outcome.reason or "")
-        self.assertEqual(1, len([row for row in self.rows() if row["event"] == "aircraft_ready"]))
+        self.assertEqual("complete", outcome.terminal_state)
+        self.assertEqual("groups_complete", outcome.termination)
+        self.assertTrue(outcome.clean_shutdown)
+        rows = self.rows()
+        self.assertEqual(1, len([row for row in rows if row["event"] == "aircraft_ready"]))
+        self.assertFalse(any(row.get("event") == "sample" and row.get("value") == 99.0 for row in rows))
 
     def test_initial_attempts_and_disconnect_duration_exhaust_independently(self) -> None:
         clock = FakeClock()
@@ -703,7 +707,10 @@ class CaptureRunnerTests(unittest.TestCase):
             [first, slow_failure],
             clock,
         )[0].run(threading.Event(), threading.Event())
-        self.assertIn("reconnect_disconnect_timeout", duration_outcome.reason or "")
+        self.assertEqual("complete", duration_outcome.terminal_state)
+        self.assertEqual("groups_complete", duration_outcome.termination)
+        self.assertTrue(duration_outcome.clean_shutdown)
+        self.assertEqual(0, duration_outcome.exit_code)
 
     def test_awaiting_first_udp_identity_packet_uses_identity_deadline_without_reconnect(self) -> None:
         clock = FakeClock()
@@ -846,6 +853,62 @@ class CaptureRunnerTests(unittest.TestCase):
         self.assertEqual([0.1, 0.2], [round(cast(float, row["elapsed_seconds"]), 1) for row in disconnected])
         self.assertEqual(2, len({row["elapsed_seconds"] for row in disconnected}))
         self.assertEqual("complete", outcome.terminal_state)
+
+    def test_bounded_groups_complete_during_reconnect_open_backoff_and_readiness(self) -> None:
+        for index, phase in enumerate(("open", "backoff", "readiness")):
+            with self.subTest(phase=phase):
+                self.events = self.root / f"group-expiry-{index}.jsonl"
+                self.status = self.root / f"group-expiry-{index}.json"
+                clock = FakeClock()
+                request = make_request(
+                    groups=({"id": "fast", "rate_hz": 10.0, "duration_seconds": 0.15},),
+                    retry={
+                        "reconnect_attempts": 3,
+                        "backoff_seconds": 0.25,
+                        "backoff_max_seconds": 0.25,
+                        "poll_interval_seconds": 0.1,
+                        "first_values_timeout_seconds": 0.3,
+                        "max_disconnect_seconds": 0.5,
+                    },
+                )
+                first = FakeTransport(
+                    clock,
+                    [],
+                    observations={"aircraft": "Q4XP", "speed": 1.0},
+                    disconnect_after_checks=4,
+                )
+                if phase == "open":
+                    reconnecting = [
+                        FakeTransport(
+                            clock,
+                            [],
+                            observations={"aircraft": "Q4XP", "speed": 2.0},
+                            open_advance=0.1,
+                        )
+                    ]
+                elif phase == "backoff":
+                    reconnecting = [
+                        FakeTransport(clock, [], open_error=ConnectionError("retry")),
+                        FakeTransport(clock, [], observations={"aircraft": "Q4XP", "speed": 2.0}),
+                    ]
+                else:
+                    reconnecting = [FakeTransport(clock, [], observations={"aircraft": "Q4XP"})]
+
+                outcome = self.build(request, [first, *reconnecting], clock)[0].run(
+                    threading.Event(),
+                    threading.Event(),
+                )
+
+                self.assertEqual("complete", outcome.terminal_state)
+                self.assertEqual("groups_complete", outcome.termination)
+                self.assertTrue(outcome.clean_shutdown)
+                self.assertGreaterEqual(clock.now, 0.15)
+                self.assertLess(clock.now, 0.21)
+                self.assertEqual("capture_stopped", self.rows()[-1]["event"])
+                disconnected_elapsed = [
+                    cast(float, row["elapsed_seconds"]) for row in self.rows() if row["event"] == "sample" and row["status"] == "disconnected"
+                ]
+                self.assertTrue(all(elapsed < 0.15 for elapsed in disconnected_elapsed))
 
     def test_reconnect_boundary_stop_precedes_disconnected_sample(self) -> None:
         clock = FakeClock()

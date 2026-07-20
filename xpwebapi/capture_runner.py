@@ -152,6 +152,7 @@ class _RunState:
     current_status: str | None = None
     aircraft_ready_monotonic: float | None = None
     schedules: list[_GroupSchedule] = field(default_factory=list)
+    schedules_initialized: bool = False
 
 
 class _CaptureFailure(RuntimeError):
@@ -532,7 +533,8 @@ class CaptureRunner:
             remaining = deadline - self._clock.monotonic()
             if remaining <= 0:
                 return False
-            self._clock.wait(stop_event, min(self._request.retry.poll_interval_seconds, remaining))
+            wait_seconds = self._bounded_wait_seconds(deadline, include_group_end=sample_disconnected)
+            self._clock.wait(stop_event, wait_seconds)
             if sample_disconnected and not self._sample_disconnected_if_active(stop_event, interrupted_event):
                 return False
 
@@ -675,6 +677,7 @@ class CaptureRunner:
                 )
             )
         self._state.schedules = schedules
+        self._state.schedules_initialized = True
 
     def _sample_input(self, group_id: str, ref: CaptureRef, now: float, *, disconnected: bool = False) -> SampleInput:
         observation = self._observations().get(ref.id)
@@ -763,7 +766,11 @@ class CaptureRunner:
         stop_event: threading.Event,
         interrupted_event: threading.Event,
     ) -> bool:
-        if self._observe_termination(stop_event, interrupted_event):
+        if self._observe_termination(
+            stop_event,
+            interrupted_event,
+            allow_groups_complete=self._state.schedules_initialized,
+        ):
             return False
         self._sample_due(self._clock.monotonic(), disconnected=True)
         return True
@@ -823,14 +830,39 @@ class CaptureRunner:
     ) -> bool:
         deadline = self._clock.monotonic() + duration
         while True:
-            if self._observe_termination(stop_event, interrupted_event):
+            if self._observe_termination(
+                stop_event,
+                interrupted_event,
+                allow_groups_complete=sample_disconnected and self._state.schedules_initialized,
+            ):
                 return True
             remaining = deadline - self._clock.monotonic()
             if remaining <= 0:
                 return False
-            self._clock.wait(stop_event, min(self._request.retry.poll_interval_seconds, remaining))
+            wait_seconds = self._bounded_wait_seconds(deadline, include_group_end=sample_disconnected)
+            self._clock.wait(stop_event, wait_seconds)
             if sample_disconnected and not self._sample_disconnected_if_active(stop_event, interrupted_event):
                 return True
+
+    def _bounded_wait_seconds(self, deadline: float, *, include_group_end: bool) -> float:
+        now = self._clock.monotonic()
+        wait_deadline = min(deadline, now + self._request.retry.poll_interval_seconds)
+        if include_group_end:
+            group_end = self._earliest_future_group_end(now)
+            if group_end is not None:
+                wait_deadline = min(wait_deadline, group_end)
+        return max(0.0, wait_deadline - now)
+
+    def _earliest_future_group_end(self, now: float) -> float | None:
+        ready = self._state.aircraft_ready_monotonic
+        if not self._state.schedules_initialized or ready is None:
+            return None
+        group_ends = (
+            ready + schedule.group.duration_seconds
+            for schedule in self._state.schedules
+            if schedule.group.duration_seconds is not None and ready + schedule.group.duration_seconds > now
+        )
+        return min(group_ends, default=None)
 
     def _next_wait(self, now: float) -> float:
         deadlines = [now + self._request.retry.poll_interval_seconds]
@@ -916,7 +948,11 @@ class CaptureRunner:
         self._clear_generation_state()
         last_error = reason
         for attempt in range(1, self._request.retry.reconnect_attempts + 1):
-            if self._observe_termination(stop_event, interrupted_event):
+            if self._observe_termination(
+                stop_event,
+                interrupted_event,
+                allow_groups_complete=self._state.schedules_initialized,
+            ):
                 return
             if self._clock.monotonic() >= disconnect_deadline:
                 raise _CaptureFailure(f"reconnect_disconnect_timeout: {last_error}")
