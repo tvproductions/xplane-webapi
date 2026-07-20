@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, PropertyMock, patch
 
 from websockets.exceptions import ConnectionClosedError
 
-from xpwebapi.api import DATAREF_DATATYPE, Command, CommandMeta, Dataref, DatarefMeta
+from xpwebapi.api import CONNECTION_STATUS, DATAREF_DATATYPE, Command, CommandMeta, Dataref, DatarefMeta
 from xpwebapi.exceptions import XPReadOnlyViolation
 from xpwebapi.read_only import _ReadOnlyWebsocketProxy
 from xpwebapi.retry import RetryConfig
@@ -50,6 +50,14 @@ class WebsocketAPITestCase(unittest.TestCase):
 
 
 class TestReadOnlyWebsocketProxy(unittest.TestCase):
+    def test_abort_uses_raw_socket_termination(self):
+        raw_websocket = MagicMock()
+        proxy = _ReadOnlyWebsocketProxy(raw_websocket)
+
+        proxy.abort()
+
+        raw_websocket.close_socket.assert_called_once_with()
+
     def test_close_applies_bounded_timeout_to_raw_connection(self):
         raw_websocket = MagicMock()
         proxy = _ReadOnlyWebsocketProxy(raw_websocket)
@@ -265,6 +273,18 @@ class TestXPWebsocketAPIConnect(WebsocketAPITestCase):
 
         self.assertEqual(0.25, websocket.close_timeout)
         websocket.close.assert_called_once()
+
+    def test_abort_websocket_terminates_socket_without_graceful_send(self):
+        api = self.make_api()
+        websocket = api.ws
+
+        with patch.object(api, "execute_callbacks") as execute_callbacks:
+            api.abort_websocket()
+
+        websocket.close_socket.assert_called_once_with()
+        execute_callbacks.assert_not_called()
+        self.assertIsNone(api.ws)
+        self.assertEqual(CONNECTION_STATUS.WEBSOCKET_DISCONNNECTED, api.status)
 
     def test_context_manager_connects_on_enter_and_closes_on_exit(self):
         api = self.make_api()

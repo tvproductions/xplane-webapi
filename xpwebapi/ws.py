@@ -353,6 +353,17 @@ class XPWebsocketAPI(XPRestAPI):
             if not silent:
                 logger.warning("already disconnected")
 
+    def abort_websocket(self) -> None:
+        """Immediately terminate the socket to interrupt a blocked operation."""
+        if self.ws is None:
+            return
+        if isinstance(self.ws, _ReadOnlyWebsocketProxy):
+            self.ws.abort()
+        else:
+            self.ws.close_socket()
+        self.ws = None
+        self.status = CONNECTION_STATUS.WEBSOCKET_DISCONNNECTED
+
     def connection_monitor(self):
         """
         Attempts to connect to X-Plane Websocket indefinitely until self.should_not_connect is set.

@@ -81,22 +81,54 @@ def _remaining(deadline: float, clock: Clock) -> float:
     return remaining
 
 
-def _bounded_call(call: Callable[[], None], timeout_seconds: float) -> None:
+def _bounded_call[T](
+    call: Callable[[], T],
+    deadline: float,
+    clock: Clock,
+    *,
+    timeout_message: str,
+    interrupt: Callable[[], None] | None = None,
+) -> T:
     failure: list[BaseException] = []
+    result: list[T] = []
+
+    def interrupt_operation() -> None:
+        if interrupt is None:
+            return
+        try:
+            interrupt()
+        except BaseException:
+            return
 
     def invoke() -> None:
         try:
-            call()
+            result.append(call())
         except BaseException as exc:
             failure.append(exc)
 
-    thread = threading.Thread(target=invoke, name="xpwebapi-capture-bounded-close", daemon=True)
+    _remaining(deadline, clock)
+    thread = threading.Thread(target=invoke, name="xpwebapi-capture-bounded-operation", daemon=True)
     thread.start()
-    thread.join(timeout_seconds)
+    try:
+        remaining = _remaining(deadline, clock)
+    except TimeoutError:
+        interrupt_operation()
+        raise TimeoutError(timeout_message) from None
+    thread.join(remaining)
     if thread.is_alive():
-        raise TimeoutError("capture transport shutdown deadline expired")
+        interrupt_operation()
+        raise TimeoutError(timeout_message)
     if failure:
         raise failure[0]
+    return result[0]
+
+
+def _attempt_cleanup(first_failure: BaseException | None, call: Callable[[], None]) -> BaseException | None:
+    try:
+        call()
+    except BaseException as exc:
+        return first_failure if first_failure is not None else exc
+    return first_failure
 
 
 class _DeadlineHttpSession:
@@ -239,6 +271,19 @@ class _WebsocketCaptureTransport(_TransportBase):
         if self._http_session is not None:
             self._http_session.set_deadline(deadline)
 
+    def _abort_websocket(self) -> None:
+        if self._client is not None:
+            self._client.abort_websocket()
+
+    def _bounded_websocket_call[T](self, call: Callable[[], T], deadline: float, operation: str) -> T:
+        return _bounded_call(
+            call,
+            deadline,
+            self._clock,
+            timeout_message=f"WebSocket {operation} deadline expired",
+            interrupt=self._abort_websocket,
+        )
+
     def open(self, deadline: float) -> TransportCapabilities:
         remaining = _remaining(deadline, self._clock)
         self._client = self._client_factory(
@@ -332,9 +377,12 @@ class _WebsocketCaptureTransport(_TransportBase):
         if self._client is None:
             return
         try:
-            _remaining(deadline, self._clock)
-            self._client.unmonitor_datarefs(prepared, reason="subscription_rollback")
-        except TimeoutError:
+            self._bounded_websocket_call(
+                lambda: self._client.unmonitor_datarefs(prepared, reason="subscription_rollback"),
+                deadline,
+                "subscription rollback",
+            )
+        except BaseException:
             self._cleanup_datarefs.update(prepared)
 
     def _feedback_for(self, request_id: int, deadline: float) -> Mapping[str, object] | None:
@@ -366,8 +414,11 @@ class _WebsocketCaptureTransport(_TransportBase):
         try:
             _remaining(deadline, self._clock)
             self._client.start(release=True)
-            _remaining(deadline, self._clock)
-            request_id, _effective = self._client.monitor_datarefs(prepared, reason=purpose)
+            request_id, _effective = self._bounded_websocket_call(
+                lambda: self._client.monitor_datarefs(prepared, reason=purpose),
+                deadline,
+                "subscription",
+            )
         except BaseException:
             self._discard_staged_refs(prepared, deadline)
             raise
@@ -396,21 +447,46 @@ class _WebsocketCaptureTransport(_TransportBase):
         if self._client is None:
             self._closed = True
             return
+        failure: BaseException | None = None
         cleanup_datarefs = self._datarefs | self._cleanup_datarefs
         if cleanup_datarefs:
-            _remaining(deadline, self._clock)
-            self._client.unmonitor_datarefs(cleanup_datarefs, reason="capture_close")
-        remaining = _remaining(deadline, self._clock)
-        self._client.stop(timeout_seconds=min(self._request.retry.shutdown_timeout_seconds, remaining))
-        self._client.disconnect_websocket(timeout_resolver=lambda: min(self._config.close_timeout_seconds, _remaining(deadline, self._clock)))
-        remaining = _remaining(deadline, self._clock)
+            failure = _attempt_cleanup(
+                failure,
+                lambda: self._bounded_websocket_call(
+                    lambda: self._client.unmonitor_datarefs(cleanup_datarefs, reason="capture_close"),
+                    deadline,
+                    "shutdown unsubscribe",
+                ),
+            )
+        failure = _attempt_cleanup(
+            failure,
+            lambda: self._bounded_websocket_call(
+                lambda: self._client.stop(timeout_seconds=min(self._request.retry.shutdown_timeout_seconds, _remaining(deadline, self._clock))),
+                deadline,
+                "listener shutdown",
+            ),
+        )
+        failure = _attempt_cleanup(
+            failure,
+            lambda: self._bounded_websocket_call(
+                lambda: self._client.disconnect_websocket(timeout_resolver=lambda: min(self._config.close_timeout_seconds, _remaining(deadline, self._clock))),
+                deadline,
+                "close",
+            ),
+        )
         close = getattr(self._client, "close", None)
         if close is not None:
-            _bounded_call(close, remaining)
+            close_call = close
         else:
-            _bounded_call(self._client.session.close, remaining)
+            close_call = self._client.session.close
+        failure = _attempt_cleanup(
+            failure,
+            lambda: self._bounded_websocket_call(close_call, deadline, "HTTP close"),
+        )
         self._connected = False
         self._closed = True
+        if failure is not None:
+            raise failure
 
 
 class _UdpCaptureTransport(_TransportBase):
@@ -451,6 +527,19 @@ class _UdpCaptureTransport(_TransportBase):
         if self._last_valid_rref_monotonic is not None or dataref in self._identity_refs:
             self._last_valid_rref_monotonic = self._clock()
         self._record_observation(dataref, value)
+
+    def _close_socket(self) -> None:
+        if self._client is not None:
+            self._client.socket.close()
+
+    def _bounded_udp_call[T](self, call: Callable[[], T], deadline: float, operation: str) -> T:
+        return _bounded_call(
+            call,
+            deadline,
+            self._clock,
+            timeout_message=f"UDP {operation} deadline expired",
+            interrupt=self._close_socket,
+        )
 
     def open(self, deadline: float) -> TransportCapabilities:
         remaining = _remaining(deadline, self._clock)
@@ -498,7 +587,11 @@ class _UdpCaptureTransport(_TransportBase):
         for ref in refs:
             _remaining(deadline, self._clock)
             dataref = self._client.dataref(ref.path, auto_save=False)
-            result = self._client.monitor_dataref(dataref, frequency_hz=self._rate_for(ref))
+            result = self._bounded_udp_call(
+                lambda: self._client.monitor_dataref(dataref, frequency_hz=self._rate_for(ref)),
+                deadline,
+                "subscription",
+            )
             if result is False:
                 rejected[ref.id] = "UDP subscription failed"
                 continue
@@ -517,18 +610,42 @@ class _UdpCaptureTransport(_TransportBase):
     def close(self, deadline: float) -> None:
         if self._closed:
             return
+        failure: BaseException | None = None
         if self._client is not None:
             if self._datarefs:
-                _remaining(deadline, self._clock)
-                self._client.unmonitor_datarefs(self._datarefs, reason="capture_close")
-            remaining = _remaining(deadline, self._clock)
-            self._client.stop(timeout_seconds=min(self._request.retry.shutdown_timeout_seconds, remaining))
-            _remaining(deadline, self._clock)
-            self._client.close()
+                failure = _attempt_cleanup(
+                    failure,
+                    lambda: self._bounded_udp_call(
+                        lambda: self._client.unmonitor_datarefs(self._datarefs, reason="capture_close"),
+                        deadline,
+                        "shutdown unsubscribe",
+                    ),
+                )
+            failure = _attempt_cleanup(
+                failure,
+                lambda: self._bounded_udp_call(
+                    lambda: self._client.stop(timeout_seconds=min(self._request.retry.shutdown_timeout_seconds, _remaining(deadline, self._clock))),
+                    deadline,
+                    "listener shutdown",
+                ),
+            )
+            failure = _attempt_cleanup(
+                failure,
+                lambda: self._bounded_udp_call(self._client.close, deadline, "socket close"),
+            )
         if self._monitor is not None:
-            _remaining(deadline, self._clock)
-            self._monitor.stop_monitor()
+            failure = _attempt_cleanup(
+                failure,
+                lambda: _bounded_call(
+                    self._monitor.stop_monitor,
+                    deadline,
+                    self._clock,
+                    timeout_message="UDP beacon monitor shutdown deadline expired",
+                ),
+            )
         self._closed = True
+        if failure is not None:
+            raise failure
 
 
 def create_capture_transport(

@@ -53,6 +53,9 @@ class _ReadOnlyWebsocketProxy:
     def recv(self, *args: Any, **kwargs: Any) -> str | bytes:
         return self.__websocket.recv(*args, **kwargs)
 
+    def abort(self) -> None:
+        self.__websocket.close_socket()
+
     def close(self, timeout_seconds: float | None = None) -> None:
         if timeout_seconds is not None:
             self.__websocket.close_timeout = timeout_seconds

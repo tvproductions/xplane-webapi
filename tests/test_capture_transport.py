@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
-import struct
 import socket
+import struct
+import threading
+import time
 import unittest
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -119,6 +121,10 @@ class FakeWebsocketClient:
         timeout = timeout_resolver() if timeout_resolver is not None else None
         self.events.append(("websocket.close.timeout", timeout))
         self.events.append("disconnect_websocket")
+        self.connected = False
+
+    def abort_websocket(self) -> None:
+        self.events.append("abort_websocket")
         self.connected = False
 
     def emit(self, path: str, value: object) -> None:
@@ -326,6 +332,63 @@ class WebsocketCaptureTransportTests(unittest.TestCase):
         capture = adapter.subscribe(request.refs, "capture", lambda _: None, deadline=10.0)
         self.assertEqual(("capture",), capture.accepted_ref_ids)
 
+    def test_blocking_websocket_subscribe_send_is_aborted_at_absolute_deadline(self) -> None:
+        factory = WebsocketFactory(metadata={"sim/test/identity": "data"})
+        request = make_request()
+        adapter = create_capture_transport(request, client_factory=factory, clock=time.monotonic)
+        adapter.open(deadline=time.monotonic() + 1.0)
+        client = factory.clients[0]
+        release = threading.Event()
+
+        def blocking_monitor(datarefs: dict[str, FakeDataref], reason: str | None = None) -> tuple[int | bool, dict[str, FakeDataref]]:
+            client.events.append(("monitor.blocking", tuple(datarefs), reason))
+            release.wait(0.4)
+            return client.request_id, datarefs
+
+        def abort() -> None:
+            client.events.append("abort_websocket")
+            client.connected = False
+            release.set()
+            raise RuntimeError("abort cleanup failed")
+
+        cast(Any, client).monitor_datarefs = blocking_monitor
+        cast(Any, client).abort_websocket = abort
+        started = time.monotonic()
+
+        with self.assertRaises(TimeoutError):
+            adapter.subscribe(request.identity_readiness.refs, "aircraft_identity", lambda _: None, deadline=started + 0.05)
+
+        self.assertLess(time.monotonic() - started, 0.25)
+        self.assertIn("abort_websocket", client.events)
+
+    def test_blocking_websocket_rollback_unmonitor_is_aborted_at_deadline(self) -> None:
+        factory = WebsocketFactory(feedback="failure", metadata={"sim/test/identity": "data"})
+        request = make_request()
+        adapter = create_capture_transport(request, client_factory=factory, clock=time.monotonic)
+        adapter.open(deadline=time.monotonic() + 1.0)
+        client = factory.clients[0]
+        release = threading.Event()
+
+        def blocking_unmonitor(datarefs: dict[str, FakeDataref], reason: str | None = None) -> tuple[bool, dict]:
+            client.events.append(("unmonitor.blocking", tuple(datarefs), reason))
+            release.wait(0.4)
+            return True, {}
+
+        def abort() -> None:
+            client.events.append("abort_websocket")
+            client.connected = False
+            release.set()
+
+        cast(Any, client).unmonitor_datarefs = blocking_unmonitor
+        cast(Any, client).abort_websocket = abort
+        started = time.monotonic()
+
+        result = adapter.subscribe(request.identity_readiness.refs, "aircraft_identity", lambda _: None, deadline=started + 0.05)
+
+        self.assertLess(time.monotonic() - started, 0.25)
+        self.assertEqual({"identity": "subscription feedback failed"}, dict(result.rejected))
+        self.assertIn("abort_websocket", client.events)
+
     def test_failed_and_timed_out_feedback_rejects_the_batch(self) -> None:
         for feedback in ("failure", "timeout", "invalid-request"):
             with self.subTest(feedback=feedback):
@@ -487,6 +550,60 @@ class WebsocketCaptureTransportTests(unittest.TestCase):
         self.assertEqual(4.0, stop_event[1])
         self.assertLessEqual(cast(float, close_event[1]), 1.0)
 
+    def test_blocking_websocket_shutdown_unmonitor_times_out_and_aborts(self) -> None:
+        factory = WebsocketFactory(metadata={"sim/test/identity": "data"})
+        request = make_request()
+        adapter = create_capture_transport(request, client_factory=factory, clock=time.monotonic)
+        adapter.open(deadline=time.monotonic() + 1.0)
+        adapter.subscribe(request.identity_readiness.refs, "aircraft_identity", lambda _: None, deadline=time.monotonic() + 1.0)
+        client = factory.clients[0]
+        release = threading.Event()
+
+        def blocking_unmonitor(datarefs: dict[str, FakeDataref], reason: str | None = None) -> tuple[bool, dict]:
+            client.events.append(("unmonitor.blocking", tuple(datarefs), reason))
+            release.wait(0.4)
+            return True, {}
+
+        def abort() -> None:
+            client.events.append("abort_websocket")
+            client.connected = False
+            release.set()
+
+        cast(Any, client).unmonitor_datarefs = blocking_unmonitor
+        cast(Any, client).abort_websocket = abort
+        started = time.monotonic()
+
+        with self.assertRaises(TimeoutError):
+            adapter.close(deadline=started + 0.05)
+
+        self.assertLess(time.monotonic() - started, 0.25)
+        self.assertIn("abort_websocket", client.events)
+
+    def test_websocket_close_preserves_first_exception_while_attempting_cleanup(self) -> None:
+        factory = WebsocketFactory(metadata={"sim/test/identity": "data"})
+        request = make_request()
+        adapter = create_capture_transport(request, client_factory=factory, clock=time.monotonic)
+        adapter.open(deadline=time.monotonic() + 1.0)
+        adapter.subscribe(request.identity_readiness.refs, "aircraft_identity", lambda _: None, deadline=time.monotonic() + 1.0)
+        client = factory.clients[0]
+
+        def fail_unmonitor(_datarefs: dict[str, FakeDataref], reason: str | None = None) -> tuple[bool, dict]:
+            client.events.append(("unmonitor.failed", reason))
+            raise ValueError("first cleanup failure")
+
+        def fail_stop(timeout_seconds: float | None = None) -> None:
+            client.events.append(("stop.failed", timeout_seconds))
+            raise RuntimeError("later cleanup failure")
+
+        cast(Any, client).unmonitor_datarefs = fail_unmonitor
+        cast(Any, client).stop = fail_stop
+
+        with self.assertRaisesRegex(ValueError, "first cleanup failure"):
+            adapter.close(deadline=time.monotonic() + 1.0)
+
+        self.assertTrue(any(isinstance(event, tuple) and event[0] == "stop.failed" for event in client.events))
+        self.assertIn("disconnect_websocket", client.events)
+
 
 class UdpCaptureTransportTests(unittest.TestCase):
     def make_adapter(self, clock: FakeClock | None = None) -> tuple[object, UdpFactory, BeaconFactory, CaptureRequest]:
@@ -573,6 +690,58 @@ class UdpCaptureTransportTests(unittest.TestCase):
         self.assertLessEqual(cast(float, stop_timeout), 2.0)
         self.assertTrue(udp_factory.clients[0].closed)
         self.assertTrue(beacon_factory.monitors[0].stopped)
+
+    def test_blocking_udp_monitor_send_is_closed_at_absolute_deadline(self) -> None:
+        raw = _BlockingPacketSocket()
+        beacon_factory = BeaconFactory()
+        request = make_request("udp")
+        with patch("xpwebapi.udp.socket.socket", return_value=raw), patch.object(XPUDPAPI, "start", return_value=None):
+            adapter = create_capture_transport(request, beacon_factory=beacon_factory, clock=time.monotonic)
+            adapter.open(deadline=time.monotonic() + 1.0)
+            raw.block = True
+            started = time.monotonic()
+
+            with self.assertRaises(TimeoutError):
+                adapter.subscribe(request.identity_readiness.refs, "aircraft_identity", lambda _: None, deadline=started + 0.05)
+
+        self.assertLess(time.monotonic() - started, 0.25)
+        self.assertTrue(raw.closed)
+
+    def test_blocking_udp_shutdown_unmonitor_is_closed_at_absolute_deadline(self) -> None:
+        raw = _BlockingPacketSocket()
+        beacon_factory = BeaconFactory()
+        request = make_request("udp")
+        with patch("xpwebapi.udp.socket.socket", return_value=raw), patch.object(XPUDPAPI, "start", return_value=None):
+            adapter = create_capture_transport(request, beacon_factory=beacon_factory, clock=time.monotonic)
+            adapter.open(deadline=time.monotonic() + 1.0)
+            adapter.subscribe(request.identity_readiness.refs, "aircraft_identity", lambda _: None, deadline=time.monotonic() + 1.0)
+            raw.block = True
+            started = time.monotonic()
+
+            with self.assertRaises(TimeoutError):
+                adapter.close(deadline=started + 0.05)
+
+        self.assertLess(time.monotonic() - started, 0.25)
+        self.assertTrue(raw.closed)
+
+
+class _BlockingPacketSocket:
+    def __init__(self) -> None:
+        self.block = False
+        self.closed = False
+        self.release = threading.Event()
+
+    def settimeout(self, _value: float) -> None:
+        return None
+
+    def sendto(self, message: bytes, _address: tuple[str, int]) -> int:
+        if self.block:
+            self.release.wait(0.4)
+        return len(message)
+
+    def close(self) -> None:
+        self.closed = True
+        self.release.set()
 
 
 class ReadOnlyUdpWireTests(unittest.TestCase):
