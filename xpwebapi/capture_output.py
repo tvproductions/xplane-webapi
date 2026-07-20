@@ -12,6 +12,9 @@ import secrets
 
 # Only fixed Git metadata commands are executed, always without a shell.
 import subprocess  # nosec B404
+import time
+from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Protocol, cast
@@ -67,6 +70,32 @@ class EventClock(Protocol):
     def utcnow(self) -> datetime: ...
 
 
+DeadlineClock = Callable[[], float]
+
+
+def _require_deadline(deadline: float | None, clock: DeadlineClock) -> None:
+    if deadline is not None and clock() >= deadline:
+        raise TimeoutError("capture output deadline expired")
+
+
+@dataclass(frozen=True, slots=True)
+class PreparedCaptureClose:
+    """Validated terminal row and its projected complete-file identity."""
+
+    document: dict[str, object]
+    row_bytes: bytes
+    events_sha256: str
+    events_size_bytes: int
+
+
+@dataclass(frozen=True, slots=True)
+class PreparedStatus:
+    """Durable status temporary file awaiting its atomic replace."""
+
+    document: StatusDocument
+    temporary_path: Path
+
+
 def _timestamp_utc(value: datetime) -> str:
     if value.tzinfo is None or value.utcoffset() is None:
         raise ValueError("clock.utcnow() must return an aware datetime")
@@ -95,6 +124,7 @@ class CaptureEventWriter:
         self._closed = False
         self._events_sha256: str | None = None
         self._events_size_bytes: int | None = None
+        self._prepared_close: PreparedCaptureClose | None = None
         self._stream = path.open("xb")
 
     @property
@@ -140,7 +170,7 @@ class CaptureEventWriter:
     def write(self, payload: CaptureEventPayload) -> dict[str, object]:
         """Validate and durably append one nonterminal event payload."""
 
-        if self._closed:
+        if self._closed or self._prepared_close is not None:
             raise ValueError("capture event writer is closed")
         event = payload.event
         event_type = _EVENT_TYPES.get(event)
@@ -153,11 +183,16 @@ class CaptureEventWriter:
         validated = event_type.model_validate(document).model_dump(mode="python")
         return self._append(cast(dict[str, object], validated))
 
-    def close(self, payload: TerminalCaptureInput) -> dict[str, object]:
-        """Append one terminal row, flush/fsync, and expose the complete hash."""
+    def prepare_close(
+        self,
+        payload: TerminalCaptureInput,
+        deadline: float | None,
+    ) -> PreparedCaptureClose:
+        """Validate a terminal row and project the sealed identity without mutation."""
 
-        if self._closed:
+        if self._closed or self._prepared_close is not None:
             raise ValueError("capture event writer is closed")
+        _require_deadline(deadline, self._clock.monotonic)
         event_type = _TERMINAL_EVENT_TYPES.get(payload.event)
         if event_type is None:
             raise ValueError(f"event {payload.event!r} is not terminal")
@@ -167,24 +202,82 @@ class CaptureEventWriter:
             "preceding_sha256": self._digest.hexdigest(),
         }
         validated = event_type.model_validate(document).model_dump(mode="python")
-        result = self._append(cast(dict[str, object], validated))
+        terminal_document = cast(dict[str, object], validated)
+        row_bytes = _json_bytes(terminal_document)
+        projected_digest = self._digest.copy()
+        projected_digest.update(row_bytes)
+        prepared = PreparedCaptureClose(
+            document=terminal_document,
+            row_bytes=row_bytes,
+            events_sha256=projected_digest.hexdigest(),
+            events_size_bytes=self._size_bytes + len(row_bytes),
+        )
+        self._prepared_close = prepared
+        return prepared
+
+    def abort_close(self, prepared: PreparedCaptureClose) -> None:
+        """Release a prepared terminal row without changing the event stream."""
+
+        if prepared is not self._prepared_close:
+            raise ValueError("prepared capture close does not belong to this writer")
+        self._prepared_close = None
+
+    def abandon(self, deadline: float | None) -> None:
+        """Close an unsealed stream while retaining every already-written evidence byte."""
+
+        expired = deadline is not None and self._clock.monotonic() >= deadline
+        self._prepared_close = None
         self._closed = True
-        self._events_sha256 = self._digest.hexdigest()
-        self._events_size_bytes = self._size_bytes
+        self._stream.close()
+        if expired:
+            raise TimeoutError("capture output deadline expired")
+
+    def commit_close(
+        self,
+        prepared: PreparedCaptureClose,
+        deadline: float | None,
+    ) -> dict[str, object]:
+        """Durably append a prepared terminal row and close the event stream."""
+
+        if prepared is not self._prepared_close or self._closed:
+            raise ValueError("prepared capture close does not belong to this writer")
+        _require_deadline(deadline, self._clock.monotonic)
+        self._stream.write(prepared.row_bytes)
+        _require_deadline(deadline, self._clock.monotonic)
+        self._stream.flush()
+        _require_deadline(deadline, self._clock.monotonic)
+        os.fsync(self._stream.fileno())
+        self._digest.update(prepared.row_bytes)
+        self._size_bytes = prepared.events_size_bytes
+        self._sequence += 1
+        self._last_elapsed_seconds = cast(float, prepared.document["elapsed_seconds"])
+        self._closed = True
+        self._events_sha256 = prepared.events_sha256
+        self._events_size_bytes = prepared.events_size_bytes
+        self._prepared_close = None
         finalization_error: BaseException | None = None
         try:
+            _require_deadline(deadline, self._clock.monotonic)
             self._stream.flush()
+            _require_deadline(deadline, self._clock.monotonic)
             os.fsync(self._stream.fileno())
         except BaseException as exc:
             finalization_error = exc
         try:
+            _require_deadline(deadline, self._clock.monotonic)
             self._stream.close()
         except BaseException as exc:
             if finalization_error is None:
                 finalization_error = exc
         if finalization_error is not None:
             raise finalization_error
-        return result
+        return prepared.document
+
+    def close(self, payload: TerminalCaptureInput) -> dict[str, object]:
+        """Append one terminal row, flush/fsync, and expose the complete hash."""
+
+        prepared = self.prepare_close(payload, deadline=None)
+        return self.commit_close(prepared, deadline=None)
 
 
 class AtomicStatusWriter:
@@ -205,6 +298,7 @@ class AtomicStatusWriter:
     def __init__(self, path: Path) -> None:
         self._path = path
         self._previous: StatusDocument | None = None
+        self._prepared: PreparedStatus | None = None
 
     def _validate_transition(self, document: StatusDocument) -> None:
         previous = self._previous
@@ -229,24 +323,76 @@ class AtomicStatusWriter:
             if document.current_attempt <= previous.current_attempt:
                 raise ValueError("repeated connection status must strictly increment current_attempt")
 
-    def write(self, document: StatusDocument) -> None:
-        """Validate and atomically publish one canonical status document."""
+    def prepare(
+        self,
+        document: StatusDocument,
+        deadline: float | None,
+        clock: DeadlineClock = time.monotonic,
+    ) -> PreparedStatus:
+        """Validate and durably stage one status without replacing the published file."""
 
+        if self._prepared is not None:
+            raise ValueError("a status document is already prepared")
+        _require_deadline(deadline, clock)
         validated = _STATUS_ADAPTER.validate_python(document.model_dump(mode="python"))
         self._validate_transition(validated)
         payload = cast(dict[str, object], validated.model_dump(mode="python"))
         status_bytes = _json_bytes(payload)
         temporary = self._path.with_name(f".{self._path.name}.{os.getpid()}.{secrets.token_hex(8)}.tmp")
         try:
+            _require_deadline(deadline, clock)
             with temporary.open("xb") as stream:
+                _require_deadline(deadline, clock)
                 stream.write(status_bytes)
+                _require_deadline(deadline, clock)
                 stream.flush()
+                _require_deadline(deadline, clock)
                 os.fsync(stream.fileno())
-            os.replace(temporary, self._path)
         except BaseException:
             temporary.unlink(missing_ok=True)
             raise
-        self._previous = validated
+        prepared = PreparedStatus(document=validated, temporary_path=temporary)
+        self._prepared = prepared
+        return prepared
+
+    def commit(
+        self,
+        prepared: PreparedStatus,
+        deadline: float | None,
+        clock: DeadlineClock = time.monotonic,
+    ) -> None:
+        """Atomically publish a previously prepared status document."""
+
+        if prepared is not self._prepared:
+            raise ValueError("prepared status does not belong to this writer")
+        try:
+            _require_deadline(deadline, clock)
+            os.replace(prepared.temporary_path, self._path)
+        except BaseException:
+            prepared.temporary_path.unlink(missing_ok=True)
+            self._prepared = None
+            raise
+        self._previous = prepared.document
+        self._prepared = None
+
+    def abort(self, prepared: PreparedStatus) -> None:
+        """Remove an unpublished prepared status document."""
+
+        if prepared is not self._prepared:
+            raise ValueError("prepared status does not belong to this writer")
+        prepared.temporary_path.unlink(missing_ok=True)
+        self._prepared = None
+
+    def write(
+        self,
+        document: StatusDocument,
+        deadline: float | None = None,
+        clock: DeadlineClock = time.monotonic,
+    ) -> None:
+        """Validate and atomically publish one canonical status document."""
+
+        prepared = self.prepare(document, deadline=deadline, clock=clock)
+        self.commit(prepared, deadline=deadline, clock=clock)
 
 
 def _run_git(args: list[str]) -> subprocess.CompletedProcess[str]:

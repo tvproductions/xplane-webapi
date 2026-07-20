@@ -332,6 +332,43 @@ class AtomicStatusWriterTests(unittest.TestCase):
         self.assertEqual([self.status_path.name], [path.name for path in self.status_path.parent.iterdir()])
         self.assertTrue(self.status_path.read_bytes().endswith(b"\n"))
 
+    def test_terminal_status_can_be_prepared_without_replacing_then_committed(self) -> None:
+        writer = AtomicStatusWriter(self.status_path)
+        for state in (
+            "starting",
+            "connecting",
+            "transport_ready",
+            "awaiting_aircraft",
+            "subscribing",
+            "awaiting_first_values",
+            "aircraft_ready",
+            "capturing",
+            "finalizing",
+        ):
+            writer.write(status_document(state))
+        before = self.status_path.read_bytes()
+
+        prepared = writer.prepare(status_document("complete"), deadline=10.0, clock=lambda: 0.0)
+
+        self.assertEqual(before, self.status_path.read_bytes())
+        self.assertTrue(prepared.temporary_path.exists())
+        writer.commit(prepared, deadline=10.0, clock=lambda: 0.0)
+        self.assertEqual("complete", json.loads(self.status_path.read_text(encoding="utf-8"))["state"])
+        self.assertFalse(prepared.temporary_path.exists())
+
+    def test_status_prepare_and_commit_honor_deadline_and_abort_cleans_temp(self) -> None:
+        writer = AtomicStatusWriter(self.status_path)
+        writer.write(status_document("starting"))
+        before = self.status_path.read_bytes()
+        with self.assertRaises(TimeoutError):
+            writer.prepare(status_document("connecting"), deadline=0.0, clock=lambda: 0.0)
+        self.assertEqual(before, self.status_path.read_bytes())
+
+        prepared = writer.prepare(status_document("connecting"), deadline=10.0, clock=lambda: 0.0)
+        writer.abort(prepared)
+        self.assertFalse(prepared.temporary_path.exists())
+        self.assertEqual(before, self.status_path.read_bytes())
+
 
 if __name__ == "__main__":
     unittest.main()

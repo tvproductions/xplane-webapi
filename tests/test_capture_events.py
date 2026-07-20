@@ -512,6 +512,31 @@ class CaptureEventWriterTests(unittest.TestCase):
         self.assertEqual(hashlib.sha256(file_bytes).hexdigest(), writer.events_sha256)
         self.assertEqual(len(file_bytes), writer.events_size_bytes)
 
+    def test_terminal_close_preparation_is_nonmutating_and_commits_projected_identity(self) -> None:
+        writer = CaptureEventWriter(self.events_path, self.identity, self.clock)
+        writer.write(CaptureStartedInput.model_validate(input_payloads()[0][1]))
+        before = self.events_path.read_bytes()
+        terminal_input = CaptureStoppedInput.model_validate(input_payloads()[9][1])
+
+        prepared = writer.prepare_close(terminal_input, deadline=100.0)
+
+        self.assertEqual(before, self.events_path.read_bytes())
+        self.assertEqual(hashlib.sha256(before + prepared.row_bytes).hexdigest(), prepared.events_sha256)
+        self.assertEqual(len(before + prepared.row_bytes), prepared.events_size_bytes)
+        terminal = writer.commit_close(prepared, deadline=100.0)
+        self.assertEqual("capture_stopped", terminal["event"])
+        self.assertEqual(prepared.events_sha256, writer.events_sha256)
+        self.assertEqual(prepared.events_size_bytes, writer.events_size_bytes)
+
+    def test_terminal_preparation_rejects_expired_deadline_without_mutation(self) -> None:
+        writer = CaptureEventWriter(self.events_path, self.identity, self.clock)
+        self.addCleanup(writer.abandon, 100.0)
+        writer.write(CaptureStartedInput.model_validate(input_payloads()[0][1]))
+        before = self.events_path.read_bytes()
+        with self.assertRaises(TimeoutError):
+            writer.prepare_close(CaptureFailedInput.model_validate(input_payloads()[10][1]), deadline=0.0)
+        self.assertEqual(before, self.events_path.read_bytes())
+
     def test_writer_rejects_nan_without_appending_and_cannot_write_after_close(self) -> None:
         writer = CaptureEventWriter(self.events_path, self.identity, self.clock)
         good = writer.write(CaptureStartedInput.model_validate(input_payloads()[0][1]))
