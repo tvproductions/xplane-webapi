@@ -229,7 +229,7 @@ class CaptureEventWriter:
         self._prepared_close = None
         self._closed = True
         self._stream.close()
-        if expired:
+        if expired or (deadline is not None and self._clock.monotonic() >= deadline):
             raise TimeoutError("capture output deadline expired")
 
     def commit_close(
@@ -242,11 +242,20 @@ class CaptureEventWriter:
         if prepared is not self._prepared_close or self._closed:
             raise ValueError("prepared capture close does not belong to this writer")
         _require_deadline(deadline, self._clock.monotonic)
-        self._stream.write(prepared.row_bytes)
-        _require_deadline(deadline, self._clock.monotonic)
-        self._stream.flush()
-        _require_deadline(deadline, self._clock.monotonic)
-        os.fsync(self._stream.fileno())
+        try:
+            written = self._stream.write(prepared.row_bytes)
+        except BaseException:
+            self._prepared_close = None
+            self._closed = True
+            self._stream.close()
+            raise
+        if written != len(prepared.row_bytes):
+            self._prepared_close = None
+            self._closed = True
+            self._stream.close()
+            raise OSError(f"incomplete terminal event write: {written} of {len(prepared.row_bytes)} bytes")
+
+        # A complete canonical terminal row is the immutable JSONL commit point.
         self._digest.update(prepared.row_bytes)
         self._size_bytes = prepared.events_size_bytes
         self._sequence += 1
@@ -261,11 +270,16 @@ class CaptureEventWriter:
             self._stream.flush()
             _require_deadline(deadline, self._clock.monotonic)
             os.fsync(self._stream.fileno())
+            _require_deadline(deadline, self._clock.monotonic)
+            self._stream.flush()
+            _require_deadline(deadline, self._clock.monotonic)
+            os.fsync(self._stream.fileno())
+            _require_deadline(deadline, self._clock.monotonic)
         except BaseException as exc:
             finalization_error = exc
         try:
-            _require_deadline(deadline, self._clock.monotonic)
             self._stream.close()
+            _require_deadline(deadline, self._clock.monotonic)
         except BaseException as exc:
             if finalization_error is None:
                 finalization_error = exc
@@ -343,11 +357,15 @@ class AtomicStatusWriter:
             _require_deadline(deadline, clock)
             with temporary.open("xb") as stream:
                 _require_deadline(deadline, clock)
-                stream.write(status_bytes)
+                written = stream.write(status_bytes)
+                if written != len(status_bytes):
+                    raise OSError(f"incomplete status write: {written} of {len(status_bytes)} bytes")
                 _require_deadline(deadline, clock)
                 stream.flush()
                 _require_deadline(deadline, clock)
                 os.fsync(stream.fileno())
+                _require_deadline(deadline, clock)
+            _require_deadline(deadline, clock)
         except BaseException:
             temporary.unlink(missing_ok=True)
             raise
@@ -368,20 +386,29 @@ class AtomicStatusWriter:
         try:
             _require_deadline(deadline, clock)
             os.replace(prepared.temporary_path, self._path)
+            self._previous = prepared.document
+            self._prepared = None
+            _require_deadline(deadline, clock)
         except BaseException:
             prepared.temporary_path.unlink(missing_ok=True)
             self._prepared = None
             raise
-        self._previous = prepared.document
-        self._prepared = None
 
-    def abort(self, prepared: PreparedStatus) -> None:
+    def abort(
+        self,
+        prepared: PreparedStatus,
+        deadline: float | None = None,
+        clock: DeadlineClock = time.monotonic,
+    ) -> None:
         """Remove an unpublished prepared status document."""
 
         if prepared is not self._prepared:
             raise ValueError("prepared status does not belong to this writer")
+        expired = deadline is not None and clock() >= deadline
         prepared.temporary_path.unlink(missing_ok=True)
         self._prepared = None
+        if expired or (deadline is not None and clock() >= deadline):
+            raise TimeoutError("capture output deadline expired")
 
     def write(
         self,

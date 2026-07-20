@@ -770,10 +770,15 @@ class NonterminalStatus(StatusBase):
     @model_validator(mode="after")
     def _validate_readiness(self) -> "NonterminalStatus":
         before_transport = {"starting", "connecting"}
-        after_aircraft = {"aircraft_ready", "capturing", "finalizing"}
+        after_aircraft = {"aircraft_ready", "capturing"}
         if self.state in before_transport:
             if self.connection_generation != 0 or self.transport_ready_at_utc is not None:
                 raise ValueError("transport readiness is unavailable before transport_ready")
+        elif self.state == "finalizing":
+            if (self.connection_generation == 0) != (self.transport_ready_at_utc is None):
+                raise ValueError("finalizing status must preserve the reached transport readiness latch")
+            if self.aircraft_ready_at_utc is not None and self.transport_ready_at_utc is None:
+                raise ValueError("aircraft readiness requires transport readiness")
         elif self.connection_generation < 1 or self.transport_ready_at_utc is None:
             raise ValueError("transport-ready states require a positive generation and readiness timestamp")
         if self.state in after_aircraft and self.aircraft_ready_at_utc is None:
@@ -811,8 +816,14 @@ class CompleteStatus(_TerminalStatus):
 
     @model_validator(mode="after")
     def _validate_readiness(self) -> "CompleteStatus":
-        if self.transport_ready_at_utc is None or self.aircraft_ready_at_utc is None or self.connection_generation < 1:
+        if self.reason in {"capture_limit", "groups_complete"} and (
+            self.transport_ready_at_utc is None or self.aircraft_ready_at_utc is None or self.connection_generation < 1
+        ):
             raise ValueError("complete status requires both readiness latches")
+        if (self.connection_generation == 0) != (self.transport_ready_at_utc is None):
+            raise ValueError("complete status must preserve the reached transport readiness latch")
+        if self.aircraft_ready_at_utc is not None and self.transport_ready_at_utc is None:
+            raise ValueError("aircraft readiness requires transport readiness")
         return self
 
 
@@ -870,15 +881,15 @@ class VersionJsonDocument(StrictModel):
 
 
 LEGAL_STATUS_TRANSITIONS: dict[str, frozenset[str]] = {
-    "starting": frozenset({"connecting", "failed", "interrupted"}),
-    "connecting": frozenset({"connecting", "transport_ready", "failed", "interrupted"}),
-    "transport_ready": frozenset({"awaiting_aircraft", "failed", "interrupted"}),
-    "awaiting_aircraft": frozenset({"subscribing", "reconnecting", "failed", "interrupted"}),
-    "subscribing": frozenset({"awaiting_first_values", "reconnecting", "failed", "interrupted"}),
-    "awaiting_first_values": frozenset({"aircraft_ready", "reconnecting", "failed", "interrupted"}),
+    "starting": frozenset({"connecting", "finalizing", "failed", "interrupted"}),
+    "connecting": frozenset({"connecting", "transport_ready", "finalizing", "failed", "interrupted"}),
+    "transport_ready": frozenset({"awaiting_aircraft", "finalizing", "failed", "interrupted"}),
+    "awaiting_aircraft": frozenset({"subscribing", "reconnecting", "finalizing", "failed", "interrupted"}),
+    "subscribing": frozenset({"awaiting_first_values", "reconnecting", "finalizing", "failed", "interrupted"}),
+    "awaiting_first_values": frozenset({"aircraft_ready", "reconnecting", "finalizing", "failed", "interrupted"}),
     "aircraft_ready": frozenset({"capturing", "finalizing", "failed", "interrupted"}),
     "capturing": frozenset({"reconnecting", "finalizing", "failed", "interrupted"}),
-    "reconnecting": frozenset({"reconnecting", "transport_ready", "failed", "interrupted"}),
+    "reconnecting": frozenset({"reconnecting", "transport_ready", "finalizing", "failed", "interrupted"}),
     "finalizing": frozenset({"complete", "failed", "interrupted"}),
     "complete": frozenset(),
     "failed": frozenset(),

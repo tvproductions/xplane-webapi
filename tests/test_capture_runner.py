@@ -66,6 +66,7 @@ class FakeTransport:
         advance_on_capture: float = 0.0,
         liveness_override: Literal["connected", "awaiting_first_identity_packet", "disconnected"] | None = None,
         on_subscribe: Any | None = None,
+        on_open: Any | None = None,
         disconnect_on_subscribe: Literal["aircraft_identity", "capture"] | None = None,
     ) -> None:
         self.clock = clock
@@ -81,6 +82,7 @@ class FakeTransport:
         self.advance_on_capture = advance_on_capture
         self.liveness_override = liveness_override
         self.on_subscribe = on_subscribe
+        self.on_open = on_open
         self.disconnect_on_subscribe = disconnect_on_subscribe
         self._connected = False
         self.connected_checks = 0
@@ -106,6 +108,8 @@ class FakeTransport:
         self.log.append("open")
         self.deadlines.append(deadline)
         self.clock.now += self.open_advance
+        if self.on_open is not None:
+            self.on_open()
         if self.open_error is not None:
             raise self.open_error
         self._connected = True
@@ -215,8 +219,9 @@ class RecordingStatusWriter:
         self.log.append(f"status:{prepared.document.state}")
         self.documents.append(prepared.document)
 
-    def abort(self, prepared: Any) -> None:
-        self.writer.abort(prepared)
+    def abort(self, prepared: Any, deadline: float | None = None, clock: Any | None = None) -> None:
+        kwargs = {} if clock is None else {"clock": clock}
+        self.writer.abort(prepared, deadline=deadline, **kwargs)
 
 
 class FaultingEventWriter:
@@ -626,7 +631,7 @@ class CaptureRunnerTests(unittest.TestCase):
         status_documents = json.loads(self.status.read_text(encoding="utf-8"))
         self.assertIsNotNone(status_documents["transport_ready_at_utc"])
         self.assertIsNotNone(status_documents["aircraft_ready_at_utc"])
-        self.assertNotIn("disconnected", {row.get("status") for row in self.rows() if row["event"] == "sample"})
+        self.assertIn("disconnected", {row.get("status") for row in self.rows() if row["event"] == "sample"})
         sampled_values = [row["value"] for row in self.rows() if row["event"] == "sample" and row["status"] == "sampled"]
         self.assertIn(2.0, sampled_values)
 
@@ -738,6 +743,107 @@ class CaptureRunnerTests(unittest.TestCase):
                 else:
                     self.assertEqual(case, outcome.termination)
                     self.assertEqual(0, outcome.exit_code)
+
+    def test_preexisting_requested_and_stop_file_terminate_before_transport_factory(self) -> None:
+        for index, termination in enumerate(("requested", "stop_file")):
+            with self.subTest(termination=termination):
+                self.events = self.root / f"pre-ready-{index}.jsonl"
+                self.status = self.root / f"pre-ready-{index}.json"
+                clock = FakeClock()
+                log: list[str] = []
+                stop_file = self.root / f"pre-ready-{index}.stop"
+                stop_event = threading.Event()
+                if termination == "requested":
+                    stop_event.set()
+                else:
+                    stop_file.touch()
+                runner, _ = self.build(
+                    make_request(),
+                    [FakeTransport(clock, log)],
+                    clock,
+                    stop_file=stop_file if termination == "stop_file" else None,
+                    log=log,
+                )
+
+                outcome = runner.run(stop_event, threading.Event())
+
+                self.assertEqual("complete", outcome.terminal_state)
+                self.assertEqual(termination, outcome.termination)
+                self.assertTrue(outcome.clean_shutdown)
+                self.assertNotIn("factory", log)
+                self.assertEqual(["capture_started", "capture_stopped"], [row["event"] for row in self.rows()])
+                self.assertEqual("complete", json.loads(self.status.read_text(encoding="utf-8"))["state"])
+
+    def test_requested_stop_is_observed_in_retry_identity_and_first_value_waits(self) -> None:
+        for index, phase in enumerate(("open", "retry", "identity", "first_values")):
+            with self.subTest(phase=phase):
+                self.events = self.root / f"wait-stop-{index}.jsonl"
+                self.status = self.root / f"wait-stop-{index}.json"
+                stop_event = threading.Event()
+                clock = FakeClock(on_wait=lambda _event: stop_event.set())
+                log: list[str] = []
+                if phase == "open":
+                    first = FakeTransport(clock, log, on_open=stop_event.set)
+                elif phase == "retry":
+                    first = FakeTransport(clock, log, open_error=ConnectionError("retry"))
+                elif phase == "first_values":
+                    first = FakeTransport(clock, log, observations={"aircraft": "Q4XP"})
+                else:
+                    first = FakeTransport(clock, log)
+                transports = [first]
+                if phase == "retry":
+                    transports.append(FakeTransport(clock, log, observations={"aircraft": "Q4XP", "speed": 1.0}))
+                runner, _ = self.build(make_request(), transports, clock, log=log)
+
+                outcome = runner.run(stop_event, threading.Event())
+
+                self.assertEqual("complete", outcome.terminal_state)
+                self.assertEqual("requested", outcome.termination)
+                self.assertTrue(outcome.clean_shutdown)
+                self.assertEqual(1, log.count("factory"))
+                self.assertEqual("capture_stopped", self.rows()[-1]["event"])
+
+    def test_stop_file_created_during_first_value_wait_completes_cleanly(self) -> None:
+        stop_file = self.root / "during-first-values.stop"
+        clock = FakeClock(on_wait=lambda _event: stop_file.touch())
+        transport = FakeTransport(clock, [], observations={"aircraft": "Q4XP"})
+        runner, _ = self.build(make_request(), [transport], clock, stop_file=stop_file)
+
+        outcome = runner.run(threading.Event(), threading.Event())
+
+        self.assertEqual("complete", outcome.terminal_state)
+        self.assertEqual("stop_file", outcome.termination)
+        self.assertTrue(outcome.clean_shutdown)
+        self.assertEqual("capture_stopped", self.rows()[-1]["event"])
+
+    def test_reconnect_samples_only_due_disconnected_slots_without_burst(self) -> None:
+        clock = FakeClock()
+        request = make_request(
+            groups=({"id": "fast", "rate_hz": 10.0, "duration_seconds": 0.5},),
+            retry={
+                "reconnect_attempts": 3,
+                "backoff_seconds": 0.25,
+                "backoff_max_seconds": 0.25,
+                "max_disconnect_seconds": 0.5,
+                "poll_interval_seconds": 0.01,
+            },
+        )
+        first = FakeTransport(
+            clock,
+            [],
+            observations={"aircraft": "Q4XP", "speed": 1.0},
+            disconnect_after_checks=4,
+        )
+        failed = FakeTransport(clock, [], open_error=ConnectionError("retry"))
+        recovered = FakeTransport(clock, [], observations={"aircraft": "Q4XP", "speed": 2.0})
+
+        outcome = self.build(request, [first, failed, recovered], clock)[0].run(threading.Event(), threading.Event())
+
+        disconnected = [row for row in self.rows() if row["event"] == "sample" and row["status"] == "disconnected"]
+        self.assertEqual(2, len(disconnected))
+        self.assertEqual([0.1, 0.2], [round(cast(float, row["elapsed_seconds"]), 1) for row in disconnected])
+        self.assertEqual(2, len({row["elapsed_seconds"] for row in disconnected}))
+        self.assertEqual("complete", outcome.terminal_state)
 
     def test_sigterm_is_preserved_in_event_status_and_outcome(self) -> None:
         clock = FakeClock()

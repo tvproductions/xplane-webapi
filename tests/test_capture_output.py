@@ -23,6 +23,14 @@ from xpwebapi.capture_output import AtomicStatusWriter
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
+class ManualClock:
+    def __init__(self) -> None:
+        self.now = 0.0
+
+    def __call__(self) -> float:
+        return self.now
+
+
 def counters_payload() -> dict[str, int]:
     return {
         "sample_count": 0,
@@ -137,15 +145,15 @@ class StatusModelTests(unittest.TestCase):
         )
         self.assertEqual(
             {
-                "starting": frozenset({"connecting", "failed", "interrupted"}),
-                "connecting": frozenset({"connecting", "transport_ready", "failed", "interrupted"}),
-                "transport_ready": frozenset({"awaiting_aircraft", "failed", "interrupted"}),
-                "awaiting_aircraft": frozenset({"subscribing", "reconnecting", "failed", "interrupted"}),
-                "subscribing": frozenset({"awaiting_first_values", "reconnecting", "failed", "interrupted"}),
-                "awaiting_first_values": frozenset({"aircraft_ready", "reconnecting", "failed", "interrupted"}),
+                "starting": frozenset({"connecting", "finalizing", "failed", "interrupted"}),
+                "connecting": frozenset({"connecting", "transport_ready", "finalizing", "failed", "interrupted"}),
+                "transport_ready": frozenset({"awaiting_aircraft", "finalizing", "failed", "interrupted"}),
+                "awaiting_aircraft": frozenset({"subscribing", "reconnecting", "finalizing", "failed", "interrupted"}),
+                "subscribing": frozenset({"awaiting_first_values", "reconnecting", "finalizing", "failed", "interrupted"}),
+                "awaiting_first_values": frozenset({"aircraft_ready", "reconnecting", "finalizing", "failed", "interrupted"}),
                 "aircraft_ready": frozenset({"capturing", "finalizing", "failed", "interrupted"}),
                 "capturing": frozenset({"reconnecting", "finalizing", "failed", "interrupted"}),
-                "reconnecting": frozenset({"reconnecting", "transport_ready", "failed", "interrupted"}),
+                "reconnecting": frozenset({"reconnecting", "transport_ready", "finalizing", "failed", "interrupted"}),
                 "finalizing": frozenset({"complete", "failed", "interrupted"}),
                 "complete": frozenset(),
                 "failed": frozenset(),
@@ -368,6 +376,48 @@ class AtomicStatusWriterTests(unittest.TestCase):
         writer.abort(prepared)
         self.assertFalse(prepared.temporary_path.exists())
         self.assertEqual(before, self.status_path.read_bytes())
+
+    def test_status_prepare_checks_deadline_after_fsync_and_cleans_temp(self) -> None:
+        writer = AtomicStatusWriter(self.status_path)
+        writer.write(status_document("starting"))
+        clock = ManualClock()
+        real_fsync = os.fsync
+
+        def advancing_fsync(file_descriptor: int) -> None:
+            real_fsync(file_descriptor)
+            clock.now = 10.0
+
+        with patch("xpwebapi.capture_output.os.fsync", side_effect=advancing_fsync), self.assertRaises(TimeoutError):
+            writer.prepare(status_document("connecting"), deadline=10.0, clock=clock)
+        self.assertEqual([self.status_path.name], [path.name for path in self.status_path.parent.iterdir()])
+
+    def test_status_commit_checks_deadline_after_successful_replace(self) -> None:
+        writer = AtomicStatusWriter(self.status_path)
+        writer.write(status_document("starting"))
+        clock = ManualClock()
+        prepared = writer.prepare(status_document("connecting"), deadline=10.0, clock=clock)
+        real_replace = os.replace
+
+        def advancing_replace(source: str | os.PathLike[str], destination: str | os.PathLike[str]) -> None:
+            real_replace(source, destination)
+            clock.now = 10.0
+
+        with patch("xpwebapi.capture_output.os.replace", side_effect=advancing_replace), self.assertRaises(TimeoutError):
+            writer.commit(prepared, deadline=10.0, clock=clock)
+        self.assertEqual("connecting", json.loads(self.status_path.read_text(encoding="utf-8"))["state"])
+        self.assertFalse(prepared.temporary_path.exists())
+
+    def test_expired_status_abort_still_removes_temporary_file(self) -> None:
+        writer = AtomicStatusWriter(self.status_path)
+        writer.write(status_document("starting"))
+        clock = ManualClock()
+        prepared = writer.prepare(status_document("connecting"), deadline=10.0, clock=clock)
+        clock.now = 10.0
+
+        with self.assertRaises(TimeoutError):
+            writer.abort(prepared, deadline=10.0, clock=clock)
+
+        self.assertFalse(prepared.temporary_path.exists())
 
 
 if __name__ == "__main__":

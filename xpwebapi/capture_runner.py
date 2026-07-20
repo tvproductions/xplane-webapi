@@ -126,6 +126,7 @@ class _GroupSchedule:
 @dataclass(slots=True)
 class _RunState:
     started_monotonic: float
+    finished: bool = False
     terminal_state: TerminalState = "failed"
     termination: str = "runtime_failure"
     reason: str | None = None
@@ -395,12 +396,11 @@ class CaptureRunner:
         )
         return delay
 
-    def _initial_connect(self, interrupted_event: threading.Event) -> None:
+    def _initial_connect(self, stop_event: threading.Event, interrupted_event: threading.Event) -> None:
         maximum = self._request.retry.initial_attempts
         last_error = "initial connection failed"
         for attempt in range(1, maximum + 1):
-            if interrupted_event.is_set():
-                self._interrupt()
+            if self._observe_termination(stop_event, interrupted_event):
                 return
             self._state.attempt_phase = "initial_connect"
             self._state.current_attempt = attempt
@@ -413,10 +413,15 @@ class CaptureRunner:
             except BaseException as exc:
                 last_error = _error_text(exc)
                 self._best_effort_attempt_close(deadline)
+                if self._observe_termination(stop_event, interrupted_event):
+                    return
                 delay = self._emit_retry("initial_connect", attempt, maximum, last_error)
                 if attempt < maximum:
-                    self._clock.wait(interrupted_event, delay)
+                    if self._wait_for_termination(stop_event, interrupted_event, delay):
+                        return
                 continue
+            if self._observe_termination(stop_event, interrupted_event):
+                return
             self._connected_milestone(attempt)
             return
         raise _CaptureFailure(f"initial_connect_exhausted: {last_error}")
@@ -508,10 +513,17 @@ class CaptureRunner:
         self._state.matched_identity_ref_count = len(result)
         return tuple(result)
 
-    def _wait_until(self, deadline: float, predicate: Callable[[], bool], interrupted_event: threading.Event) -> bool:
+    def _wait_until(
+        self,
+        deadline: float,
+        predicate: Callable[[], bool],
+        stop_event: threading.Event,
+        interrupted_event: threading.Event,
+        *,
+        sample_disconnected: bool = False,
+    ) -> bool:
         while True:
-            if interrupted_event.is_set():
-                self._interrupt()
+            if self._observe_termination(stop_event, interrupted_event):
                 return False
             if self._transport is None or self._transport.liveness_state == "disconnected":
                 raise _RetryableDisconnect("transport disconnected during readiness")
@@ -520,13 +532,22 @@ class CaptureRunner:
             remaining = deadline - self._clock.monotonic()
             if remaining <= 0:
                 return False
-            self._clock.wait(interrupted_event, min(self._request.retry.poll_interval_seconds, remaining))
+            self._clock.wait(stop_event, min(self._request.retry.poll_interval_seconds, remaining))
+            if sample_disconnected:
+                self._sample_due(self._clock.monotonic(), disconnected=True)
 
     def _bounded_deadline(self, duration: float, owning_deadline: float | None) -> float:
         deadline = self._clock.monotonic() + duration
         return deadline if owning_deadline is None else min(deadline, owning_deadline)
 
-    def _establish_aircraft(self, interrupted_event: threading.Event, owning_deadline: float | None = None) -> None:
+    def _establish_aircraft(
+        self,
+        stop_event: threading.Event,
+        interrupted_event: threading.Event,
+        owning_deadline: float | None = None,
+        *,
+        sample_disconnected: bool = False,
+    ) -> None:
         identity_deadline = self._bounded_deadline(
             self._request.retry.aircraft_identity_timeout_seconds,
             owning_deadline,
@@ -539,12 +560,22 @@ class CaptureRunner:
                 self._bounded_deadline(self._request.retry.subscription_timeout_seconds, owning_deadline),
             ),
         )
+        if sample_disconnected:
+            self._sample_due(self._clock.monotonic(), disconnected=True)
+        if self._observe_termination(stop_event, interrupted_event):
+            return
         if identity_result.rejected:
             raise _CaptureFailure("aircraft_identity_subscription_rejected")
         if self._transport is not None:
             self._state.transport_connection_state = self._transport.liveness_state
-        if not self._wait_until(identity_deadline, lambda: self._identity_observations() is not None, interrupted_event):
-            if self._state.terminal_state == "interrupted":
+        if not self._wait_until(
+            identity_deadline,
+            lambda: self._identity_observations() is not None,
+            stop_event,
+            interrupted_event,
+            sample_disconnected=sample_disconnected,
+        ):
+            if self._state.finished:
                 return
             raise _CaptureFailure("aircraft_identity_timeout")
 
@@ -555,6 +586,10 @@ class CaptureRunner:
             owning_deadline,
         )
         result = self._subscribe(self._request.refs, "capture", capture_deadline)
+        if sample_disconnected:
+            self._sample_due(self._clock.monotonic(), disconnected=True)
+        if self._observe_termination(stop_event, interrupted_event):
+            return
         required_ids = {ref.id for ref in self._request.refs if ref.availability == "required"}
         rejected_required = required_ids.intersection(result.rejected)
         if rejected_required:
@@ -579,8 +614,14 @@ class CaptureRunner:
             self._state.observed_required_ref_count = len(observed)
             return observed == required_ids
 
-        if not self._wait_until(first_values_deadline, required_values_ready, interrupted_event):
-            if self._state.terminal_state == "interrupted":
+        if not self._wait_until(
+            first_values_deadline,
+            required_values_ready,
+            stop_event,
+            interrupted_event,
+            sample_disconnected=sample_disconnected,
+        ):
+            if self._state.finished:
                 return
             raise _CaptureFailure("first_values_timeout")
         self._aircraft_ready(result)
@@ -703,7 +744,7 @@ class CaptureRunner:
         )
         self._state.gap_count += 1
 
-    def _sample_due(self, now: float) -> None:
+    def _sample_due(self, now: float, *, disconnected: bool = False) -> None:
         for schedule in self._active_schedules(now):
             if now < schedule.next_deadline:
                 continue
@@ -712,13 +753,20 @@ class CaptureRunner:
                 if skipped:
                     self._write_cadence_gap(schedule, now, skipped)
                     schedule.next_deadline += skipped * schedule.interval
-            self._write_sample_group(schedule, now)
+            self._write_sample_group(schedule, now, disconnected=disconnected)
             schedule.next_deadline += schedule.interval
 
     def _identity_is_fresh(self) -> bool:
         return self._identity_observations() is not None
 
-    def _termination(self, stop_event: threading.Event, interrupted_event: threading.Event, now: float) -> tuple[TerminalState, str] | None:
+    def _termination(
+        self,
+        stop_event: threading.Event,
+        interrupted_event: threading.Event,
+        now: float,
+        *,
+        allow_groups_complete: bool,
+    ) -> tuple[TerminalState, str] | None:
         if interrupted_event.is_set():
             return "interrupted", self._interruption_name()
         if self._stop_file is not None and self._stop_file.exists():
@@ -729,9 +777,48 @@ class CaptureRunner:
         if ready is not None and self._request.capture_limit_seconds is not None:
             if now - ready >= self._request.capture_limit_seconds:
                 return "complete", "capture_limit"
-        if ready is not None and not self._active_schedules(now):
+        if allow_groups_complete and ready is not None and not self._active_schedules(now):
             return "complete", "groups_complete"
         return None
+
+    def _observe_termination(
+        self,
+        stop_event: threading.Event,
+        interrupted_event: threading.Event,
+        *,
+        allow_groups_complete: bool = False,
+    ) -> bool:
+        terminal = self._termination(
+            stop_event,
+            interrupted_event,
+            self._clock.monotonic(),
+            allow_groups_complete=allow_groups_complete,
+        )
+        if terminal is None:
+            return False
+        self._state.terminal_state, self._state.termination = terminal
+        self._state.reason = None if terminal[0] == "complete" else terminal[1]
+        self._state.finished = True
+        return True
+
+    def _wait_for_termination(
+        self,
+        stop_event: threading.Event,
+        interrupted_event: threading.Event,
+        duration: float,
+        *,
+        sample_disconnected: bool = False,
+    ) -> bool:
+        deadline = self._clock.monotonic() + duration
+        while True:
+            if self._observe_termination(stop_event, interrupted_event):
+                return True
+            remaining = deadline - self._clock.monotonic()
+            if remaining <= 0:
+                return False
+            self._clock.wait(stop_event, min(self._request.retry.poll_interval_seconds, remaining))
+            if sample_disconnected:
+                self._sample_due(self._clock.monotonic(), disconnected=True)
 
     def _next_wait(self, now: float) -> float:
         deadlines = [now + self._request.retry.poll_interval_seconds]
@@ -747,17 +834,14 @@ class CaptureRunner:
     def _capture_loop(self, stop_event: threading.Event, interrupted_event: threading.Event) -> None:
         while True:
             now = self._clock.monotonic()
-            terminal = self._termination(stop_event, interrupted_event, now)
-            if terminal is not None:
-                self._state.terminal_state, self._state.termination = terminal
-                self._state.reason = None if terminal[0] == "complete" else terminal[1]
+            if self._observe_termination(stop_event, interrupted_event, allow_groups_complete=True):
                 return
             if self._transport is None:
-                self._reconnect(interrupted_event)
+                self._reconnect(stop_event, interrupted_event)
                 continue
             self._state.transport_connection_state = self._transport.liveness_state
             if self._state.transport_connection_state == "disconnected":
-                self._reconnect(interrupted_event)
+                self._reconnect(stop_event, interrupted_event)
                 continue
             if not self._identity_is_fresh():
                 raise _CaptureFailure("aircraft_identity_lost")
@@ -804,7 +888,7 @@ class CaptureRunner:
             )
         )
 
-    def _reconnect(self, interrupted_event: threading.Event) -> None:
+    def _reconnect(self, stop_event: threading.Event, interrupted_event: threading.Event) -> None:
         reason = "transport_disconnected"
         started = self._clock.monotonic()
         self._start_disconnect_gap(reason, started)
@@ -815,11 +899,11 @@ class CaptureRunner:
         self._write_status("reconnecting", reason=reason)
         disconnect_deadline = started + self._request.retry.max_disconnect_seconds
         self._best_effort_attempt_close(disconnect_deadline)
+        self._sample_due(self._clock.monotonic(), disconnected=True)
         self._clear_generation_state()
         last_error = reason
         for attempt in range(1, self._request.retry.reconnect_attempts + 1):
-            if interrupted_event.is_set():
-                self._interrupt()
+            if self._observe_termination(stop_event, interrupted_event):
                 return
             if self._clock.monotonic() >= disconnect_deadline:
                 raise _CaptureFailure(f"reconnect_disconnect_timeout: {last_error}")
@@ -832,9 +916,17 @@ class CaptureRunner:
                 self._transport = self._create_transport()
                 open_deadline = min(disconnect_deadline, self._clock.monotonic() + self._open_timeout())
                 self._capabilities = self._transport.open(open_deadline)
+                self._sample_due(self._clock.monotonic(), disconnected=True)
+                if self._observe_termination(stop_event, interrupted_event):
+                    return
                 self._connected_milestone(attempt)
-                self._establish_aircraft(interrupted_event, disconnect_deadline)
-                if self._state.terminal_state == "interrupted":
+                self._establish_aircraft(
+                    stop_event,
+                    interrupted_event,
+                    disconnect_deadline,
+                    sample_disconnected=True,
+                )
+                if self._state.finished:
                     return
             except _CaptureFailure as exc:
                 if str(exc) in {"aircraft_identity_timeout", "aircraft_identity_lost"}:
@@ -845,14 +937,22 @@ class CaptureRunner:
             except BaseException as exc:
                 last_error = _error_text(exc)
             else:
+                self._sample_due(self._clock.monotonic(), disconnected=True)
                 self._end_disconnect_gap(reason, started)
                 return
+            self._sample_due(self._clock.monotonic(), disconnected=True)
             self._best_effort_attempt_close(disconnect_deadline)
             self._clear_generation_state()
             delay = self._emit_retry("reconnect", attempt, self._request.retry.reconnect_attempts, last_error)
             remaining = disconnect_deadline - self._clock.monotonic()
             if attempt < self._request.retry.reconnect_attempts and remaining > 0:
-                self._clock.wait(interrupted_event, min(delay, remaining))
+                if self._wait_for_termination(
+                    stop_event,
+                    interrupted_event,
+                    min(delay, remaining),
+                    sample_disconnected=True,
+                ):
+                    return
         if self._clock.monotonic() >= disconnect_deadline:
             raise _CaptureFailure(f"reconnect_disconnect_timeout: {last_error}")
         raise _CaptureFailure(f"reconnect_attempts_exhausted: {last_error}")
@@ -862,6 +962,7 @@ class CaptureRunner:
         self._state.terminal_state = "interrupted"
         self._state.termination = signal
         self._state.reason = signal
+        self._state.finished = True
 
     def _interruption_name(self) -> InterruptionName:
         signal = self._interruption.get()
@@ -872,17 +973,16 @@ class CaptureRunner:
     def _execute(self, stop_event: threading.Event, interrupted_event: threading.Event) -> None:
         self._write_status("starting")
         self._write_started()
-        if interrupted_event.is_set():
-            self._interrupt()
+        if self._observe_termination(stop_event, interrupted_event):
             return
-        self._initial_connect(interrupted_event)
-        if self._state.terminal_state == "interrupted":
+        self._initial_connect(stop_event, interrupted_event)
+        if self._state.finished:
             return
         try:
-            self._establish_aircraft(interrupted_event)
+            self._establish_aircraft(stop_event, interrupted_event)
         except _RetryableDisconnect:
-            self._reconnect(interrupted_event)
-        if self._state.terminal_state == "interrupted":
+            self._reconnect(stop_event, interrupted_event)
+        if self._state.finished:
             return
         self._capture_loop(stop_event, interrupted_event)
 
@@ -963,10 +1063,15 @@ class CaptureRunner:
         self,
         event_prepared: PreparedCaptureClose | None,
         status_prepared: PreparedStatus | None,
+        deadline: float,
     ) -> None:
         if status_prepared is not None:
             try:
-                self._status_writer.abort(status_prepared)
+                self._status_writer.abort(
+                    status_prepared,
+                    deadline=deadline,
+                    clock=self._clock.monotonic,
+                )
             except BaseException:
                 pass
         if event_prepared is not None:
@@ -995,7 +1100,7 @@ class CaptureRunner:
                 )
                 return event_prepared, status_prepared
             except BaseException as exc:
-                self._abort_terminal_pair(event_prepared, status_prepared)
+                self._abort_terminal_pair(event_prepared, status_prepared, deadline)
                 self._record_cleanup_failure(_error_text(exc))
         return None
 
@@ -1020,7 +1125,7 @@ class CaptureRunner:
         try:
             self._event_writer.commit_close(event_prepared, deadline)
         except BaseException as exc:
-            self._abort_terminal_pair(None, status_prepared)
+            self._abort_terminal_pair(None, status_prepared, deadline)
             failure = _error_text(exc)
             if self._terminal_event_was_committed(event_prepared):
                 self._record_post_commit_failure(failure)
@@ -1039,7 +1144,7 @@ class CaptureRunner:
                 clock=self._clock.monotonic,
             )
         except BaseException as exc:
-            self._abort_terminal_pair(None, status_prepared)
+            self._abort_terminal_pair(None, status_prepared, deadline)
             self._record_post_commit_failure(_error_text(exc))
             return
         self._state.current_status = status_prepared.document.state
@@ -1047,7 +1152,7 @@ class CaptureRunner:
     def _finalize(self) -> None:
         shutdown_deadline = self._clock.monotonic() + self._request.retry.shutdown_timeout_seconds
         cleanup_failure: str | None = None
-        if self._state.current_status in {"aircraft_ready", "capturing"}:
+        if self._state.current_status is not None and self._state.current_status != "finalizing":
             try:
                 self._set_no_attempt()
                 self._write_status("finalizing", deadline=shutdown_deadline)

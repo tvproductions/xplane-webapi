@@ -86,6 +86,44 @@ class ScriptedClock:
         return value
 
 
+class ManualClock:
+    def __init__(self) -> None:
+        self.now = 0.0
+        self._utc = datetime(2026, 7, 19, 12, 0, tzinfo=UTC)
+
+    def monotonic(self) -> float:
+        return self.now
+
+    def utcnow(self) -> datetime:
+        return self._utc
+
+
+class DeadlineAdvancingStream:
+    def __init__(self, stream: BufferedWriter, clock: ManualClock, operation: str) -> None:
+        self._stream = stream
+        self._clock = clock
+        self._operation = operation
+
+    def write(self, value: bytes) -> int:
+        written = self._stream.write(value)
+        if self._operation == "write":
+            self._clock.now = 10.0
+        return written
+
+    def flush(self) -> None:
+        self._stream.flush()
+        if self._operation == "flush":
+            self._clock.now = 10.0
+
+    def fileno(self) -> int:
+        return self._stream.fileno()
+
+    def close(self) -> None:
+        self._stream.close()
+        if self._operation == "close":
+            self._clock.now = 10.0
+
+
 class FaultingStream:
     def __init__(self, stream: BufferedWriter, fault: str) -> None:
         self._stream = stream
@@ -536,6 +574,47 @@ class CaptureEventWriterTests(unittest.TestCase):
         with self.assertRaises(TimeoutError):
             writer.prepare_close(CaptureFailedInput.model_validate(input_payloads()[10][1]), deadline=0.0)
         self.assertEqual(before, self.events_path.read_bytes())
+
+    def test_full_terminal_write_is_commit_point_and_all_blocking_steps_check_deadline(self) -> None:
+        for operation in ("write", "flush", "fsync", "close"):
+            with self.subTest(operation=operation):
+                path = self.events_path.with_name(f"deadline-{operation}.jsonl")
+                clock = ManualClock()
+                writer = CaptureEventWriter(path, self.identity, clock)
+                real_stream = writer._stream
+                writer_for_injection: Any = writer
+                writer_for_injection._stream = DeadlineAdvancingStream(real_stream, clock, operation)
+                prepared = writer.prepare_close(
+                    CaptureStoppedInput.model_validate(input_payloads()[9][1]),
+                    deadline=10.0,
+                )
+                real_fsync = os.fsync
+
+                def advancing_fsync(file_descriptor: int) -> None:
+                    real_fsync(file_descriptor)
+                    if operation == "fsync":
+                        clock.now = 10.0
+
+                fsync_context = patch("xpwebapi.capture_output.os.fsync", side_effect=advancing_fsync)
+                with fsync_context, self.assertRaises(TimeoutError):
+                    writer.commit_close(prepared, deadline=10.0)
+
+                content = path.read_bytes()
+                self.assertEqual(prepared.events_sha256, writer.events_sha256)
+                self.assertEqual(prepared.events_size_bytes, writer.events_size_bytes)
+                self.assertEqual(hashlib.sha256(content).hexdigest(), prepared.events_sha256)
+                self.assertTrue(real_stream.closed)
+
+    def test_expired_abandon_still_closes_unsealed_stream(self) -> None:
+        clock = ManualClock()
+        writer = CaptureEventWriter(self.events_path, self.identity, clock)
+        real_stream = writer._stream
+        clock.now = 10.0
+
+        with self.assertRaises(TimeoutError):
+            writer.abandon(deadline=10.0)
+
+        self.assertTrue(real_stream.closed)
 
     def test_writer_rejects_nan_without_appending_and_cannot_write_after_close(self) -> None:
         writer = CaptureEventWriter(self.events_path, self.identity, self.clock)
