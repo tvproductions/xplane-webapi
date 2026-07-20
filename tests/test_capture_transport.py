@@ -224,6 +224,10 @@ class FakeUdpClient:
     def close(self) -> None:
         self.closed = True
 
+    def abort(self) -> None:
+        self.socket.close()
+        self.closed = True
+
     def emit(self, path: str, value: object) -> None:
         for callback in self.callbacks:
             callback(dataref=path, value=value)
@@ -541,14 +545,14 @@ class WebsocketCaptureTransportTests(unittest.TestCase):
 
         def advancing_stop(timeout_seconds: float | None = None) -> None:
             original_stop(timeout_seconds)
-            clock.now = 3.0
+            clock.now = 1.5
 
         cast(Any, client).stop = advancing_stop
         adapter.close(deadline=4.0)
         stop_event = next(event for event in client.events if isinstance(event, tuple) and event[0] == "stop")
         close_event = next(event for event in client.events if isinstance(event, tuple) and event[0] == "websocket.close.timeout")
-        self.assertEqual(4.0, stop_event[1])
-        self.assertLessEqual(cast(float, close_event[1]), 1.0)
+        self.assertEqual(2.0, stop_event[1])
+        self.assertLessEqual(cast(float, close_event[1]), 1.5)
 
     def test_blocking_websocket_shutdown_unmonitor_times_out_and_aborts(self) -> None:
         factory = WebsocketFactory(metadata={"sim/test/identity": "data"})
@@ -583,6 +587,71 @@ class WebsocketCaptureTransportTests(unittest.TestCase):
         self.assertEqual(1, client.events.count("disconnect_websocket"))
         self.assertEqual(1, client.events.count("session.close"))
         self.assertFalse(adapter.connected)
+        self.assertTrue(cast(Any, adapter)._closed)
+
+    def test_blocking_websocket_listener_stop_reserves_later_close_phases(self) -> None:
+        factory = WebsocketFactory(metadata={"sim/test/identity": "data"})
+        adapter = create_capture_transport(make_request(), client_factory=factory, clock=time.monotonic)
+        adapter.open(deadline=time.monotonic() + 1.0)
+        client = factory.clients[0]
+        release = threading.Event()
+
+        def blocking_stop(timeout_seconds: float | None = None) -> None:
+            client.events.append(("stop.blocking", timeout_seconds))
+            release.wait(0.8)
+
+        def abort() -> None:
+            client.events.append("abort_websocket")
+            client.connected = False
+            release.set()
+            raise RuntimeError("abort cleanup failed")
+
+        cast(Any, client).stop = blocking_stop
+        cast(Any, client).abort_websocket = abort
+        started = time.monotonic()
+
+        with self.assertRaises(TimeoutError):
+            adapter.close(deadline=started + 0.2)
+
+        self.assertLess(time.monotonic() - started, 0.35)
+        self.assertEqual(1, client.events.count("abort_websocket"))
+        self.assertEqual(1, sum(isinstance(event, tuple) and event[0] == "stop.blocking" for event in client.events))
+        self.assertEqual(1, client.events.count("disconnect_websocket"))
+        self.assertEqual(1, client.events.count("session.close"))
+        self.assertTrue(cast(Any, adapter)._closed)
+
+    def test_already_expired_websocket_close_still_initiates_every_owner_release(self) -> None:
+        factory = WebsocketFactory(metadata={"sim/test/identity": "data"})
+        request = make_request()
+        adapter = create_capture_transport(request, client_factory=factory, clock=time.monotonic)
+        adapter.open(deadline=time.monotonic() + 1.0)
+        adapter.subscribe(request.identity_readiness.refs, "aircraft_identity", lambda _: None, deadline=time.monotonic() + 1.0)
+        client = factory.clients[0]
+        stop_started = threading.Event()
+        disconnect_started = threading.Event()
+        session_close_started = threading.Event()
+        original_stop = client.stop
+        original_disconnect = client.disconnect_websocket
+
+        def stop(timeout_seconds: float | None = None) -> None:
+            stop_started.set()
+            original_stop(timeout_seconds)
+
+        def disconnect(timeout_resolver: Callable[[], float] | None = None) -> None:
+            disconnect_started.set()
+            original_disconnect(timeout_resolver)
+
+        cast(Any, client).stop = stop
+        cast(Any, client).disconnect_websocket = disconnect
+        client.session.close = session_close_started.set
+
+        with self.assertRaises(TimeoutError):
+            adapter.close(deadline=time.monotonic() - 1.0)
+
+        self.assertTrue(stop_started.wait(0.2))
+        self.assertTrue(disconnect_started.wait(0.2))
+        self.assertTrue(session_close_started.wait(0.2))
+        self.assertEqual(1, client.events.count("abort_websocket"))
         self.assertTrue(cast(Any, adapter)._closed)
 
     def test_websocket_close_preserves_first_exception_while_attempting_cleanup(self) -> None:
@@ -771,6 +840,97 @@ class UdpCaptureTransportTests(unittest.TestCase):
         self.assertTrue(client_closed)
         self.assertTrue(raw.stop_was_set_at_first_close)
         self.assertTrue(raw.closed)
+
+    def test_blocking_udp_listener_stop_reserves_client_and_beacon_close_phases(self) -> None:
+        udp_factory = UdpFactory()
+        beacon_factory = BeaconFactory()
+        request = make_request("udp")
+        adapter = create_capture_transport(
+            request,
+            client_factory=udp_factory,
+            beacon_factory=beacon_factory,
+            clock=time.monotonic,
+        )
+        adapter.open(deadline=time.monotonic() + 1.0)
+        client = udp_factory.clients[0]
+        release = threading.Event()
+        stop_started = threading.Event()
+        close_started = threading.Event()
+        original_close = client.close
+
+        def blocking_stop(timeout_seconds: float | None = None) -> None:
+            client.stop_timeouts.append(timeout_seconds)
+            stop_started.set()
+            release.wait(0.8)
+
+        def abort() -> None:
+            client.socket.close()
+            client.closed = True
+            release.set()
+            raise RuntimeError("abort cleanup failed")
+
+        def close() -> None:
+            close_started.set()
+            original_close()
+
+        cast(Any, client).stop = blocking_stop
+        cast(Any, client).abort = abort
+        cast(Any, client).close = close
+        started = time.monotonic()
+
+        with self.assertRaises(TimeoutError):
+            adapter.close(deadline=started + 0.2)
+
+        self.assertLess(time.monotonic() - started, 0.35)
+        self.assertTrue(stop_started.is_set())
+        self.assertTrue(close_started.is_set())
+        self.assertTrue(beacon_factory.monitors[0].stopped)
+        self.assertTrue(cast(Any, adapter)._closed)
+
+    def test_already_expired_udp_close_still_initiates_every_owner_release(self) -> None:
+        udp_factory = UdpFactory()
+        beacon_factory = BeaconFactory()
+        request = make_request("udp")
+        adapter = create_capture_transport(
+            request,
+            client_factory=udp_factory,
+            beacon_factory=beacon_factory,
+            clock=time.monotonic,
+        )
+        adapter.open(deadline=time.monotonic() + 1.0)
+        adapter.subscribe(request.identity_readiness.refs, "aircraft_identity", lambda _: None, deadline=time.monotonic() + 1.0)
+        client = udp_factory.clients[0]
+        stop_started = threading.Event()
+        close_started = threading.Event()
+        beacon_stop_started = threading.Event()
+        original_stop = client.stop
+        original_close = client.close
+        original_beacon_stop = beacon_factory.monitors[0].stop_monitor
+
+        def stop(timeout_seconds: float | None = None) -> None:
+            stop_started.set()
+            original_stop(timeout_seconds)
+
+        def close() -> None:
+            close_started.set()
+            original_close()
+
+        def stop_beacon() -> None:
+            beacon_stop_started.set()
+            original_beacon_stop()
+
+        cast(Any, client).stop = stop
+        cast(Any, client).close = close
+        cast(Any, beacon_factory.monitors[0]).stop_monitor = stop_beacon
+
+        with self.assertRaises(TimeoutError):
+            adapter.close(deadline=time.monotonic() - 1.0)
+
+        self.assertTrue(stop_started.wait(0.2))
+        self.assertTrue(close_started.wait(0.2))
+        self.assertTrue(beacon_stop_started.wait(0.2))
+        self.assertTrue(client.socket.closed)
+        self.assertTrue(cast(Any, adapter)._closed)
 
 
 class _BlockingPacketSocket:

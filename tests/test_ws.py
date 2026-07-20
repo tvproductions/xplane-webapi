@@ -1,4 +1,5 @@
 import json
+import threading
 import unittest
 from datetime import datetime
 from unittest.mock import MagicMock, PropertyMock, patch
@@ -305,6 +306,22 @@ class TestXPWebsocketAPIConnect(WebsocketAPITestCase):
 
 
 class TestXPWebsocketAPIShutdown(WebsocketAPITestCase):
+    def test_stop_joins_existing_listener_after_abort_pre_sets_stop_event(self):
+        api = self.make_api()
+        release = threading.Event()
+        api.ws_lsnr_not_running = threading.Event()
+        api.ws_lsnr_not_running.set()
+        api.ws_thread = threading.Thread(target=release.wait, daemon=True)
+        api.ws_thread.start()
+        self.addCleanup(release.set)
+
+        api.stop(timeout_seconds=0.01)
+
+        self.assertTrue(api.ws_thread.is_alive())
+        release.set()
+        api.stop(timeout_seconds=0.5)
+        self.assertFalse(api.ws_thread.is_alive())
+
     def test_disconnect_rejects_invalid_timeout_before_side_effects(self):
         invalid_timeouts = (-1.0, float("nan"), float("inf"), float("-inf"))
 
@@ -534,6 +551,17 @@ class TestXPWebsocketAPIListener(WebsocketAPITestCase):
                     api.ws_listener()
 
         handle_closed.assert_called_once_with()
+
+    def test_abort_signaled_connection_close_does_not_run_close_callbacks(self):
+        api = self.make_api()
+        api.ws_lsnr_not_running = threading.Event()
+        api.ws_lsnr_not_running.set()
+        callback = MagicMock()
+        api.add_callback(CALLBACK_TYPE.ON_CLOSE, callback)
+
+        api._handle_websocket_closed()
+
+        callback.assert_not_called()
 
     def test_ws_listener_sleeps_when_socket_missing(self):
         api = self.make_api()

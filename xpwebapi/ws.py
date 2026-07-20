@@ -357,14 +357,15 @@ class XPWebsocketAPI(XPRestAPI):
         """Immediately terminate the socket to interrupt a blocked operation."""
         self.should_not_connect.set()
         self.ws_lsnr_not_running.set()
-        if self.ws is None:
-            return
-        if isinstance(self.ws, _ReadOnlyWebsocketProxy):
-            self.ws.abort()
-        else:
-            self.ws.close_socket()
+        websocket = self.ws
         self.ws = None
         self.status = CONNECTION_STATUS.WEBSOCKET_DISCONNNECTED
+        if websocket is None:
+            return
+        if isinstance(websocket, _ReadOnlyWebsocketProxy):
+            websocket.abort()
+        else:
+            websocket.close_socket()
 
     def connection_monitor(self):
         """
@@ -899,11 +900,13 @@ class XPWebsocketAPI(XPRestAPI):
 
     def _handle_websocket_closed(self) -> None:
         logger.warning("websocket connection closed")
+        notify_close = self.websocket_listener_running
         self.ws = None
         self.ws_lsnr_not_running.set()
         self.status = CONNECTION_STATUS.WEBSOCKET_DISCONNNECTED  # should check rest api reachable
         super().connected
-        self.execute_callbacks(CALLBACK_TYPE.ON_CLOSE)
+        if notify_close:
+            self.execute_callbacks(CALLBACK_TYPE.ON_CLOSE)
 
     def _close_websocket_listener(self) -> None:
         if self.ws is not None:  # in case we did not receive a ConnectionClosed event
@@ -1000,20 +1003,23 @@ class XPWebsocketAPI(XPRestAPI):
     def stop(self, timeout_seconds: float | None = None):
         """Stop Websocket monitoring"""
         wait = _resolved_shutdown_timeout(timeout_seconds, self.RECEIVE_TIMEOUT, "timeout_seconds")
-        if self.websocket_listener_running:
+        was_running = self.websocket_listener_running
+        if was_running:
             # if self.all_datarefs is not None:
             #     self.all_datarefs.save("datarefs.json")
             # if self.all_commands is not None:
             #     self.all_commands.save("commands.json")
             self.execute_callbacks(CALLBACK_TYPE.BEFORE_STOP, connected=self.connected)
-            self.ws_lsnr_not_running.set()
-            if self.ws_thread is not None and self.ws_thread.is_alive():
-                logger.debug("stopping websocket listener..")
-                logger.debug(f"..asked to stop websocket listener (this may last {wait} secs. for timeout)..")
-                self.ws_thread.join(wait)
-                if self.ws_thread.is_alive():
-                    logger.warning("..thread may hang in ws.receive()..")
-                logger.info("..websocket listener stopped")
+        self.ws_lsnr_not_running.set()
+        thread = self.ws_thread
+        if thread is not None and thread is not threading.current_thread() and thread.is_alive():
+            logger.debug("stopping websocket listener..")
+            logger.debug(f"..asked to stop websocket listener (this may last {wait} secs. for timeout)..")
+            thread.join(wait)
+            if thread.is_alive():
+                logger.warning("..thread may hang in ws.receive()..")
+            logger.info("..websocket listener stopped")
+        if was_running:
             self.invalidate_caches()
         else:
             logger.debug("websocket listener not running")

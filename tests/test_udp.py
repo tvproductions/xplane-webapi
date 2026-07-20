@@ -1,4 +1,5 @@
 import struct
+import threading
 import unittest
 from unittest.mock import MagicMock, PropertyMock, patch
 
@@ -157,6 +158,21 @@ class TestXPUDPAPIConnectionProbe(UDPAPITestCase):
 
 
 class TestXPUDPAPIShutdown(UDPAPITestCase):
+    def test_stop_joins_existing_listener_after_abort_pre_sets_stop_event(self):
+        api = self.make_api()
+        release = threading.Event()
+        api.udp_lsnr_not_running.set()
+        api.udp_thread = threading.Thread(target=release.wait, daemon=True)
+        api.udp_thread.start()
+        self.addCleanup(release.set)
+
+        api.stop(timeout_seconds=0.01)
+
+        self.assertTrue(api.udp_thread.is_alive())
+        release.set()
+        api.stop(timeout_seconds=0.5)
+        self.assertFalse(api.udp_thread.is_alive())
+
     def test_abort_signals_listener_before_closing_socket(self):
         api = self.make_api()
         order: list[str] = []

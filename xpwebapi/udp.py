@@ -439,14 +439,15 @@ class XPUDPAPI(API):
     def stop(self, timeout_seconds: float | None = None):
         """Stop UDP monitoring"""
         wait = _resolved_shutdown_timeout(timeout_seconds, BEACON_TIMEOUT)
-        if self.udp_listener_running:
-            self.udp_lsnr_not_running.set()
-            if self.udp_thread is not None and self.udp_thread.is_alive():
-                logger.debug("stopping udp listener..")
-                logger.debug(f"..asked to stop udp listener (this may last {wait} secs. for timeout)..")
-                self.udp_thread.join(wait)
-                if self.udp_thread.is_alive():
-                    logger.warning("..thread may hang in ws.receive()..")
-                logger.info("..udp listener stopped")
-        else:
+        was_running = self.udp_listener_running
+        self.udp_lsnr_not_running.set()
+        thread = self.udp_thread
+        if thread is not None and thread is not threading.current_thread() and thread.is_alive():
+            logger.debug("stopping udp listener..")
+            logger.debug(f"..asked to stop udp listener (this may last {wait} secs. for timeout)..")
+            thread.join(wait)
+            if thread.is_alive():
+                logger.warning("..thread may hang in ws.receive()..")
+            logger.info("..udp listener stopped")
+        if not was_running:
             logger.debug("udp listener not running")
