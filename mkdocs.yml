@@ -27,9 +27,12 @@ nav:
 - Home:
   - Overview: index.md
   - Changelog: changelog.md
-- Usage: usage/index.md
+- Usage:
+  - Overview: usage/index.md
+  - Read-only capture: usage/read-only-capture.md
 - Reference:
   - Overview: reference/index.md
+  - Capture protocol: reference/capture.md
   - Package: reference/package.md
   - Core API: reference/core-api.md
   - REST: reference/rest.md

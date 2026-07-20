@@ -44,6 +44,98 @@ class TestExampleAnnotations(unittest.TestCase):
 
 
 class TestDocumentationContent(unittest.TestCase):
+    def test_read_only_capture_usage_documents_cli_contract(self) -> None:
+        usage = (DOCS_DIR / "usage" / "read-only-capture.md").read_text(encoding="utf-8")
+
+        for option in [
+            "xpwebapi-capture",
+            "--request",
+            "--events",
+            "--status",
+            "--stop-file",
+            "--version-json",
+        ]:
+            with self.subTest(option=option):
+                self.assertIn(option, usage)
+        self.assertIn("mutually exclusive", usage)
+        self.assertIn("no network or file operations", usage)
+
+    def test_read_only_capture_usage_documents_operational_contract(self) -> None:
+        usage = (DOCS_DIR / "usage" / "read-only-capture.md").read_text(encoding="utf-8")
+
+        for contract in [
+            "transport_ready_at_utc",
+            "aircraft_ready_at_utc",
+            "WebSocket is the primary transport",
+            "UDP is a diagnostic fallback",
+            "output_reservation_partial",
+            "complete but unclean",
+            "per-stage shutdown budget",
+            "q4xpcc owns",
+        ]:
+            with self.subTest(contract=contract):
+                self.assertIn(contract, usage)
+
+    def test_capture_reference_publishes_protocol_modules_and_exact_contracts(self) -> None:
+        reference = (DOCS_DIR / "reference" / "capture.md").read_text(encoding="utf-8")
+
+        for directive in [
+            "::: xpwebapi.capture_protocol",
+            "::: xpwebapi.capture_events",
+            "::: xpwebapi.capture_transport",
+        ]:
+            with self.subTest(directive=directive):
+                self.assertIn(directive, reference)
+        for contract in [
+            "capture_started",
+            "transport_ready",
+            "aircraft_ready",
+            "capture_interrupted",
+            "preceding_sha256",
+            "events_sha256",
+            "events_size_bytes",
+            "clean_shutdown",
+            "CaptureInterruption",
+            "request_sha256",
+            "SourceProvenance",
+        ]:
+            with self.subTest(contract=contract):
+                self.assertIn(contract, reference)
+
+    def test_capture_pages_are_published_and_linked(self) -> None:
+        mkdocs = (REPO_ROOT / "mkdocs.yml").read_text(encoding="utf-8")
+        reference_index = (DOCS_DIR / "reference" / "index.md").read_text(encoding="utf-8")
+
+        self.assertIn("Read-only capture: usage/read-only-capture.md", mkdocs)
+        self.assertIn("Capture protocol: reference/capture.md", mkdocs)
+        self.assertIn("[Capture protocol](capture.md)", reference_index)
+
+    def test_readme_and_changelog_announce_read_only_capture(self) -> None:
+        readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+        changelog = (REPO_ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+
+        self.assertIn("WebSocket is the primary capture transport", readme)
+        self.assertIn("UDP is the diagnostic/fallback capture transport", readme)
+        self.assertIn("## Unreleased", changelog)
+        self.assertIn("read-only capture worker", changelog)
+
+    def test_governing_documents_record_final_capture_interfaces(self) -> None:
+        paths = [
+            DOCS_DIR / "superpowers" / "specs" / "2026-07-19-q4xpcc-read-only-capture-worker-design.md",
+            DOCS_DIR / "superpowers" / "plans" / "2026-07-19-q4xpcc-read-only-capture-worker.md",
+        ]
+        for path in paths:
+            document = path.read_text(encoding="utf-8")
+            with self.subTest(path=path.name):
+                self.assertIn("request_sha256", document)
+                self.assertIn("SourceProvenance", document)
+                self.assertIn("CaptureInterruption", document)
+                self.assertIn("pre-readiness requested stop", document)
+                self.assertIn("two-phase event/status commit", document)
+                self.assertIn("complete-but-unclean", document)
+                self.assertIn("per-stage transport shutdown budgets", document)
+                self.assertIn("no cross-path rollback", document)
+
     def test_readme_development_install_matches_project_metadata(self) -> None:
         readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
         pyproject = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))

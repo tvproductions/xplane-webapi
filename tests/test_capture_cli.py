@@ -35,7 +35,7 @@ PROVENANCE = SourceProvenance(
     python_version="3.12.0",
     git_state="available",
     git_root="C:/src/xplane-webapi",
-    git_revision="0123456789abcdef0123456789abcdef01234567",
+    git_revision="0000000000000000000000000000000000000000",
     git_origin="https://github.com/tvproductions/xplane-webapi.git",
     git_dirty=False,
     read_only=True,
@@ -161,7 +161,7 @@ class CaptureCliTests(unittest.TestCase):
     def test_version_json_is_exact_and_does_not_enter_capture_mode(self) -> None:
         expected = (
             '{"git_dirty":false,"git_origin":"https://github.com/tvproductions/xplane-webapi.git",'
-            '"git_revision":"0123456789abcdef0123456789abcdef01234567",'
+            '"git_revision":"0000000000000000000000000000000000000000",'
             '"git_root":"C:/src/xplane-webapi","git_state":"available",'
             '"package_name":"xpwebapi","package_version":"3.5.0","python_version":"3.12.0",'
             '"read_only":true,"supported_transports":["udp","websocket"],'

@@ -17,3 +17,4 @@ The reference section is generated from source docstrings with `mkdocstrings`.
 - [Beacon](beacon.md)
 - [Exceptions](exceptions.md)
 - [Logging](logging.md)
+- [Capture protocol](capture.md)

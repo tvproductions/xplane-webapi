@@ -1086,9 +1086,11 @@ class CaptureOutcome:
 
     @property
     def exit_code(self) -> int:
-        return {"complete": 0, "failed": 3, "interrupted": 130}[
-            self.terminal_state
-        ]
+        if self.terminal_state == "interrupted":
+            return 130
+        if self.terminal_state == "complete" and self.clean_shutdown:
+            return 0
+        return 3
 
 
 class CaptureClock(Protocol):
@@ -1111,9 +1113,11 @@ class CaptureRunner:
         return self._run_with_cleanup(stop_event, interrupted_event)
 ```
 
-Constructor dependencies are `CaptureRequest`, resolved stop file,
-`Callable[[], CaptureTransport]`, `CaptureEventWriter`, `AtomicStatusWriter`,
-`CaptureClock`, and a path to the events file.
+Constructor dependencies are `CaptureRequest`, exact `request_sha256`, resolved
+`SourceProvenance`, resolved stop file, `Callable[[], CaptureTransport]`,
+`CaptureEventWriter`, `AtomicStatusWriter`, `CaptureClock`, a path to the events
+file, and a shared `CaptureInterruption` that retains the first SIGINT/SIGTERM
+identity.
 `_run_with_cleanup(stop_event, interrupted_event) -> CaptureOutcome` is the
 single private implementation entry used by `run()` and is completed in Steps
 3 through 5.
@@ -1223,12 +1227,16 @@ and any active operation deadline.
 - [ ] **Step 5: Implement single-owner cleanup**
 
 Use one `try`/`except`/`finally` boundary. In `finally`, move to `finalizing`
-unless already terminal, close the transport, close JSONL with stopped, failed,
-or interrupted input, hash the complete file, and write one terminal status. Measure
+from every nonterminal state, including a pre-readiness requested stop. Close
+the transport using per-stage transport shutdown budgets, then use a two-phase
+event/status commit: prepare and commit the terminal JSONL row, hash the
+complete bytes, prepare terminal status, and atomically publish it. Measure
 cleanup against `shutdown_timeout_seconds`. Preserve the original failure
 reason and append cleanup diagnostics; never replace a failure with success.
 Pass the absolute shutdown deadline into every cleanup operation and clamp each
-blocking call to the remaining time; do not grant a fresh timeout per call.
+blocking call to the remaining time; do not grant a fresh timeout per call. A
+committed terminal event with failed status publication is a
+complete-but-unclean exit 3 and may leave `finalizing` status residue.
 
 - [ ] **Step 6: Run and confirm GREEN**
 
@@ -1254,10 +1262,12 @@ git commit -m "feat: run bounded capture lifecycle"
 - `build_parser() -> argparse.ArgumentParser`.
 - `validate_cli_mode(namespace: argparse.Namespace) -> None`.
 - `emit_version_json(document: VersionJsonDocument, stream: TextIO) -> None`.
-- `install_signal_handlers(stop_event, interrupted_event) -> None`.
+- `install_signal_handlers(stop_event, interrupted_event,
+  interruption: CaptureInterruption | None = None) -> None`.
 - `preflight_paths(events: Path, status: Path, stop_file: Path | None) -> None`.
 - `run_capture(request_path, events_path, status_path, cli_stop_file,
-  stop_event, interrupted_event) -> CaptureOutcome`.
+  stop_event, interrupted_event,
+  interruption: CaptureInterruption | None = None) -> CaptureOutcome`.
 - `main(argv: Sequence[str] | None = None) -> int`.
 
 - [ ] **Step 1: Write failing CLI tests**
@@ -1322,6 +1332,28 @@ handlers set both `interrupted_event` and `stop_event`.
 Programmatic callers set only `stop_event`. Catch request/path errors before
 writer construction and return 2. Convert `CaptureOutcome.exit_code` directly;
 unexpected runtime exceptions return 3 after runner-owned finalization.
+Pass the loaded `request_sha256`, resolved `SourceProvenance`, and shared
+`CaptureInterruption` into `CaptureRunner`. Output reservations use no
+cross-path rollback: if the status reservation loses a race after events is
+created, close the owned descriptor, preserve the zero-byte events residue,
+emit `output_reservation_partial`, and return 2. Failures after both paths are
+reserved preserve both paths and return 3 with the same diagnostic family.
+
+#### Implemented interface clarifications
+
+The final implementation makes these plan corrections normative:
+
+- `CaptureRunner` receives `request_sha256`, `SourceProvenance`, and
+  `CaptureInterruption` explicitly;
+- every nonterminal state can enter `finalizing` for a pre-readiness requested
+  stop;
+- terminal evidence uses a two-phase event/status commit, and a
+  complete-but-unclean outcome returns exit 3 with possible `finalizing`
+  status residue;
+- adapters use per-stage transport shutdown budgets inside the runner's one
+  absolute cleanup deadline;
+- multi-output reservation uses no cross-path rollback because portable
+  check-then-unlink cannot safely exclude a competitor replacement.
 
 Add:
 

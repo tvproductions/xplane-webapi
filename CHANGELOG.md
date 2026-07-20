@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+- Added a strictly read-only capture worker with versioned request, JSONL
+  event, atomic status, provenance, WebSocket, UDP, and command-line contracts
+  for disciplined q4xpcc development capture. This entry does not declare a
+  package release or version change.
+
 ## 3.2.0 - 2025-08-09
 
 Breaking change, `api.execute()` is now more explicitely `api.execute_command()`.

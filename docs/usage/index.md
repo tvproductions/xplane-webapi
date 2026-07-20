@@ -4,6 +4,9 @@ title: Usage
 
 # Usage
 
+For repeatable, strictly read-only development evidence, see
+[Read-only capture](read-only-capture.md).
+
 ## Connection lifecycle
 
 Use context managers for REST clients so the underlying HTTP session is closed even when a request fails.

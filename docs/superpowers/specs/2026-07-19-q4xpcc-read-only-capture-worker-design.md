@@ -301,11 +301,13 @@ events, status, and stop paths are fully resolved and case-normalized; aliases
 are rejected even when expressed through `..`, symlinks, junctions, or Windows
 case variants. The worker never deletes the stop file. Events and the initial
 status reservation use exclusive creation so a race cannot overwrite evidence.
-Reservations are acquired in deterministic events-then-status order. If status
-reservation fails, preflight closes and removes only the zero-byte events
-reservation created by that same invocation; it never removes a pre-existing
-or non-empty file. After writer ownership begins, evidence is preserved rather
-than rolled back.
+Reservations are acquired in deterministic events-then-status order. There is
+no cross-path rollback because portable path checks cannot prove that a path
+still names the file this invocation created at unlink time. If status
+reservation fails, preflight closes its events descriptor, preserves the
+zero-byte events reservation, emits `output_reservation_partial`, and exits 2.
+After writer ownership begins, both paths are preserved on failure with the
+same diagnostic family and exit 3.
 
 ## Version 1 Event Contract
 
@@ -655,15 +657,15 @@ Status writes use a same-directory uniquely named temporary file, flush,
 fsync, and `os.replace`. The writer enforces these legal transitions:
 
 ```text
-starting -> connecting | failed | interrupted
-connecting -> connecting | transport_ready | failed | interrupted
-transport_ready -> awaiting_aircraft | failed | interrupted
-awaiting_aircraft -> subscribing | reconnecting | failed | interrupted
-subscribing -> awaiting_first_values | reconnecting | failed | interrupted
-awaiting_first_values -> aircraft_ready | reconnecting | failed | interrupted
+starting -> connecting | finalizing | failed | interrupted
+connecting -> connecting | transport_ready | finalizing | failed | interrupted
+transport_ready -> awaiting_aircraft | finalizing | failed | interrupted
+awaiting_aircraft -> subscribing | reconnecting | finalizing | failed | interrupted
+subscribing -> awaiting_first_values | reconnecting | finalizing | failed | interrupted
+awaiting_first_values -> aircraft_ready | reconnecting | finalizing | failed | interrupted
 aircraft_ready -> capturing | finalizing | failed | interrupted
 capturing -> reconnecting | finalizing | failed | interrupted
-reconnecting -> reconnecting | transport_ready | failed | interrupted
+reconnecting -> reconnecting | transport_ready | finalizing | failed | interrupted
 finalizing -> complete | failed | interrupted
 complete -> terminal
 failed -> terminal
@@ -831,12 +833,28 @@ requests a clean `capture_limit` completion. A programmatic stop event requests
 clean `requested` completion. SIGINT or SIGTERM records
 `capture_interrupted`, status `interrupted`, and exit code 130.
 
+`CaptureRunner` receives the exact `request_sha256` and resolved
+`SourceProvenance` explicitly. It also receives a shared `CaptureInterruption`
+that retains the first SIGINT/SIGTERM identity. A pre-readiness requested stop
+is legal from every nonterminal state: the runner enters `finalizing` and may
+complete without inventing transport or aircraft readiness latches.
+
 All paths enter one `finally`-owned cleanup sequence: unsubscribe, stop the
 listener, disconnect or close the client, flush and fsync JSONL, compute the
 complete-file hash and size, and atomically write terminal status. Cleanup is
 bounded by `shutdown_timeout_seconds`; a cleanup timeout changes an otherwise
 clean result to failure. Partial JSONL remains in place after failure or
 interruption.
+
+The transport divides its remaining absolute deadline into
+per-stage transport shutdown budgets for unsubscribe, listener stop, channel close, and owner
+close. Terminal publication uses a two-phase event/status commit: prepare and
+durably commit the terminal JSONL row first, then atomically replace terminal
+status using the committed file hash and size. If the JSONL commit point is
+reached but status replacement fails, JSONL is authoritative, the status may
+remain `finalizing`, and the complete-but-unclean outcome exits 3. A successful
+atomic status replacement is authoritative even if its post-operation deadline
+diagnostic observes that the deadline was crossed.
 
 ## Provenance
 
@@ -867,7 +885,7 @@ one compact, key-sorted JSON object plus LF to stdout, writes nothing to
 stderr, and exits 0:
 
 ```json
-{"git_dirty":false,"git_origin":"https://github.com/tvproductions/xplane-webapi.git","git_revision":"0123456789abcdef0123456789abcdef01234567","git_root":"C:/src/xplane-webapi","git_state":"available","package_name":"xpwebapi","package_version":"3.5.0","python_version":"3.12.0","read_only":true,"supported_transports":["udp","websocket"],"worker":"xpwebapi-capture","worker_protocol_version":1}
+{"git_dirty":false,"git_origin":"https://github.com/tvproductions/xplane-webapi.git","git_revision":"0000000000000000000000000000000000000000","git_root":"C:/src/xplane-webapi","git_state":"available","package_name":"xpwebapi","package_version":"3.5.0","python_version":"3.12.0","read_only":true,"supported_transports":["udp","websocket"],"worker":"xpwebapi-capture","worker_protocol_version":1}
 ```
 
 When Git is unavailable, `git_state` is `unavailable` and `git_root`,
@@ -889,8 +907,9 @@ xpwebapi-capture --request REQUEST --events EVENTS --status STATUS
 
 Preflight validates the request and stop-file resolution and refuses to start
 if either events or status already exists. It creates neither output when
-preflight fails. It rejects resolved path aliases, then reserves events and
-status with exclusive creation and applies the reservation rollback rule above.
+ordinary preflight fails before reservation. It rejects resolved path aliases,
+then reserves events and status with exclusive creation and applies the
+no-cross-path-rollback rule above to a second-reservation race.
 Argparse help may use stdout; run diagnostics
 use stderr. Capture events exist only in immutable JSONL; readiness and current
 progress are exposed through the atomically replaced status JSON.
