@@ -24,6 +24,9 @@ dependencies = [
     "pydantic>=2,<3",
 ]
 
+[project.scripts]
+xpwebapi-capture = "xpwebapi.capture_cli:main"
+
 [project.urls]
 Homepage = "https://devleaks.github.io/xplane-webapi/"
 Documentation = "https://devleaks.github.io/xplane-webapi/"

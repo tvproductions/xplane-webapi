@@ -535,6 +535,16 @@ class CaptureEventWriterTests(unittest.TestCase):
         self.identity = CaptureEventIdentity(capture_session_id="capture-1", sortie_id="sortie-1")
         self.clock = FakeClock()
 
+    def test_reservation_identity_comes_from_owned_open_handle(self) -> None:
+        writer = CaptureEventWriter(self.events_path, self.identity, self.clock)
+        self.addCleanup(writer.abandon, None)
+        expected = os.fstat(writer._stream.fileno())
+
+        with patch("xpwebapi.capture_output.os.stat", side_effect=AssertionError("path stat used")):
+            identity = writer._reservation_identity
+
+        self.assertEqual((expected.st_dev, expected.st_ino), identity)
+
     def test_sequence_lf_and_terminal_hash_cover_exact_preceding_bytes(self) -> None:
         writer = CaptureEventWriter(self.events_path, self.identity, self.clock)
         first = writer.write(CaptureStartedInput.model_validate(input_payloads()[0][1]))
