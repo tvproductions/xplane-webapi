@@ -108,6 +108,12 @@ class XPUDPAPI(API):
         self.socket.close()
         self._closed = True
 
+    def abort(self) -> None:
+        """Signal the listener before immediately closing its socket."""
+        self.udp_lsnr_not_running.set()
+        self._closed = True
+        self.socket.close()
+
     @property
     def connected(self) -> bool:
         """Whether X-Plane API is reachable through this API"""

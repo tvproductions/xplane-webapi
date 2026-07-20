@@ -355,6 +355,8 @@ class XPWebsocketAPI(XPRestAPI):
 
     def abort_websocket(self) -> None:
         """Immediately terminate the socket to interrupt a blocked operation."""
+        self.should_not_connect.set()
+        self.ws_lsnr_not_running.set()
         if self.ws is None:
             return
         if isinstance(self.ws, _ReadOnlyWebsocketProxy):

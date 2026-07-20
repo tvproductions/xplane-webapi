@@ -131,6 +131,14 @@ def _attempt_cleanup(first_failure: BaseException | None, call: Callable[[], Non
     return first_failure
 
 
+def _unsubscribe_deadline(deadline: float, clock: Clock) -> float:
+    now = clock()
+    remaining = deadline - now
+    if remaining <= 0:
+        raise TimeoutError("capture transport deadline expired")
+    return now + remaining * 0.25
+
+
 class _DeadlineHttpSession:
     def __init__(self, session: Any, max_timeout: float, deadline: float, clock: Clock) -> None:
         self._session = session
@@ -235,6 +243,8 @@ class _WebsocketCaptureTransport(_TransportBase):
         self._pending_observations: list[tuple[str, object, float]] = []
         self._cleanup_datarefs: dict[str, Any] = {}
         self._http_session: _DeadlineHttpSession | None = None
+        self._abort_lock = threading.Lock()
+        self._abort_started = False
         self._connected = False
 
     @property
@@ -272,6 +282,10 @@ class _WebsocketCaptureTransport(_TransportBase):
             self._http_session.set_deadline(deadline)
 
     def _abort_websocket(self) -> None:
+        with self._abort_lock:
+            if self._abort_started:
+                return
+            self._abort_started = True
         if self._client is not None:
             self._client.abort_websocket()
 
@@ -450,11 +464,12 @@ class _WebsocketCaptureTransport(_TransportBase):
         failure: BaseException | None = None
         cleanup_datarefs = self._datarefs | self._cleanup_datarefs
         if cleanup_datarefs:
+            unsubscribe_deadline = _unsubscribe_deadline(deadline, self._clock)
             failure = _attempt_cleanup(
                 failure,
                 lambda: self._bounded_websocket_call(
                     lambda: self._client.unmonitor_datarefs(cleanup_datarefs, reason="capture_close"),
-                    deadline,
+                    unsubscribe_deadline,
                     "shutdown unsubscribe",
                 ),
             )
@@ -507,6 +522,8 @@ class _UdpCaptureTransport(_TransportBase):
         self._identity_deadline: float | None = None
         self._last_valid_rref_monotonic: float | None = None
         self._configured_paths: set[str] = set()
+        self._abort_lock = threading.Lock()
+        self._abort_started = False
 
     @property
     def liveness_state(self) -> LivenessState:
@@ -528,9 +545,13 @@ class _UdpCaptureTransport(_TransportBase):
             self._last_valid_rref_monotonic = self._clock()
         self._record_observation(dataref, value)
 
-    def _close_socket(self) -> None:
+    def _abort_udp(self) -> None:
+        with self._abort_lock:
+            if self._abort_started:
+                return
+            self._abort_started = True
         if self._client is not None:
-            self._client.socket.close()
+            self._client.abort()
 
     def _bounded_udp_call[T](self, call: Callable[[], T], deadline: float, operation: str) -> T:
         return _bounded_call(
@@ -538,7 +559,7 @@ class _UdpCaptureTransport(_TransportBase):
             deadline,
             self._clock,
             timeout_message=f"UDP {operation} deadline expired",
-            interrupt=self._close_socket,
+            interrupt=self._abort_udp,
         )
 
     def open(self, deadline: float) -> TransportCapabilities:
@@ -613,11 +634,12 @@ class _UdpCaptureTransport(_TransportBase):
         failure: BaseException | None = None
         if self._client is not None:
             if self._datarefs:
+                unsubscribe_deadline = _unsubscribe_deadline(deadline, self._clock)
                 failure = _attempt_cleanup(
                     failure,
                     lambda: self._bounded_udp_call(
                         lambda: self._client.unmonitor_datarefs(self._datarefs, reason="capture_close"),
-                        deadline,
+                        unsubscribe_deadline,
                         "shutdown unsubscribe",
                     ),
                 )

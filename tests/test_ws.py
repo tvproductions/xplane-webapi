@@ -277,12 +277,18 @@ class TestXPWebsocketAPIConnect(WebsocketAPITestCase):
     def test_abort_websocket_terminates_socket_without_graceful_send(self):
         api = self.make_api()
         websocket = api.ws
+        api.ws_lsnr_not_running = MagicMock()
+        order: list[str] = []
+        api.should_not_connect.set.side_effect = lambda: order.append("connection monitor")
+        api.ws_lsnr_not_running.set.side_effect = lambda: order.append("listener")
+        websocket.close_socket.side_effect = lambda: order.append("socket")
 
         with patch.object(api, "execute_callbacks") as execute_callbacks:
             api.abort_websocket()
 
         websocket.close_socket.assert_called_once_with()
         execute_callbacks.assert_not_called()
+        self.assertEqual(["connection monitor", "listener", "socket"], order)
         self.assertIsNone(api.ws)
         self.assertEqual(CONNECTION_STATUS.WEBSOCKET_DISCONNNECTED, api.status)
 

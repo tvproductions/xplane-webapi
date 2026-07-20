@@ -568,6 +568,7 @@ class WebsocketCaptureTransportTests(unittest.TestCase):
             client.events.append("abort_websocket")
             client.connected = False
             release.set()
+            raise RuntimeError("abort cleanup failed")
 
         cast(Any, client).unmonitor_datarefs = blocking_unmonitor
         cast(Any, client).abort_websocket = abort
@@ -577,7 +578,12 @@ class WebsocketCaptureTransportTests(unittest.TestCase):
             adapter.close(deadline=started + 0.05)
 
         self.assertLess(time.monotonic() - started, 0.25)
-        self.assertIn("abort_websocket", client.events)
+        self.assertEqual(1, client.events.count("abort_websocket"))
+        self.assertEqual(1, sum(isinstance(event, tuple) and event[0] == "stop" for event in client.events))
+        self.assertEqual(1, client.events.count("disconnect_websocket"))
+        self.assertEqual(1, client.events.count("session.close"))
+        self.assertFalse(adapter.connected)
+        self.assertTrue(cast(Any, adapter)._closed)
 
     def test_websocket_close_preserves_first_exception_while_attempting_cleanup(self) -> None:
         factory = WebsocketFactory(metadata={"sim/test/identity": "data"})
@@ -711,17 +717,59 @@ class UdpCaptureTransportTests(unittest.TestCase):
         raw = _BlockingPacketSocket()
         beacon_factory = BeaconFactory()
         request = make_request("udp")
-        with patch("xpwebapi.udp.socket.socket", return_value=raw), patch.object(XPUDPAPI, "start", return_value=None):
+        with patch("xpwebapi.udp.socket.socket", return_value=raw):
             adapter = create_capture_transport(request, beacon_factory=beacon_factory, clock=time.monotonic)
             adapter.open(deadline=time.monotonic() + 1.0)
             adapter.subscribe(request.identity_readiness.refs, "aircraft_identity", lambda _: None, deadline=time.monotonic() + 1.0)
+            client = cast(Any, adapter)._client
+            self.assertTrue(raw.recv_started.wait(0.5))
+            raw.stop_event = client.udp_lsnr_not_running
+            abort_calls: list[None] = []
+            stop_calls: list[float | None] = []
+            close_calls: list[None] = []
+            original_stop = client.stop
+            original_close = client.close
+
+            def abort() -> None:
+                abort_calls.append(None)
+                client.udp_lsnr_not_running.set()
+                client.socket.close()
+
+            def stop(timeout_seconds: float | None = None) -> None:
+                stop_calls.append(timeout_seconds)
+                original_stop(timeout_seconds=timeout_seconds)
+
+            def close() -> None:
+                close_calls.append(None)
+                original_close()
+
+            client.abort = abort
+            client.stop = stop
+            client.close = close
             raw.block = True
             started = time.monotonic()
 
-            with self.assertRaises(TimeoutError):
-                adapter.close(deadline=started + 0.05)
+            try:
+                with self.assertRaises(TimeoutError):
+                    adapter.close(deadline=started + 0.2)
+                listener_stopped = client.udp_lsnr_not_running.is_set()
+                listener_alive = client.udp_thread.is_alive()
+                beacon_stopped = beacon_factory.monitors[0].stopped
+                client_closed = client._closed
+            finally:
+                client.udp_lsnr_not_running.set()
+                raw.close()
+                client.udp_thread.join(0.5)
 
-        self.assertLess(time.monotonic() - started, 0.25)
+        self.assertLess(time.monotonic() - started, 0.4)
+        self.assertEqual([None], abort_calls)
+        self.assertEqual(1, len(stop_calls))
+        self.assertEqual([None], close_calls)
+        self.assertTrue(listener_stopped)
+        self.assertFalse(listener_alive)
+        self.assertTrue(beacon_stopped)
+        self.assertTrue(client_closed)
+        self.assertTrue(raw.stop_was_set_at_first_close)
         self.assertTrue(raw.closed)
 
 
@@ -730,16 +778,28 @@ class _BlockingPacketSocket:
         self.block = False
         self.closed = False
         self.release = threading.Event()
+        self.recv_started = threading.Event()
+        self.close_calls = 0
+        self.stop_event: threading.Event | None = None
+        self.stop_was_set_at_first_close = False
 
     def settimeout(self, _value: float) -> None:
         return None
 
     def sendto(self, message: bytes, _address: tuple[str, int]) -> int:
         if self.block:
-            self.release.wait(0.4)
+            self.release.wait(0.8)
         return len(message)
 
+    def recvfrom(self, _size: int) -> tuple[bytes, tuple[str, int]]:
+        self.recv_started.set()
+        self.release.wait(0.8)
+        raise OSError("socket closed")
+
     def close(self) -> None:
+        self.close_calls += 1
+        if self.close_calls == 1 and self.stop_event is not None:
+            self.stop_was_set_at_first_close = self.stop_event.is_set()
         self.closed = True
         self.release.set()
 

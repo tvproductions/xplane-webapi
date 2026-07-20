@@ -157,6 +157,16 @@ class TestXPUDPAPIConnectionProbe(UDPAPITestCase):
 
 
 class TestXPUDPAPIShutdown(UDPAPITestCase):
+    def test_abort_signals_listener_before_closing_socket(self):
+        api = self.make_api()
+        order: list[str] = []
+        api.udp_lsnr_not_running.set = MagicMock(side_effect=lambda: order.append("listener"))
+        api.socket.close.side_effect = lambda: order.append("socket")
+
+        api.abort()
+
+        self.assertEqual(["listener", "socket"], order)
+
     def test_stop_rejects_invalid_timeout_before_side_effects(self):
         invalid_timeouts = (-1.0, float("nan"), float("inf"), float("-inf"))
 
