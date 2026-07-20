@@ -126,8 +126,6 @@ class CaptureEventWriter:
         self._events_size_bytes: int | None = None
         self._prepared_close: PreparedCaptureClose | None = None
         self._stream = path.open("xb")
-        reservation = os.fstat(self._stream.fileno())
-        self._reservation_identity = (reservation.st_dev, reservation.st_ino)
 
     @property
     def events_sha256(self) -> str:

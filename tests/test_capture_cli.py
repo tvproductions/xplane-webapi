@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import io
 import json
 import os
@@ -24,6 +25,7 @@ from xpwebapi.capture_cli import (
     validate_cli_mode,
 )
 from xpwebapi.capture_events import SourceProvenance, VersionJsonDocument
+from xpwebapi.capture_output import CaptureEventWriter as DurableCaptureEventWriter
 from xpwebapi.capture_runner import CaptureInterruption, CaptureOutcome
 
 
@@ -398,7 +400,7 @@ class CaptureCliTests(unittest.TestCase):
         self.assertEqual("competing\n", self.events.read_text(encoding="utf-8"))
         self.assertFalse(self.status.exists())
 
-    def test_status_reservation_race_rolls_back_owned_empty_events(self) -> None:
+    def test_status_reservation_race_preserves_owned_empty_events(self) -> None:
         real_open = Path.open
 
         def racing_open(path: Path, mode: str = "r", *args: Any, **kwargs: Any) -> Any:
@@ -411,9 +413,10 @@ class CaptureCliTests(unittest.TestCase):
             result, _stdout, stderr = self.capture_main(self.capture_arguments())
 
         self.assertEqual(2, result)
-        self.assertFalse(self.events.exists())
+        self.assertTrue(self.events.exists())
+        self.assertEqual(0, self.events.stat().st_size)
         self.assertEqual("competing status\n", self.status.read_text(encoding="utf-8"))
-        self.assertIn("already exists", stderr)
+        self.assertIn("output_reservation_partial", stderr)
 
     def test_status_race_does_not_delete_changed_event_reservation(self) -> None:
         real_open = Path.open
@@ -432,8 +435,28 @@ class CaptureCliTests(unittest.TestCase):
         self.assertEqual(2, result)
         self.assertEqual("changed ownership\n", self.events.read_text(encoding="utf-8"))
 
-    def test_status_race_does_not_delete_event_when_reservation_identity_changed(self) -> None:
+    def test_status_race_never_deletes_competitor_replacement_between_check_and_unlink(self) -> None:
         real_open = Path.open
+        real_stat = Path.stat
+        writers: list[ReplacementWriter] = []
+
+        class ReplacementWriter(DurableCaptureEventWriter):
+            def __init__(self, *args: Any, **kwargs: Any) -> None:
+                super().__init__(*args, **kwargs)
+                self.owned_stat = real_stat(self.events_path)
+                self.replaced = False
+                writers.append(self)
+
+            @property
+            def events_path(self) -> Path:
+                return self._path
+
+            def abandon(self, deadline: float | None) -> None:
+                super().abandon(deadline)
+                if not self.replaced:
+                    self.events_path.unlink()
+                    self.events_path.write_text("competitor replacement\n", encoding="utf-8")
+                    self.replaced = True
 
         def racing_open(path: Path, mode: str = "r", *args: Any, **kwargs: Any) -> Any:
             if path == self.status and mode == "xb" and not self.status.exists():
@@ -441,17 +464,51 @@ class CaptureCliTests(unittest.TestCase):
                     stream.write(b"competing status\n")
             return real_open(path, mode, *args, **kwargs)
 
+        def stale_stat(path: Path, *args: Any, **kwargs: Any) -> Any:
+            if path == self.events and writers and writers[0].replaced:
+                return writers[0].owned_stat
+            return real_stat(path, *args, **kwargs)
+
         with (
             patch.object(Path, "open", new=racing_open),
-            patch("xpwebapi.capture_output.os.fstat") as fstat,
+            patch.object(Path, "stat", new=stale_stat),
+            patch("xpwebapi.capture_cli.CaptureEventWriter", ReplacementWriter),
         ):
-            fstat.return_value.st_dev = -1
-            fstat.return_value.st_ino = -1
             result, _stdout, _stderr = self.capture_main(self.capture_arguments())
 
         self.assertEqual(2, result)
-        self.assertTrue(self.events.exists())
+        self.assertEqual("competitor replacement\n", self.events.read_text(encoding="utf-8"))
+
+    def test_runner_constructor_failure_closes_handle_and_reports_preserved_reservations(self) -> None:
+        with (
+            patch("xpwebapi.capture_cli.resolve_source_provenance", return_value=PROVENANCE),
+            patch("xpwebapi.capture_cli.CaptureRunner", side_effect=RuntimeError("constructor failed")),
+        ):
+            result, _stdout, stderr = self.capture_main(self.capture_arguments())
+
+        self.assertEqual(3, result)
+        self.assertIn("output_reservation_partial", stderr)
+        self.assertIn("constructor failed", stderr)
         self.assertEqual(0, self.events.stat().st_size)
+        self.assertEqual(0, self.status.stat().st_size)
+        self.events.unlink()
+        self.status.unlink()
+
+    def test_unexpected_runner_escape_closes_handle_and_reports_preserved_evidence(self) -> None:
+        with (
+            patch("xpwebapi.capture_cli.resolve_source_provenance", return_value=PROVENANCE),
+            patch("xpwebapi.capture_cli.CaptureRunner") as runner_type,
+        ):
+            runner_type.return_value.run.side_effect = RuntimeError("runner escaped")
+            result, _stdout, stderr = self.capture_main(self.capture_arguments())
+
+        self.assertEqual(3, result)
+        self.assertIn("output_reservation_partial", stderr)
+        self.assertIn("runner escaped", stderr)
+        self.assertEqual(0, self.events.stat().st_size)
+        self.assertEqual(0, self.status.stat().st_size)
+        self.events.unlink()
+        self.status.unlink()
 
     def test_run_capture_passes_hash_provenance_and_lazy_transport_factory(self) -> None:
         capture_outcome = outcome("complete", clean=True)
@@ -468,7 +525,7 @@ class CaptureCliTests(unittest.TestCase):
 
         kwargs = runner_type.call_args.kwargs
         self.assertIs(capture_outcome, result)
-        self.assertEqual(64, len(kwargs["request_sha256"]))
+        self.assertEqual(hashlib.sha256(self.request.read_bytes()).hexdigest(), kwargs["request_sha256"])
         self.assertEqual(PROVENANCE, kwargs["provenance"])
         self.assertFalse(hasattr(kwargs["transport_factory"], "open"))
 

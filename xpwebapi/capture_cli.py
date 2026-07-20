@@ -26,6 +26,10 @@ class CaptureCliError(ValueError):
     """Invalid command-line mode or capture preflight input."""
 
 
+class CaptureCliRuntimeError(RuntimeError):
+    """Runtime setup failed after evidence paths were reserved."""
+
+
 class _SystemClock:
     def monotonic(self) -> float:
         return time.monotonic()
@@ -171,22 +175,13 @@ def _load_preflight(
     return loaded, request, events, status, stop_file
 
 
-def _rollback_event_reservation(
-    writer: CaptureEventWriter,
-    events_path: Path,
-    reservation_identity: tuple[int, int],
-) -> None:
+def _abandon_event_reservation(writer: CaptureEventWriter) -> str | None:
     try:
         writer.abandon(deadline=None)
-    except BaseException:
-        return
-    try:
-        stat = events_path.stat()
-        current_identity = (stat.st_dev, stat.st_ino)
-        if current_identity == reservation_identity and stat.st_size == 0:
-            events_path.unlink()
-    except OSError:
-        return
+    except BaseException as exc:
+        detail = str(exc).strip() or type(exc).__name__
+        return detail
+    return None
 
 
 def _reserve_writers(
@@ -199,13 +194,20 @@ def _reserve_writers(
         event_writer = CaptureEventWriter(events_path, identity, clock)
     except OSError as exc:
         raise CaptureCliError(f"events path already exists or cannot be created: {events_path}: {exc}") from exc
-    reservation_identity = event_writer._reservation_identity
     try:
         with status_path.open("xb"):
             pass
     except OSError as exc:
-        _rollback_event_reservation(event_writer, events_path, reservation_identity)
-        raise CaptureCliError(f"status path already exists or cannot be created: {status_path}: {exc}") from exc
+        close_error = _abandon_event_reservation(event_writer)
+        # The design says both "It creates neither output when preflight fails."
+        # and "it never removes a pre-existing or non-empty file." There is no
+        # portable atomic compare-and-unlink for an arbitrary path. On this rare
+        # second-reservation race, preserving the first zero-byte reservation is
+        # the only policy that cannot delete a competitor replacement.
+        detail = f"output_reservation_partial: status reservation failed after the events reservation was created; preserved events path {events_path}: {exc}"
+        if close_error is not None:
+            detail = f"{detail}; event close failed: {close_error}"
+        raise CaptureCliError(detail) from exc
     return event_writer, AtomicStatusWriter(status_path)
 
 
@@ -234,28 +236,39 @@ def run_capture(
     )
     event_writer, status_writer = _reserve_writers(events, status, identity, clock)
     signal_identity = interruption if interruption is not None else CaptureInterruption()
-    runner = CaptureRunner(
-        request=loaded.request,
-        request_sha256=loaded.request_sha256,
-        provenance=provenance,
-        stop_file=stop_file,
-        transport_factory=lambda: create_capture_transport(loaded.request),
-        event_writer=event_writer,
-        status_writer=status_writer,
-        clock=clock,
-        events_path=events,
-        interruption=signal_identity,
-    )
     try:
-        return runner.run(stop_event, interrupted_event)
-    finally:
-        # CaptureRunner normally seals and closes this stream. This fallback
-        # closes an unsealed stream if construction or an unexpected runner
-        # escape bypasses its finally-owned cleanup, without deleting evidence.
-        try:
-            event_writer.abandon(deadline=None)
-        except BaseException:
-            pass
+        runner = CaptureRunner(
+            request=loaded.request,
+            request_sha256=loaded.request_sha256,
+            provenance=provenance,
+            stop_file=stop_file,
+            transport_factory=lambda: create_capture_transport(loaded.request),
+            event_writer=event_writer,
+            status_writer=status_writer,
+            clock=clock,
+            events_path=events,
+            interruption=signal_identity,
+        )
+    except BaseException as exc:
+        close_error = _abandon_event_reservation(event_writer)
+        detail = f"output_reservation_partial: runner construction failed after events and status reservations were created; preserved both paths: {exc}"
+        if close_error is not None:
+            detail = f"{detail}; event close failed: {close_error}"
+        raise CaptureCliRuntimeError(detail) from exc
+    try:
+        outcome = runner.run(stop_event, interrupted_event)
+    except BaseException as exc:
+        close_error = _abandon_event_reservation(event_writer)
+        detail = f"output_reservation_partial: runner escaped without an outcome after evidence ownership began; preserved events and status paths: {exc}"
+        if close_error is not None:
+            detail = f"{detail}; event close failed: {close_error}"
+        raise CaptureCliRuntimeError(detail) from exc
+    close_error = _abandon_event_reservation(event_writer)
+    if close_error is not None:
+        raise CaptureCliRuntimeError(
+            f"output_reservation_partial: runner returned but event stream close failed; preserved events and status paths: {close_error}"
+        )
+    return outcome
 
 
 def _diagnostic(prefix: str, error: BaseException) -> None:
