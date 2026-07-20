@@ -46,6 +46,7 @@ class TestExampleAnnotations(unittest.TestCase):
 class TestDocumentationContent(unittest.TestCase):
     def test_read_only_capture_usage_documents_cli_contract(self) -> None:
         usage = (DOCS_DIR / "usage" / "read-only-capture.md").read_text(encoding="utf-8")
+        normalized_usage = " ".join(usage.split())
 
         for option in [
             "xpwebapi-capture",
@@ -56,9 +57,11 @@ class TestDocumentationContent(unittest.TestCase):
             "--version-json",
         ]:
             with self.subTest(option=option):
-                self.assertIn(option, usage)
-        self.assertIn("mutually exclusive", usage)
-        self.assertIn("no network or file operations", usage)
+                self.assertIn(option, normalized_usage)
+        self.assertIn("mutually exclusive", normalized_usage)
+        self.assertIn("no network calls", normalized_usage)
+        self.assertIn("no filesystem mutation", normalized_usage)
+        self.assertIn("may read local package, Git, and filesystem provenance", normalized_usage)
 
     def test_read_only_capture_usage_documents_operational_contract(self) -> None:
         usage = (DOCS_DIR / "usage" / "read-only-capture.md").read_text(encoding="utf-8")
@@ -101,6 +104,8 @@ class TestDocumentationContent(unittest.TestCase):
         ]:
             with self.subTest(contract=contract):
                 self.assertIn(contract, reference)
+        self.assertIn("`open`, `subscribe`, `connected`, `liveness_state`, and `close`", reference)
+        self.assertNotIn("last_observation_elapsed", reference)
 
     def test_capture_pages_are_published_and_linked(self) -> None:
         mkdocs = (REPO_ROOT / "mkdocs.yml").read_text(encoding="utf-8")
@@ -135,6 +140,33 @@ class TestDocumentationContent(unittest.TestCase):
                 self.assertIn("complete-but-unclean", document)
                 self.assertIn("per-stage transport shutdown budgets", document)
                 self.assertIn("no cross-path rollback", document)
+                self.assertIn("liveness_state", document)
+
+    def test_task_seven_plan_declares_every_tracked_change(self) -> None:
+        plan = (
+            DOCS_DIR / "superpowers" / "plans" / "2026-07-19-q4xpcc-read-only-capture-worker.md"
+        ).read_text(encoding="utf-8")
+        task = plan.split("### Task 7: Documentation and Complete Verification", 1)[1]
+        files_block = task.split("**Interfaces:**", 1)[0]
+        commit_block = " ".join(task.split("**Step 6: Commit**", 1)[1].split())
+        tracked_files = [
+            "README.md",
+            "CHANGELOG.md",
+            "docs/usage/index.md",
+            "docs/usage/read-only-capture.md",
+            "docs/reference/index.md",
+            "docs/reference/capture.md",
+            "docs/superpowers/specs/2026-07-19-q4xpcc-read-only-capture-worker-design.md",
+            "docs/superpowers/plans/2026-07-19-q4xpcc-read-only-capture-worker.md",
+            "mkdocs.yml",
+            "tests/test_documentation.py",
+            "tests/test_capture_cli.py",
+        ]
+
+        for tracked_file in tracked_files:
+            with self.subTest(tracked_file=tracked_file):
+                self.assertIn(f"`{tracked_file}`", files_block)
+                self.assertIn(tracked_file, commit_block)
 
     def test_readme_development_install_matches_project_metadata(self) -> None:
         readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")

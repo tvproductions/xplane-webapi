@@ -74,10 +74,11 @@ supported Python API surface; they are not a security sandbox against hostile
 reflection into private implementation attributes.
 
 The capture transport adapters expose only `open`, `subscribe`, `connected`,
-and `close`. They do not return the underlying general-purpose API or raw
-handle. The request schema has no access-mode field, arbitrary method name,
-command path, write value, or packet payload. The worker factory always creates
-clients with `read_only=True` and DataRefs with `auto_save=False`.
+`liveness_state`, and `close`. They do not return the underlying
+general-purpose API or raw handle. The request schema has no access-mode field,
+arbitrary method name, command path, write value, or packet payload. The worker
+factory always creates clients with `read_only=True` and DataRefs with
+`auto_save=False`.
 
 ## Version 1 Request Contract
 

@@ -1393,6 +1393,9 @@ git commit -m "feat: add read-only capture worker CLI"
 - Modify: `docs/reference/index.md`
 - Modify: `mkdocs.yml`
 - Modify: `CHANGELOG.md`
+- Modify: `docs/superpowers/specs/2026-07-19-q4xpcc-read-only-capture-worker-design.md`
+- Modify: `docs/superpowers/plans/2026-07-19-q4xpcc-read-only-capture-worker.md`
+- Modify: `tests/test_capture_cli.py`
 - Create: `docs/usage/read-only-capture.md`
 - Create: `docs/reference/capture.md`
 - Test: `tests/test_documentation.py`
@@ -1430,8 +1433,9 @@ Expected: missing page, navigation, and content failures.
 Document a complete request, exact event/status fields, and the two-stage
 readiness order: poll `transport_ready_at_utc`, load Q4XP, then poll
 `aircraft_ready_at_utc`/`capturing`. Document `--version-json` as the exact
-machine-readable provenance handshake and state that it performs no network or
-file operations. Also document
+machine-readable provenance handshake and state that it makes no network calls
+and performs no filesystem mutation, while it may read local package, Git, and
+filesystem provenance. Also document
 stop-file behavior, exit codes, provenance, permitted subscription and `RREF`
 traffic, prohibited actions, stationary ground-readiness command, and the fact
 that q4xpcc remains the plugin and evidence owner. Use an `Unreleased`
@@ -1475,6 +1479,6 @@ unless the q4xpcc evidence-promotion workflow explicitly selects it.
 - [ ] **Step 6: Commit**
 
 ```powershell
-git add README.md CHANGELOG.md docs/usage/index.md docs/usage/read-only-capture.md docs/reference/index.md docs/reference/capture.md mkdocs.yml tests/test_documentation.py
+git add README.md CHANGELOG.md docs/usage/index.md docs/usage/read-only-capture.md docs/reference/index.md docs/reference/capture.md docs/superpowers/specs/2026-07-19-q4xpcc-read-only-capture-worker-design.md docs/superpowers/plans/2026-07-19-q4xpcc-read-only-capture-worker.md mkdocs.yml tests/test_documentation.py tests/test_capture_cli.py
 git commit -m "docs: document read-only capture worker"
 ```

@@ -45,10 +45,10 @@ uv run xpwebapi-capture --version-json
 ```
 
 `--version-json` is mutually exclusive with all capture arguments. It emits
-one compact, key-sorted protocol-v1 JSON object plus a newline. It performs
-no network or file operations: it does not create or modify files, though it may
-read installed package metadata and Git/filesystem provenance. The object is
-the machine-readable handshake q4xpcc should inspect before launching capture:
+one compact, key-sorted protocol-v1 JSON object plus a newline. It makes no
+network calls and performs no filesystem mutation. It may read local package,
+Git, and filesystem provenance. The object is the machine-readable handshake
+q4xpcc should inspect before launching capture:
 
 ```json
 {"git_dirty":null,"git_origin":null,"git_revision":null,"git_root":null,"git_state":"unavailable","package_name":"xpwebapi","package_version":"3.5.0","python_version":"3.12.0","read_only":true,"supported_transports":["udp","websocket"],"worker":"xpwebapi-capture","worker_protocol_version":1}

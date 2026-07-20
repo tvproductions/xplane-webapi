@@ -123,8 +123,8 @@ stages are attempted while the first cleanup failure remains authoritative.
 ## Transport safety
 
 The transport factory always constructs read-only clients. Capture adapters
-expose only `open`, `subscribe`, `connected`, `liveness_state`,
-`last_observation_elapsed`, and `close`; no general API or raw socket escapes.
+expose only `open`, `subscribe`, `connected`, `liveness_state`, and `close`;
+no general API or raw socket escapes.
 WebSocket capture sends only subscribe/unsubscribe value messages. UDP sends
 only validated `RREF\0` packets. Reservation collision handling uses exclusive
 creation and no cross-path rollback so a path replacement race cannot cause
