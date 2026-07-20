@@ -231,6 +231,12 @@ class _TransportBase:
         if purpose == "capture" and not self._capture_allowed():
             raise RuntimeError("capture refs require fresh matching aircraft identity observations")
 
+    def _subscription_deadline(self, owning_deadline: float) -> float:
+        now = self._clock()
+        if owning_deadline - now <= 0:
+            raise TimeoutError("capture transport deadline expired")
+        return min(owning_deadline, now + self._request.retry.subscription_timeout_seconds)
+
     def _record_observation(self, path: str, value: object, observed_at: float | None = None) -> bool:
         ref = self._refs_by_path.get(path)
         callback = self._callbacks.get(path)
@@ -442,21 +448,21 @@ class _WebsocketCaptureTransport(_TransportBase):
         callback: Callable[[Observation], None],
         deadline: float,
     ) -> SubscriptionResult:
-        _remaining(deadline, self._clock)
+        operation_deadline = self._subscription_deadline(deadline)
         self._require_capture_allowed(purpose)
-        prepared, rejected = self._prepare_refs(refs, callback, deadline)
+        prepared, rejected = self._prepare_refs(refs, callback, operation_deadline)
         if not prepared:
             return SubscriptionResult(purpose, (), rejected, None)
         if self._client is None:
             raise RuntimeError("capture transport is not open")
         self._stage_refs(refs, prepared, callback)
-        self._set_http_deadline(deadline)
+        self._set_http_deadline(operation_deadline)
         try:
-            _remaining(deadline, self._clock)
+            _remaining(operation_deadline, self._clock)
             self._client.start(release=True)
             request_id, _effective = self._bounded_websocket_call(
                 lambda: self._client.monitor_datarefs(prepared, reason=purpose),
-                deadline,
+                operation_deadline,
                 "subscription",
             )
         except BaseException:
@@ -466,7 +472,7 @@ class _WebsocketCaptureTransport(_TransportBase):
             self._discard_staged_refs(prepared, deadline)
             failed = {ref.id: "subscription request failed" for ref in refs if ref.id not in rejected}
             return SubscriptionResult(purpose, (), rejected | failed, None)
-        feedback = self._feedback_for(request_id, deadline)
+        feedback = self._feedback_for(request_id, operation_deadline)
         if feedback is None:
             reason = "subscription feedback timeout"
         elif feedback.get("success") is not True:
@@ -651,18 +657,18 @@ class _UdpCaptureTransport(_TransportBase):
         callback: Callable[[Observation], None],
         deadline: float,
     ) -> SubscriptionResult:
-        _remaining(deadline, self._clock)
+        operation_deadline = self._subscription_deadline(deadline)
         self._require_capture_allowed(purpose)
         if self._client is None:
             raise RuntimeError("capture transport is not open")
         accepted: list[str] = []
         rejected: dict[str, str] = {}
         for ref in refs:
-            _remaining(deadline, self._clock)
+            _remaining(operation_deadline, self._clock)
             dataref = self._client.dataref(ref.path, auto_save=False)
             result = self._bounded_udp_call(
                 lambda: self._client.monitor_dataref(dataref, frequency_hz=self._rate_for(ref)),
-                deadline,
+                operation_deadline,
                 "subscription",
             )
             if result is False:
@@ -676,7 +682,7 @@ class _UdpCaptureTransport(_TransportBase):
         if purpose == "aircraft_identity" and accepted:
             self._identity_deadline = deadline
         if accepted:
-            _remaining(deadline, self._clock)
+            _remaining(operation_deadline, self._clock)
             self._client.start(release=True)
         return SubscriptionResult(purpose, tuple(accepted), rejected, None)
 

@@ -226,8 +226,30 @@ class RecordingStatusWriter:
         self.writer.abort(prepared, deadline=deadline, **kwargs)
 
 
+class FinalizationFaultStream:
+    def __init__(self, stream: Any, fault: Literal["flush", "fsync", "close"]) -> None:
+        self._stream = stream
+        self._fault = fault
+
+    def write(self, value: bytes) -> int:
+        return self._stream.write(value)
+
+    def flush(self) -> None:
+        if self._fault == "flush":
+            raise OSError("terminal event flush failed")
+        self._stream.flush()
+
+    def fileno(self) -> int:
+        return self._stream.fileno()
+
+    def close(self) -> None:
+        self._stream.close()
+        if self._fault == "close":
+            raise OSError("terminal event close failed")
+
+
 class FaultingEventWriter:
-    def __init__(self, writer: CaptureEventWriter, fault: Literal["before", "after"]) -> None:
+    def __init__(self, writer: CaptureEventWriter, fault: Literal["before", "flush", "fsync", "close"]) -> None:
         self.writer = writer
         self.fault = fault
 
@@ -237,8 +259,12 @@ class FaultingEventWriter:
     def commit_close(self, prepared: Any, deadline: float | None) -> Any:
         if self.fault == "before":
             raise OSError("terminal event commit failed before append")
-        self.writer.commit_close(prepared, deadline)
-        raise OSError("terminal event close failed after append")
+        writer_for_fault_injection = cast(Any, self.writer)
+        writer_for_fault_injection._stream = FinalizationFaultStream(self.writer._stream, self.fault)
+        if self.fault == "fsync":
+            with patch("xpwebapi.capture_output.os.fsync", side_effect=OSError("terminal event fsync failed")):
+                return self.writer.commit_close(prepared, deadline)
+        return self.writer.commit_close(prepared, deadline)
 
 
 def make_request(
@@ -350,7 +376,7 @@ class CaptureRunnerTests(unittest.TestCase):
         log: list[str] | None = None,
         interruption_signal: Literal["SIGINT", "SIGTERM"] = "SIGINT",
         fail_terminal_status_commit: bool = False,
-        event_commit_fault: Literal["before", "after"] | None = None,
+        event_commit_fault: Literal["before", "flush", "fsync", "close"] | None = None,
     ) -> tuple[CaptureRunner, RecordingStatusWriter]:
         activity = log if log is not None else []
         writer = CaptureEventWriter(
@@ -551,6 +577,29 @@ class CaptureRunnerTests(unittest.TestCase):
         self.assertEqual("aircraft_identity_timeout", outcome.reason)
         self.assertLessEqual(clock.now, 0.05)
         self.assertTrue(all(deadline <= 0.05 for deadline in second.deadlines))
+
+    def test_identity_subscriptions_receive_initial_and_reconnect_owning_deadlines(self) -> None:
+        clock = FakeClock()
+        request = make_request(
+            retry={
+                "subscription_timeout_seconds": 10.0,
+                "aircraft_identity_timeout_seconds": 300.0,
+                "max_disconnect_seconds": 30.0,
+            }
+        )
+        first = FakeTransport(
+            clock,
+            [],
+            observations={"aircraft": "Q4XP", "speed": 1.0},
+            disconnect_after_checks=3,
+        )
+        second = FakeTransport(clock, [], observations={"aircraft": "Q4XP", "speed": 2.0})
+
+        outcome = self.build(request, [first, second], clock)[0].run(threading.Event(), threading.Event())
+
+        self.assertEqual("complete", outcome.terminal_state)
+        self.assertEqual(300.0, first.deadlines[1])
+        self.assertGreater(second.deadlines[1] - second.deadlines[0], 20.0)
 
     def test_first_sample_occurs_at_aircraft_ready_and_status_polling_does_not_touch_jsonl(self) -> None:
         clock = FakeClock()
@@ -1152,7 +1201,7 @@ class CaptureRunnerTests(unittest.TestCase):
         self.assertTrue(statuses.writer.terminal_commit_deadline_exceeded)
 
     def test_terminal_event_faults_do_not_publish_a_disagreeing_terminal_status(self) -> None:
-        for index, fault in enumerate(("before", "after")):
+        for index, fault in enumerate(("before", "flush", "fsync", "close")):
             with self.subTest(fault=fault):
                 self.events = self.root / f"terminal-{index}.jsonl"
                 self.status = self.root / f"terminal-{index}.json"
@@ -1169,11 +1218,15 @@ class CaptureRunnerTests(unittest.TestCase):
                 self.assertFalse(outcome.clean_shutdown)
                 self.assertEqual(3, outcome.exit_code)
                 self.assertEqual("finalizing", status["state"])
-                if fault == "after":
+                if fault == "close":
                     self.assertEqual("capture_stopped", self.rows()[-1]["event"])
                     self.assertEqual("complete", outcome.terminal_state)
+                elif fault in {"flush", "fsync"}:
+                    self.assertEqual("capture_stopped", self.rows()[-1]["event"])
+                    self.assertEqual("failed", outcome.terminal_state)
                 else:
                     self.assertNotIn(self.rows()[-1]["event"], {"capture_stopped", "capture_failed", "capture_interrupted"})
+                    self.assertEqual("failed", outcome.terminal_state)
 
 
 if __name__ == "__main__":

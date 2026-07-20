@@ -686,6 +686,10 @@ before each blocking HTTP, WebSocket, beacon, socket, feedback, join, close, or
 sleep call it computes `remaining = deadline - monotonic_now`; non-positive
 remaining time fails without making the call, and positive time is clamped
 into that operation. A multi-call method never reuses the original duration.
+For `subscribe()`, the runner passes the owning readiness deadline. The adapter
+derives one internal subscription-operation deadline as the lesser of that
+owner and `monotonic_now + subscription_timeout_seconds`, and uses it for
+metadata, send, and feedback work.
 
 ### WebSocket
 
@@ -759,6 +763,9 @@ subscription is sent, UDP liveness state is
 configured identity-index packet arrives or the aircraft-identity deadline
 expires. The runner must not start reconnect merely because no first identity
 packet has arrived during this bounded loading window.
+The UDP adapter therefore retains the full owning aircraft-identity deadline
+for liveness even though the identity subscription send itself uses the
+shorter internal subscription-operation deadline.
 
 A one-shot beacon never establishes continuing UDP liveness. The UDP adapter
 records `last_valid_rref_monotonic` only after `read_monitored_dataref_values()`
@@ -856,6 +863,14 @@ reached but status replacement fails, JSONL is authoritative, the status may
 remain `finalizing`, and the complete-but-unclean outcome exits 3. A successful
 atomic status replacement is authoritative even if its post-operation deadline
 diagnostic observes that the deadline was crossed.
+
+A verified full terminal-row write logically closes and makes the event stream
+immutable, but is not the JSONL commit point. Only successful flush and fsync
+publish the committed hash and size. Flush or fsync failure leaves raw,
+unproven evidence in place, keeps status at `finalizing`, and produces a failed,
+unclean outcome; neither retry nor abandon may append to or rewrite that row.
+Physical close failure after successful fsync is post-commit, so the durable
+JSONL remains authoritative.
 
 ## Provenance
 

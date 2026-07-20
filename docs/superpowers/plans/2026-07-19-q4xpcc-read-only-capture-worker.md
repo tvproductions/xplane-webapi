@@ -1022,7 +1022,7 @@ For one open attempt, clamp each call to `deadline - clock.monotonic()`:
 8. Have the callback store every result by request id before notifying.
 9. Call one `monitor_datarefs()` batch and retain its integer request id.
 10. Check buffered feedback for that id before waiting; then wait only to the
-   lesser of `subscription_timeout_seconds` and the remaining deadline.
+    lesser of `subscription_timeout_seconds` and the remaining deadline.
 11. Map callback paths to ref ids and emit `Observation` with injected
    monotonic time.
 12. Close by batch-unsubscribing, stopping the listener, disconnecting the
@@ -1046,6 +1046,10 @@ report `liveness_state="awaiting_first_identity_packet"`; wait on the identity
 deadline rather than reconnecting. After first liveness, receive timeouts leave
 the listener responsive, and liveness expiry makes the
 adapter disconnected so the runner performs its bounded fresh-adapter retry.
+The runner passes the owning aircraft-identity deadline into identity
+`subscribe()`. Each adapter derives the shorter internal operation deadline for
+metadata/send/feedback, while UDP retains the full owner for the awaiting-first-
+identity-packet state.
 
 In `_ReadOnlyDatagramSocketProxy.sendto`, unpack `<5sii400s` and validate every
 header, frequency, index, ASCII/NUL/padding, and configured-destination rule
@@ -1237,6 +1241,11 @@ Pass the absolute shutdown deadline into every cleanup operation and clamp each
 blocking call to the remaining time; do not grant a fresh timeout per call. A
 committed terminal event with failed status publication is a
 complete-but-unclean exit 3 and may leave `finalizing` status residue.
+A complete terminal-row write is logical closure, not durable commitment: the
+writer becomes immutable immediately, but exposes no committed hash or size
+until flush and fsync succeed. Flush/fsync failure leaves raw unproven evidence,
+failed/unclean outcome, and `finalizing` status; close failure after successful
+fsync is post-commit. Retry and abandon must never append or alter the row.
 
 - [ ] **Step 6: Run and confirm GREEN**
 
@@ -1350,6 +1359,8 @@ The final implementation makes these plan corrections normative:
 - terminal evidence uses a two-phase event/status commit, and a
   complete-but-unclean outcome returns exit 3 with possible `finalizing`
   status residue;
+- terminal-row write makes JSONL immutable, while successful flush and fsync
+  are required before its committed identity is published;
 - adapters use per-stage transport shutdown budgets inside the runner's one
   absolute cleanup deadline;
 - multi-output reservation uses no cross-path rollback because portable

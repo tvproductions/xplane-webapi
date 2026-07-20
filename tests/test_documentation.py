@@ -81,6 +81,7 @@ class TestDocumentationContent(unittest.TestCase):
 
     def test_capture_reference_publishes_protocol_modules_and_exact_contracts(self) -> None:
         reference = (DOCS_DIR / "reference" / "capture.md").read_text(encoding="utf-8")
+        normalized_reference = " ".join(reference.split())
 
         for directive in [
             "::: xpwebapi.capture_protocol",
@@ -105,7 +106,11 @@ class TestDocumentationContent(unittest.TestCase):
             with self.subTest(contract=contract):
                 self.assertIn(contract, reference)
         self.assertIn("`open`, `subscribe`, `connected`, `liveness_state`, and `close`", reference)
+        self.assertIn("Elapsed time is non-decreasing", normalized_reference)
+        self.assertIn("committed hash and size become available only after flush and fsync succeed", normalized_reference)
+        self.assertIn("awaiting_first_identity_packet", normalized_reference)
         self.assertNotIn("last_observation_elapsed", reference)
+        self.assertNotIn("elapsed time strictly increase", normalized_reference)
 
     def test_capture_pages_are_published_and_linked(self) -> None:
         mkdocs = (REPO_ROOT / "mkdocs.yml").read_text(encoding="utf-8")
@@ -143,9 +148,7 @@ class TestDocumentationContent(unittest.TestCase):
                 self.assertIn("liveness_state", document)
 
     def test_task_seven_plan_declares_every_tracked_change(self) -> None:
-        plan = (
-            DOCS_DIR / "superpowers" / "plans" / "2026-07-19-q4xpcc-read-only-capture-worker.md"
-        ).read_text(encoding="utf-8")
+        plan = (DOCS_DIR / "superpowers" / "plans" / "2026-07-19-q4xpcc-read-only-capture-worker.md").read_text(encoding="utf-8")
         task = plan.split("### Task 7: Documentation and Complete Verification", 1)[1]
         files_block = task.split("**Interfaces:**", 1)[0]
         commit_block = " ".join(task.split("**Step 6: Commit**", 1)[1].split())

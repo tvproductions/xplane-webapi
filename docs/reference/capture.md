@@ -33,6 +33,11 @@ The retry object has `initial_attempts`, `reconnect_attempts`,
 `max_disconnect_seconds`, `stale_after_seconds`, `poll_interval_seconds`, and
 `shutdown_timeout_seconds`.
 
+Identity `subscribe()` receives the full aircraft-readiness deadline. Each
+adapter bounds metadata, send, and feedback operations to the lesser of that
+owner and `subscription_timeout_seconds`; UDP separately retains the full
+owner while reporting `awaiting_first_identity_packet`.
+
 `load_capture_request()` reads bytes once. The exact same bytes are parsed and
 hashed, producing the `request_sha256` passed explicitly into `CaptureRunner`.
 `SourceProvenance` is also resolved by the CLI and passed explicitly; the
@@ -42,7 +47,8 @@ runner never fabricates either value or reads it from writer internals.
 
 Every row contains `protocol_version`, `event`, `sequence`,
 `capture_session_id`, `sortie_id`, `timestamp_utc`, and `elapsed_seconds`.
-Sequence starts at 1 and both sequence and elapsed time strictly increase.
+Sequence starts at 1 and strictly increases. Elapsed time is non-decreasing, so
+multiple events may share a monotonic instant.
 
 Event-specific fields are exact:
 
@@ -108,6 +114,12 @@ the second. A complete-but-unclean runner outcome has process exit 3. When the
 terminal event committed but status did not, JSONL is authoritative and status
 may remain `finalizing`; this is deliberate status residue, not permission to
 rewrite the event stream.
+
+A full terminal-row write closes the event stream logically and prevents any
+further append, retry, or abandon mutation. The committed hash and size become
+available only after flush and fsync succeed. Flush/fsync failure leaves raw
+unproven evidence with `finalizing` status and a failed, unclean outcome; close
+failure after successful fsync is post-commit.
 
 ## Signals and cleanup
 

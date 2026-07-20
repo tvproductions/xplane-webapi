@@ -129,6 +129,10 @@ strict: booleans and stringified numbers are not accepted.
 }
 ```
 
+The 10-second subscription timeout bounds each adapter's metadata/send/feedback
+work; it does not truncate the 300-second aircraft-loading window. UDP reports
+`awaiting_first_identity_packet` against that full aircraft-identity deadline.
+
 To use UDP instead, replace `transport` with:
 
 ```json
@@ -201,6 +205,12 @@ and the last status may remain `finalizing`. That is the observable
 complete-but-unclean status-residue case. If atomic status replacement itself
 succeeds just as its deadline passes, the published terminal status remains
 authoritative and the internal deadline diagnostic does not contradict it.
+
+Writing the complete terminal row makes the JSONL logically closed and
+immutable, but does not publish its committed identity. Only successful flush
+and fsync make the hash and size authoritative. A flush/fsync failure preserves
+the raw unproven bytes, leaves status `finalizing`, and exits failed/unclean;
+physical close failure after successful fsync is post-commit.
 
 ## Read-only network boundary
 

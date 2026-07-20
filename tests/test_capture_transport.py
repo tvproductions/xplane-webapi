@@ -322,6 +322,44 @@ class WebsocketCaptureTransportTests(unittest.TestCase):
             factory.clients[0].events.index(("start", True)), factory.clients[0].events.index(("monitor", ("sim/test/identity",), "aircraft_identity"))
         )
 
+    def test_subscription_operations_are_bounded_inside_the_owning_deadline(self) -> None:
+        factory = WebsocketFactory(metadata={"sim/test/identity": "data"})
+        request = make_request()
+        request = request.model_copy(
+            update={
+                "retry": request.retry.model_copy(
+                    update={
+                        "subscription_timeout_seconds": 10.0,
+                        "aircraft_identity_timeout_seconds": 300.0,
+                    }
+                )
+            }
+        )
+        adapter = create_capture_transport(request, client_factory=factory, clock=FakeClock().monotonic)
+        adapter.open(deadline=300.0)
+        private_adapter = cast(Any, adapter)
+        bounded_deadlines: list[float] = []
+        feedback_deadlines: list[float] = []
+        bounded_call = private_adapter._bounded_websocket_call
+        feedback_for = private_adapter._feedback_for
+
+        def record_bounded(call: Callable[[], object], deadline: float, operation: str) -> object:
+            bounded_deadlines.append(deadline)
+            return bounded_call(call, deadline, operation)
+
+        def record_feedback(request_id: int, deadline: float) -> object:
+            feedback_deadlines.append(deadline)
+            return feedback_for(request_id, deadline)
+
+        private_adapter._bounded_websocket_call = record_bounded
+        private_adapter._feedback_for = record_feedback
+
+        adapter.subscribe(request.identity_readiness.refs, "aircraft_identity", lambda _: None, deadline=300.0)
+
+        self.assertEqual([10.0], bounded_deadlines)
+        self.assertEqual([10.0], feedback_deadlines)
+        self.assertEqual(10.0, private_adapter._http_session._deadline)
+
     def test_observation_before_success_feedback_is_published_only_after_acceptance(self) -> None:
         factory = WebsocketFactory(feedback="early-observation-then-success", metadata={"sim/test/identity": "data"})
         request = make_request()
@@ -744,6 +782,43 @@ class UdpCaptureTransportTests(unittest.TestCase):
         adapter.open(deadline=10.0)
         adapter.subscribe(request.identity_readiness.refs, "aircraft_identity", lambda _: None, deadline=2.0)
         clock.now = 2.0
+        self.assertEqual("disconnected", adapter.liveness_state)
+
+    def test_udp_subscription_operation_uses_ten_seconds_but_identity_wait_owns_three_hundred(self) -> None:
+        clock = FakeClock()
+        _adapter, _udp_factory, _beacon_factory, request = self.make_adapter(clock)
+        request = request.model_copy(
+            update={
+                "retry": request.retry.model_copy(
+                    update={
+                        "subscription_timeout_seconds": 10.0,
+                        "aircraft_identity_timeout_seconds": 300.0,
+                    }
+                )
+            }
+        )
+        adapter = create_capture_transport(
+            request,
+            client_factory=UdpFactory(),
+            beacon_factory=BeaconFactory(),
+            clock=clock.monotonic,
+        )
+        adapter.open(deadline=300.0)
+        private_adapter = cast(Any, adapter)
+        operation_deadlines: list[float] = []
+        bounded_call = private_adapter._bounded_udp_call
+
+        def record_bounded(call: Callable[[], object], deadline: float, operation: str) -> object:
+            operation_deadlines.append(deadline)
+            return bounded_call(call, deadline, operation)
+
+        private_adapter._bounded_udp_call = record_bounded
+        adapter.subscribe(request.identity_readiness.refs, "aircraft_identity", lambda _: None, deadline=300.0)
+
+        self.assertEqual([10.0], operation_deadlines)
+        clock.now = 299.0
+        self.assertEqual("awaiting_first_identity_packet", adapter.liveness_state)
+        clock.now = 300.0
         self.assertEqual("disconnected", adapter.liveness_state)
 
     def test_udp_defers_capture_until_fresh_identity_and_closes_bounded(self) -> None:

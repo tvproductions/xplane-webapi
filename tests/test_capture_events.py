@@ -135,7 +135,7 @@ class FaultingStream:
 
     def flush(self) -> None:
         self._flush_count += 1
-        if self._fault == "flush" and self._flush_count == 2:
+        if self._fault == "flush" and self._flush_count == 1:
             raise OSError("final flush fault")
         self._stream.flush()
 
@@ -582,7 +582,7 @@ class CaptureEventWriterTests(unittest.TestCase):
             writer.prepare_close(CaptureFailedInput.model_validate(input_payloads()[10][1]), deadline=0.0)
         self.assertEqual(before, self.events_path.read_bytes())
 
-    def test_full_terminal_write_is_commit_point_and_all_blocking_steps_check_deadline(self) -> None:
+    def test_full_terminal_write_logically_closes_but_fsync_is_commit_point(self) -> None:
         for operation in ("write", "flush", "fsync", "close"):
             with self.subTest(operation=operation):
                 path = self.events_path.with_name(f"deadline-{operation}.jsonl")
@@ -607,8 +607,14 @@ class CaptureEventWriterTests(unittest.TestCase):
                     writer.commit_close(prepared, deadline=10.0)
 
                 content = path.read_bytes()
-                self.assertEqual(prepared.events_sha256, writer.events_sha256)
-                self.assertEqual(prepared.events_size_bytes, writer.events_size_bytes)
+                if operation in {"fsync", "close"}:
+                    self.assertEqual(prepared.events_sha256, writer.events_sha256)
+                    self.assertEqual(prepared.events_size_bytes, writer.events_size_bytes)
+                else:
+                    with self.assertRaises(ValueError):
+                        _ = writer.events_sha256
+                    with self.assertRaises(ValueError):
+                        _ = writer.events_size_bytes
                 self.assertEqual(hashlib.sha256(content).hexdigest(), prepared.events_sha256)
                 self.assertTrue(real_stream.closed)
 
@@ -660,7 +666,7 @@ class CaptureEventWriterTests(unittest.TestCase):
 
         self.assertEqual(original, self.events_path.read_bytes())
 
-    def test_terminal_append_is_logically_immutable_after_finalization_faults(self) -> None:
+    def test_terminal_append_is_immutable_but_identity_requires_durable_commit(self) -> None:
         for fault in ("flush", "fsync", "close"):
             with self.subTest(fault=fault):
                 events_path = self.events_path.with_name(f"{fault}.jsonl")
@@ -675,7 +681,7 @@ class CaptureEventWriterTests(unittest.TestCase):
                 def faulting_fsync(file_descriptor: int) -> None:
                     nonlocal fsync_calls
                     fsync_calls += 1
-                    if fault == "fsync" and fsync_calls == 2:
+                    if fault == "fsync" and fsync_calls == 1:
                         raise OSError("final fsync fault")
                     real_fsync(file_descriptor)
 
@@ -684,11 +690,24 @@ class CaptureEventWriterTests(unittest.TestCase):
                     writer.close(CaptureStoppedInput.model_validate(input_payloads()[9][1]))
                 terminal_bytes = events_path.read_bytes()
 
-                self.assertEqual(hashlib.sha256(terminal_bytes).hexdigest(), writer.events_sha256)
+                if fault == "close":
+                    self.assertEqual(hashlib.sha256(terminal_bytes).hexdigest(), writer.events_sha256)
+                    self.assertEqual(len(terminal_bytes), writer.events_size_bytes)
+                else:
+                    with self.assertRaises(ValueError):
+                        _ = writer.events_sha256
+                    with self.assertRaises(ValueError):
+                        _ = writer.events_size_bytes
                 with self.assertRaisesRegex(ValueError, "capture event writer is closed"):
                     writer.write(CaptureStartedInput.model_validate(input_payloads()[0][1]))
                 with self.assertRaisesRegex(ValueError, "capture event writer is closed"):
                     writer.close(CaptureStoppedInput.model_validate(input_payloads()[9][1]))
+                abandon_error: BaseException | None = None
+                try:
+                    writer.abandon(None)
+                except BaseException as exc:
+                    abandon_error = exc
+                self.assertIsNone(abandon_error)
                 self.assertEqual(terminal_bytes, events_path.read_bytes())
                 self.assertEqual(1, len(terminal_bytes.splitlines()))
                 if not real_stream.closed:

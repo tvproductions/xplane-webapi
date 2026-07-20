@@ -557,10 +557,7 @@ class CaptureRunner:
         identity_result = self._subscribe(
             self._request.identity_readiness.refs,
             "aircraft_identity",
-            min(
-                identity_deadline,
-                self._bounded_deadline(self._request.retry.subscription_timeout_seconds, owning_deadline),
-            ),
+            identity_deadline,
         )
         if sample_disconnected:
             if not self._sample_disconnected_if_active(stop_event, interrupted_event):

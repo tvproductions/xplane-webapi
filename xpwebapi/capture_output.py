@@ -132,7 +132,7 @@ class CaptureEventWriter:
         """SHA-256 of the complete, terminally sealed JSONL file."""
 
         if self._events_sha256 is None:
-            raise ValueError("events SHA-256 is unavailable before close")
+            raise ValueError("events SHA-256 is unavailable before durable commit")
         return self._events_sha256
 
     @property
@@ -140,7 +140,7 @@ class CaptureEventWriter:
         """Byte size of the complete, terminally sealed JSONL file."""
 
         if self._events_size_bytes is None:
-            raise ValueError("events size is unavailable before close")
+            raise ValueError("events size is unavailable before durable commit")
         return self._events_size_bytes
 
     def _envelope(self) -> dict[str, object]:
@@ -225,6 +225,8 @@ class CaptureEventWriter:
     def abandon(self, deadline: float | None) -> None:
         """Close an unsealed stream while retaining every already-written evidence byte."""
 
+        if self._closed:
+            return
         expired = deadline is not None and self._clock.monotonic() >= deadline
         self._prepared_close = None
         self._closed = True
@@ -255,14 +257,13 @@ class CaptureEventWriter:
             self._stream.close()
             raise OSError(f"incomplete terminal event write: {written} of {len(prepared.row_bytes)} bytes")
 
-        # A complete canonical terminal row is the immutable JSONL commit point.
+        # A complete canonical terminal row closes the logical stream. Its
+        # identity remains unpublished until flush and fsync prove durability.
         self._digest.update(prepared.row_bytes)
         self._size_bytes = prepared.events_size_bytes
         self._sequence += 1
         self._last_elapsed_seconds = cast(float, prepared.document["elapsed_seconds"])
         self._closed = True
-        self._events_sha256 = prepared.events_sha256
-        self._events_size_bytes = prepared.events_size_bytes
         self._prepared_close = None
         finalization_error: BaseException | None = None
         try:
@@ -270,10 +271,8 @@ class CaptureEventWriter:
             self._stream.flush()
             _require_deadline(deadline, self._clock.monotonic)
             os.fsync(self._stream.fileno())
-            _require_deadline(deadline, self._clock.monotonic)
-            self._stream.flush()
-            _require_deadline(deadline, self._clock.monotonic)
-            os.fsync(self._stream.fileno())
+            self._events_sha256 = prepared.events_sha256
+            self._events_size_bytes = prepared.events_size_bytes
             _require_deadline(deadline, self._clock.monotonic)
         except BaseException as exc:
             finalization_error = exc
