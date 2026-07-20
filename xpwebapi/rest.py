@@ -199,14 +199,8 @@ class XPRestAPI(API):
         self._unreach_count = 0
         self._dataref_by_id = {}  # {dataref-id: Dataref}
 
-        raw_session = (
-            _RestClientPool.acquire(self._session_pool_key)
-            if self._session_pool_key is not None
-            else _make_http_client(client_key)
-        )
-        self.session: httpx.Client | _ReadOnlyHttpClientProxy = (
-            _ReadOnlyHttpClientProxy(raw_session) if self.read_only else raw_session
-        )
+        raw_session = _RestClientPool.acquire(self._session_pool_key) if self._session_pool_key is not None else _make_http_client(client_key)
+        self.session: httpx.Client | _ReadOnlyHttpClientProxy = _ReadOnlyHttpClientProxy(raw_session) if self.read_only else raw_session
 
     def __enter__(self) -> Self:
         return self

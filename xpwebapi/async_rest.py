@@ -54,6 +54,7 @@ class AsyncXPRestAPI:
         self._status = CONNECTION_STATUS.NO_BEACON
         self.status = CONNECTION_STATUS.NOT_CONNECTED
 
+        self._use_rest = True
         self._use_cache = False
         self._should_use_cache = use_cache
         self._roundings = None
@@ -72,9 +73,7 @@ class AsyncXPRestAPI:
         self.all_commands: CommandCache | None = None
 
         raw_session = httpx.AsyncClient(headers={"Accept": "application/json", "Content-Type": "application/json"})
-        self.session: httpx.AsyncClient | _ReadOnlyAsyncHttpClientProxy = (
-            _ReadOnlyAsyncHttpClientProxy(raw_session) if self.read_only else raw_session
-        )
+        self.session: httpx.AsyncClient | _ReadOnlyAsyncHttpClientProxy = _ReadOnlyAsyncHttpClientProxy(raw_session) if self.read_only else raw_session
         self.set_network(host=host, port=port, api=api, api_version=api_version)
 
     def _require_write_access(self, operation: str) -> None:

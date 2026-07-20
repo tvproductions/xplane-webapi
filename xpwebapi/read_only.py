@@ -11,9 +11,7 @@ from websockets.sync.client import ClientConnection
 from .exceptions import XPReadOnlyViolation
 
 
-READ_ONLY_WS_TYPES = frozenset(
-    {"dataref_subscribe_values", "dataref_unsubscribe_values"}
-)
+READ_ONLY_WS_TYPES = frozenset({"dataref_subscribe_values", "dataref_unsubscribe_values"})
 
 
 def _forbidden_attribute(name: str) -> Never:
@@ -74,9 +72,7 @@ class _ReadOnlyWebsocketProxy:
 
 
 class _ReadOnlyDatagramSocketProxy:
-    def __init__(
-        self, udp_socket: socket.socket, destination: tuple[str, int]
-    ) -> None:
+    def __init__(self, udp_socket: socket.socket, destination: tuple[str, int]) -> None:
         self.__socket = udp_socket
         self.__destination = destination
 
@@ -96,14 +92,7 @@ class _ReadOnlyDatagramSocketProxy:
         nul = path_field.find(b"\x00")
         path = path_field[:nul] if nul >= 0 else b""
         padding = path_field[nul + 1 :] if nul >= 0 else path_field
-        if (
-            header != b"RREF\x00"
-            or frequency < 0
-            or frequency > 100
-            or index < 0
-            or not path
-            or any(padding)
-        ):
+        if header != b"RREF\x00" or frequency < 0 or frequency > 100 or index < 0 or not path or any(padding):
             raise XPReadOnlyViolation("read-only UDP permits only valid RREF packets")
         try:
             path.decode("ascii")
