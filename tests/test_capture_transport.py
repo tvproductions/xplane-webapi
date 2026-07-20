@@ -406,6 +406,7 @@ class WebsocketCaptureTransportTests(unittest.TestCase):
     def test_blocking_websocket_rollback_unmonitor_is_aborted_at_deadline(self) -> None:
         factory = WebsocketFactory(feedback="failure", metadata={"sim/test/identity": "data"})
         request = make_request()
+        request = request.model_copy(update={"retry": request.retry.model_copy(update={"subscription_timeout_seconds": 0.05})})
         adapter = create_capture_transport(request, client_factory=factory, clock=time.monotonic)
         adapter.open(deadline=time.monotonic() + 1.0)
         client = factory.clients[0]
@@ -425,7 +426,7 @@ class WebsocketCaptureTransportTests(unittest.TestCase):
         cast(Any, client).abort_websocket = abort
         started = time.monotonic()
 
-        result = adapter.subscribe(request.identity_readiness.refs, "aircraft_identity", lambda _: None, deadline=started + 0.05)
+        result = adapter.subscribe(request.identity_readiness.refs, "aircraft_identity", lambda _: None, deadline=started + 300.0)
 
         self.assertLess(time.monotonic() - started, 0.25)
         self.assertEqual({"identity": "subscription feedback failed"}, dict(result.rejected))
@@ -466,6 +467,9 @@ class WebsocketCaptureTransportTests(unittest.TestCase):
                 self.assertEqual([], observations)
                 with self.assertRaises(RuntimeError):
                     adapter.subscribe(make_request().refs, "capture", lambda _: None, deadline=10.0)
+                unmonitor_events = [event for event in factory.clients[0].events if isinstance(event, tuple) and event[0] == "unmonitor"]
+                self.assertEqual(0 if feedback == "timeout" else 1, len(unmonitor_events))
+                adapter.close(deadline=10.0)
                 unmonitor_events = [event for event in factory.clients[0].events if isinstance(event, tuple) and event[0] == "unmonitor"]
                 self.assertEqual(1, len(unmonitor_events))
 

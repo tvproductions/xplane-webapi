@@ -466,10 +466,10 @@ class _WebsocketCaptureTransport(_TransportBase):
                 "subscription",
             )
         except BaseException:
-            self._discard_staged_refs(prepared, deadline)
+            self._discard_staged_refs(prepared, operation_deadline)
             raise
         if type(request_id) is not int:
-            self._discard_staged_refs(prepared, deadline)
+            self._discard_staged_refs(prepared, operation_deadline)
             failed = {ref.id: "subscription request failed" for ref in refs if ref.id not in rejected}
             return SubscriptionResult(purpose, (), rejected | failed, None)
         feedback = self._feedback_for(request_id, operation_deadline)
@@ -480,7 +480,7 @@ class _WebsocketCaptureTransport(_TransportBase):
         else:
             reason = ""
         if reason:
-            self._discard_staged_refs(prepared, deadline)
+            self._discard_staged_refs(prepared, operation_deadline)
             failed = {ref.id: reason for ref in refs if ref.id not in rejected}
             return SubscriptionResult(purpose, (), rejected | failed, request_id)
         accepted_ids = tuple(ref.id for ref in refs if ref.id not in rejected)
