@@ -356,10 +356,13 @@ class XPWebsocketAPI(XPRestAPI):
     def abort_websocket(self) -> None:
         """Immediately terminate the socket to interrupt a blocked operation."""
         self.should_not_connect.set()
-        self.ws_lsnr_not_running.set()
+        # Detach ownership before publishing listener shutdown. Once the event
+        # is visible, listener cleanup must not find and gracefully close the
+        # aborting socket or emit ON_CLOSE callbacks for it.
         websocket = self.ws
         self.ws = None
         self.status = CONNECTION_STATUS.WEBSOCKET_DISCONNNECTED
+        self.ws_lsnr_not_running.set()
         if websocket is None:
             return
         if isinstance(websocket, _ReadOnlyWebsocketProxy):

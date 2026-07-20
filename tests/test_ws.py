@@ -293,6 +293,23 @@ class TestXPWebsocketAPIConnect(WebsocketAPITestCase):
         self.assertIsNone(api.ws)
         self.assertEqual(CONNECTION_STATUS.WEBSOCKET_DISCONNNECTED, api.status)
 
+    def test_abort_detaches_socket_before_listener_stop_can_close_it(self):
+        api = self.make_api()
+        websocket = api.ws
+        api.ws_lsnr_not_running = MagicMock()
+
+        def listener_exit_interleaving() -> None:
+            api._close_websocket_listener()
+
+        api.ws_lsnr_not_running.set.side_effect = listener_exit_interleaving
+
+        with patch.object(api, "execute_callbacks") as execute_callbacks:
+            api.abort_websocket()
+
+        websocket.close.assert_not_called()
+        websocket.close_socket.assert_called_once_with()
+        execute_callbacks.assert_not_called()
+
     def test_context_manager_connects_on_enter_and_closes_on_exit(self):
         api = self.make_api()
 
@@ -562,6 +579,16 @@ class TestXPWebsocketAPIListener(WebsocketAPITestCase):
         api._handle_websocket_closed()
 
         callback.assert_not_called()
+
+    def test_remote_connection_close_runs_close_callbacks(self):
+        api = self.make_api()
+        api.ws_lsnr_not_running = threading.Event()
+        callback = MagicMock()
+        api.add_callback(CALLBACK_TYPE.ON_CLOSE, callback)
+
+        api._handle_websocket_closed()
+
+        callback.assert_called_once_with()
 
     def test_ws_listener_sleeps_when_socket_missing(self):
         api = self.make_api()
