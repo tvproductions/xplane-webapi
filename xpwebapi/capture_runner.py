@@ -483,7 +483,7 @@ class CaptureRunner:
             self._state.capture_rejected_refs.update(result.rejected)
         return result
 
-    def _identity_observations(self) -> tuple[IdentityObservation, ...] | None:
+    def _identity_observations(self, *, require_fresh: bool = True) -> tuple[IdentityObservation, ...] | None:
         observations = self._observations()
         result: list[IdentityObservation] = []
         now = self._clock.monotonic()
@@ -493,7 +493,7 @@ class CaptureRunner:
                 self._state.matched_identity_ref_count = len(result)
                 return None
             age = now - observation.observed_monotonic
-            if age > self._request.retry.stale_after_seconds:
+            if require_fresh and age > self._request.retry.stale_after_seconds:
                 self._state.matched_identity_ref_count = len(result)
                 return None
             normalized = _identity_value(ref, observation.value)
@@ -643,7 +643,7 @@ class CaptureRunner:
 
     def _aircraft_ready(self, capture_result: SubscriptionResult) -> None:
         now = self._clock.monotonic()
-        identity = self._identity_observations()
+        identity = self._identity_observations(require_fresh=False)
         if identity is None:
             raise _CaptureFailure("aircraft_identity_lost")
         required_ids = tuple(ref.id for ref in self._request.refs if ref.availability == "required")
@@ -786,8 +786,8 @@ class CaptureRunner:
         self._sample_due(self._clock.monotonic(), disconnected=True)
         return True
 
-    def _identity_is_fresh(self) -> bool:
-        return self._identity_observations() is not None
+    def _identity_still_matches(self) -> bool:
+        return self._identity_observations(require_fresh=False) is not None
 
     def _termination(
         self,
@@ -898,7 +898,7 @@ class CaptureRunner:
             if self._state.transport_connection_state == "disconnected":
                 self._reconnect(stop_event, interrupted_event)
                 continue
-            if not self._identity_is_fresh():
+            if not self._identity_still_matches():
                 raise _CaptureFailure("aircraft_identity_lost")
             self._sample_due(now)
             self._clock.wait(stop_event, self._next_wait(now))

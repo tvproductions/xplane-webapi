@@ -473,7 +473,7 @@ class WebsocketCaptureTransportTests(unittest.TestCase):
                 unmonitor_events = [event for event in factory.clients[0].events if isinstance(event, tuple) and event[0] == "unmonitor"]
                 self.assertEqual(1, len(unmonitor_events))
 
-    def test_capture_datarefs_are_deferred_until_fresh_identity_match(self) -> None:
+    def test_capture_datarefs_are_deferred_until_matching_identity_observation(self) -> None:
         clock = FakeClock()
         factory = WebsocketFactory(metadata={"sim/test/identity": "data", "sim/test/capture": "float"})
         request = make_request()
@@ -486,6 +486,7 @@ class WebsocketCaptureTransportTests(unittest.TestCase):
         self.assertEqual(["sim/test/identity"], [ref.name for ref in factory.clients[0].created])
 
         factory.clients[0].emit("sim/test/identity", b"FlyJSim Q4XP\x00")
+        clock.now = 4.0
         result = adapter.subscribe(request.refs, "capture", lambda _: None, deadline=10.0)
         self.assertEqual(("capture",), result.accepted_ref_ids)
 

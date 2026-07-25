@@ -219,20 +219,18 @@ class _TransportBase:
         self._request = request
         self._clock = clock
         self._identity_refs = {ref.path: ref for ref in request.identity_readiness.refs}
-        self._identity_matches_at: dict[str, float] = {}
+        self._matching_identity_paths: set[str] = set()
         self._callbacks: dict[str, Callable[[Observation], None]] = {}
         self._refs_by_path: dict[str, AircraftIdentityRef | CaptureRef] = {}
         self._datarefs: dict[str, Any] = {}
         self._closed = False
 
     def _capture_allowed(self) -> bool:
-        now = self._clock()
-        stale_after = self._request.retry.stale_after_seconds
-        return all(now - self._identity_matches_at.get(path, float("-inf")) <= stale_after for path in self._identity_refs)
+        return all(path in self._matching_identity_paths for path in self._identity_refs)
 
     def _require_capture_allowed(self, purpose: Purpose) -> None:
         if purpose == "capture" and not self._capture_allowed():
-            raise RuntimeError("capture refs require fresh matching aircraft identity observations")
+            raise RuntimeError("capture refs require matching aircraft identity observations")
 
     def _subscription_deadline(self, owning_deadline: float) -> float:
         now = self._clock()
@@ -250,9 +248,9 @@ class _TransportBase:
         identity_ref = self._identity_refs.get(path)
         if identity_ref is not None:
             if _identity_matches(identity_ref, value):
-                self._identity_matches_at[path] = observed_at
+                self._matching_identity_paths.add(path)
             else:
-                self._identity_matches_at.pop(path, None)
+                self._matching_identity_paths.discard(path)
         callback(Observation(ref_id=ref.id, path=path, value=value, observed_monotonic=observed_at))
         return True
 

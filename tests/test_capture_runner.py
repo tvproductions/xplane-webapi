@@ -66,6 +66,7 @@ class FakeTransport:
         close_error: BaseException | None = None,
         close_advance: float = 0.0,
         advance_on_capture: float = 0.0,
+        refresh_identity_on_capture: bool = True,
         liveness_override: Literal["connected", "awaiting_first_identity_packet", "disconnected"] | None = None,
         on_subscribe: Any | None = None,
         on_open: Any | None = None,
@@ -82,6 +83,7 @@ class FakeTransport:
         self.close_error = close_error
         self.close_advance = close_advance
         self.advance_on_capture = advance_on_capture
+        self.refresh_identity_on_capture = refresh_identity_on_capture
         self.liveness_override = liveness_override
         self.on_subscribe = on_subscribe
         self.on_open = on_open
@@ -138,15 +140,16 @@ class FakeTransport:
             self.on_subscribe(purpose)
         if purpose == "capture" and self.advance_on_capture:
             self.clock.now += self.advance_on_capture
-            for identity_ref, identity_callback in self.identity_callbacks:
-                identity_callback(
-                    Observation(
-                        ref_id=identity_ref.id,
-                        path=identity_ref.path,
-                        value=self.observations[identity_ref.id],
-                        observed_monotonic=self.clock.monotonic(),
+            if self.refresh_identity_on_capture:
+                for identity_ref, identity_callback in self.identity_callbacks:
+                    identity_callback(
+                        Observation(
+                            ref_id=identity_ref.id,
+                            path=identity_ref.path,
+                            value=self.observations[identity_ref.id],
+                            observed_monotonic=self.clock.monotonic(),
+                        )
                     )
-                )
         accepted: list[str] = []
         rejected: dict[str, str] = {}
         for ref in refs:
@@ -575,6 +578,44 @@ class CaptureRunnerTests(unittest.TestCase):
         self.assertEqual("failed", outcome.terminal_state)
         self.assertEqual("first_values_timeout", outcome.reason)
         self.assertFalse(outcome.aircraft_ready)
+
+    def test_static_identity_observation_remains_valid_after_capture_subscription_delay(self) -> None:
+        clock = FakeClock()
+        request = make_request(retry={"stale_after_seconds": 2.0})
+        transport = FakeTransport(
+            clock,
+            [],
+            observations={"aircraft": "Q4XP", "speed": 10.0},
+            advance_on_capture=3.0,
+            refresh_identity_on_capture=False,
+        )
+
+        outcome = self.build(request, [transport], clock)[0].run(threading.Event(), threading.Event())
+
+        self.assertEqual("complete", outcome.terminal_state)
+        self.assertTrue(outcome.aircraft_ready)
+
+    def test_later_identity_mismatch_invalidates_a_stale_cached_match(self) -> None:
+        transport_box: list[FakeTransport] = []
+
+        def lose_identity(_event: threading.Event) -> None:
+            transport_box[0].emit("aircraft", "sim/aircraft/view/acf_relative_path", "C172")
+
+        clock = FakeClock(on_wait=lose_identity)
+        request = make_request(retry={"stale_after_seconds": 2.0})
+        transport = FakeTransport(
+            clock,
+            [],
+            observations={"aircraft": "Q4XP", "speed": 1.0},
+            advance_on_capture=3.0,
+            refresh_identity_on_capture=False,
+        )
+        transport_box.append(transport)
+
+        outcome = self.build(request, [transport], clock)[0].run(threading.Event(), threading.Event())
+
+        self.assertEqual("aircraft_identity_lost", outcome.reason)
+        self.assertEqual(1, len([row for row in self.rows() if row["event"] == "sample"]))
 
     def test_disconnect_during_identity_wait_reconnects_instead_of_waiting_for_timeout(self) -> None:
         clock = FakeClock()
