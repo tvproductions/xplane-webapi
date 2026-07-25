@@ -159,9 +159,16 @@
       "description": "Bounded retry and lifecycle timeout policy.",
       "properties": {
         "aircraft_identity_timeout_seconds": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
           "default": 300.0,
-          "title": "Aircraft Identity Timeout Seconds",
-          "type": "number"
+          "title": "Aircraft Identity Timeout Seconds"
         },
         "backoff_max_seconds": {
           "default": 5.0,

@@ -788,6 +788,22 @@ class UdpCaptureTransportTests(unittest.TestCase):
         clock.now = 2.0
         self.assertEqual("disconnected", adapter.liveness_state)
 
+    def test_udp_unbounded_identity_wait_remains_explicitly_awaiting(self) -> None:
+        clock = FakeClock()
+        adapter, _udp_factory, _beacon_factory, request = self.make_adapter(clock)
+        adapter.open(deadline=10.0)
+        adapter.subscribe(
+            request.identity_readiness.refs,
+            "aircraft_identity",
+            lambda _: None,
+            deadline=2.0,
+        )
+        adapter.arm_identity_wait(None)
+
+        clock.now = 301.0
+
+        self.assertEqual("awaiting_first_identity_packet", adapter.liveness_state)
+
     def test_udp_subscription_operation_uses_ten_seconds_but_identity_wait_owns_three_hundred(self) -> None:
         clock = FakeClock()
         _adapter, _udp_factory, _beacon_factory, request = self.make_adapter(clock)

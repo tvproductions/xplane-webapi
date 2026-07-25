@@ -825,13 +825,17 @@ backoff_max_seconds)`. Every failed attempt emits `retry`. Exhaustion produces
 `capture_failed` and status `failed`.
 
 Aircraft identity matching uses the separate
-`aircraft_identity_timeout_seconds`. Required capture first observations use
-`first_values_timeout_seconds`; neither timeout starts before
-`transport_ready`. Status exposes the active attempt phase and attempt counts
-during initial connection and reconnection. A fresh matching identity
-observation resets that ref's freshness deadline. Identity mismatch or
-staleness after initial readiness is terminal `aircraft_identity_lost`, while
-failure to receive the first matching identity before its deadline is
+`aircraft_identity_timeout_seconds`. A positive value preserves a finite
+identity deadline; `null` represents a human-controlled aircraft-load wait
+that ends only on matching identity, explicit stop/interruption, transport
+failure, or an owning reconnect deadline. Identity subscription operations
+remain independently bounded by `subscription_timeout_seconds`. Required
+capture first observations use `first_values_timeout_seconds`; neither finite
+readiness timeout starts before `transport_ready`. Status exposes the active
+attempt phase and attempt counts during initial connection and reconnection. A
+fresh matching identity observation resets that ref's freshness deadline.
+Identity mismatch or staleness after initial readiness is terminal
+`aircraft_identity_lost`, while expiry of a finite first-match deadline is
 `aircraft_identity_timeout`.
 
 ## Finalization

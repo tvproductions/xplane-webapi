@@ -286,7 +286,7 @@ class CaptureRetryPolicy(StrictModel):
     backoff_seconds: float = 0.5
     backoff_max_seconds: float = 5.0
     subscription_timeout_seconds: float = 10.0
-    aircraft_identity_timeout_seconds: float = 300.0
+    aircraft_identity_timeout_seconds: float | None = 300.0
     first_values_timeout_seconds: float = 30.0
     max_disconnect_seconds: float = 30.0
     stale_after_seconds: float = 3.0
@@ -307,7 +307,6 @@ class CaptureRetryPolicy(StrictModel):
 
     @field_validator(
         "subscription_timeout_seconds",
-        "aircraft_identity_timeout_seconds",
         "first_values_timeout_seconds",
         "max_disconnect_seconds",
         "stale_after_seconds",
@@ -318,6 +317,13 @@ class CaptureRetryPolicy(StrictModel):
     @classmethod
     def _validate_timeout(cls, value: object, info: Any) -> float:
         return _positive_float(value, name=info.field_name)
+
+    @field_validator("aircraft_identity_timeout_seconds", mode="before")
+    @classmethod
+    def _validate_identity_timeout(cls, value: object) -> float | None:
+        if value is None:
+            return None
+        return _positive_float(value, name="aircraft_identity_timeout_seconds")
 
     @model_validator(mode="after")
     def _validate_backoff_order(self) -> "CaptureRetryPolicy":

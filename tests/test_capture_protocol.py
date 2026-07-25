@@ -153,6 +153,14 @@ class TestCaptureRequestStrictModels(unittest.TestCase):
 
         self.assertEqual(request.transport.kind, "udp")
 
+    def test_aircraft_identity_timeout_accepts_explicit_unbounded_wait(self):
+        payload = valid_request_payload()
+        payload["retry"]["aircraft_identity_timeout_seconds"] = None
+
+        request = CaptureRequest.model_validate(payload)
+
+        self.assertIsNone(request.retry.aircraft_identity_timeout_seconds)
+
     def test_protocol_version_is_exactly_integer_one(self):
         for value in (0, 2, "1", 1.0, True):
             with self.subTest(value=value):

@@ -33,10 +33,12 @@ The retry object has `initial_attempts`, `reconnect_attempts`,
 `max_disconnect_seconds`, `stale_after_seconds`, `poll_interval_seconds`, and
 `shutdown_timeout_seconds`.
 
-Identity `subscribe()` receives the full aircraft-readiness deadline. Each
-adapter bounds metadata, send, and feedback operations to the lesser of that
-owner and `subscription_timeout_seconds`; UDP separately retains the full
-owner while reporting `awaiting_first_identity_packet`.
+Identity subscription metadata, send, and feedback operations are always
+bounded by `subscription_timeout_seconds`. The separate
+`aircraft_identity_timeout_seconds` may be a positive number or `null`; `null`
+waits for matching aircraft identity until explicit stop, interruption,
+transport failure, or an owning reconnect deadline. UDP reports
+`awaiting_first_identity_packet` for the full finite or unbounded identity wait.
 
 `load_capture_request()` reads bytes once. The exact same bytes are parsed and
 hashed, producing the `request_sha256` passed explicitly into `CaptureRunner`.

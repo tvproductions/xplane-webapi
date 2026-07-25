@@ -90,6 +90,7 @@ class FakeTransport:
         self.connected_checks = 0
         self.close_count = 0
         self.deadlines: list[float] = []
+        self.identity_wait_deadlines: list[float | None] = []
         self.identity_callbacks: list[tuple[Any, Any]] = []
         self.callbacks_by_id: dict[str, Any] = {}
 
@@ -187,6 +188,9 @@ class FakeTransport:
                 observed_monotonic=self.clock.monotonic(),
             )
         )
+
+    def arm_identity_wait(self, deadline: float | None) -> None:
+        self.identity_wait_deadlines.append(deadline)
 
     def close(self, deadline: float) -> None:
         self.log.append("close")
@@ -469,6 +473,46 @@ class CaptureRunnerTests(unittest.TestCase):
         self.assertEqual("aircraft_identity_timeout", outcome.reason)
         self.assertNotIn("subscribe:capture", log)
 
+    def test_unbounded_identity_wait_can_exceed_former_five_minute_limit(self) -> None:
+        log: list[str] = []
+        clock = FakeClock()
+        transport = FakeTransport(
+            clock,
+            log,
+            observations={
+                "aircraft": "Aircraft/Cessna_172SP.acf",
+                "speed": 42.0,
+            },
+        )
+        emitted_q4xp = False
+
+        def load_q4xp(_event: threading.Event) -> None:
+            nonlocal emitted_q4xp
+            if not emitted_q4xp and clock.now > 301.0:
+                emitted_q4xp = True
+                transport.emit(
+                    "aircraft",
+                    "sim/aircraft/view/acf_relative_path",
+                    "Aircraft/Q4XP.acf",
+                )
+
+        clock.on_wait = load_q4xp
+        request = make_request(
+            capture_limit=0.1,
+            retry={
+                "aircraft_identity_timeout_seconds": None,
+                "poll_interval_seconds": 1.0,
+            },
+        )
+        runner, _status = self.build(request, [transport], clock)
+
+        outcome = runner.run(threading.Event(), threading.Event())
+
+        self.assertEqual("complete", outcome.terminal_state)
+        self.assertGreater(clock.now, 301.0)
+        self.assertTrue(emitted_q4xp)
+        self.assertIn("subscribe:capture", log)
+
     def test_required_rejection_fails_but_optional_rejection_completes(self) -> None:
         clock = FakeClock()
         log: list[str] = []
@@ -578,7 +622,7 @@ class CaptureRunnerTests(unittest.TestCase):
         self.assertLessEqual(clock.now, 0.05)
         self.assertTrue(all(deadline <= 0.05 for deadline in second.deadlines))
 
-    def test_identity_subscriptions_receive_initial_and_reconnect_owning_deadlines(self) -> None:
+    def test_identity_subscription_operations_are_bounded_separately_from_readiness(self) -> None:
         clock = FakeClock()
         request = make_request(
             retry={
@@ -598,8 +642,10 @@ class CaptureRunnerTests(unittest.TestCase):
         outcome = self.build(request, [first, second], clock)[0].run(threading.Event(), threading.Event())
 
         self.assertEqual("complete", outcome.terminal_state)
-        self.assertEqual(300.0, first.deadlines[1])
-        self.assertGreater(second.deadlines[1] - second.deadlines[0], 20.0)
+        self.assertEqual(10.0, first.deadlines[1])
+        self.assertEqual([300.0], first.identity_wait_deadlines)
+        self.assertEqual(10.0, second.deadlines[1])
+        self.assertEqual([30.0], second.identity_wait_deadlines)
 
     def test_first_sample_occurs_at_aircraft_ready_and_status_polling_does_not_touch_jsonl(self) -> None:
         clock = FakeClock()

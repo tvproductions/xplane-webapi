@@ -70,6 +70,9 @@ class CaptureTransport(Protocol):
     ) -> SubscriptionResult:
         raise RuntimeError("CaptureTransport.subscribe must be implemented")
 
+    def arm_identity_wait(self, deadline: float | None) -> None:
+        """Record the full identity-readiness window after bounded subscription."""
+
     def close(self, deadline: float) -> None:
         raise RuntimeError("CaptureTransport.close must be implemented")
 
@@ -487,6 +490,9 @@ class _WebsocketCaptureTransport(_TransportBase):
         self._activate_staged_refs()
         return SubscriptionResult(purpose, accepted_ids, rejected, request_id)
 
+    def arm_identity_wait(self, deadline: float | None) -> None:
+        del deadline
+
     def close(self, deadline: float) -> None:
         if self._closed:
             return
@@ -570,6 +576,7 @@ class _UdpCaptureTransport(_TransportBase):
         self._monitor: Any | None = None
         self._beacon_data: Any | None = None
         self._identity_deadline: float | None = None
+        self._identity_wait_active = False
         self._last_valid_rref_monotonic: float | None = None
         self._configured_paths: set[str] = set()
         self._abort_lock = threading.Lock()
@@ -580,7 +587,7 @@ class _UdpCaptureTransport(_TransportBase):
         now = self._clock()
         if self._last_valid_rref_monotonic is not None:
             return "connected" if now - self._last_valid_rref_monotonic <= self._config.liveness_timeout_seconds else "disconnected"
-        if self._identity_deadline is not None and now < self._identity_deadline:
+        if self._identity_wait_active and (self._identity_deadline is None or now < self._identity_deadline):
             return "awaiting_first_identity_packet"
         return "disconnected"
 
@@ -680,11 +687,16 @@ class _UdpCaptureTransport(_TransportBase):
             self._callbacks[ref.path] = callback
             self._configured_paths.add(ref.path)
         if purpose == "aircraft_identity" and accepted:
+            self._identity_wait_active = True
             self._identity_deadline = deadline
         if accepted:
             _remaining(operation_deadline, self._clock)
             self._client.start(release=True)
         return SubscriptionResult(purpose, tuple(accepted), rejected, None)
+
+    def arm_identity_wait(self, deadline: float | None) -> None:
+        self._identity_wait_active = True
+        self._identity_deadline = deadline
 
     def close(self, deadline: float) -> None:
         if self._closed:

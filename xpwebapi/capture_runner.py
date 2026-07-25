@@ -516,7 +516,7 @@ class CaptureRunner:
 
     def _wait_until(
         self,
-        deadline: float,
+        deadline: float | None,
         predicate: Callable[[], bool],
         stop_event: threading.Event,
         interrupted_event: threading.Event,
@@ -530,10 +530,13 @@ class CaptureRunner:
                 raise _RetryableDisconnect("transport disconnected during readiness")
             if predicate():
                 return True
-            remaining = deadline - self._clock.monotonic()
-            if remaining <= 0:
-                return False
-            wait_seconds = self._bounded_wait_seconds(deadline, include_group_end=sample_disconnected)
+            if deadline is None:
+                wait_seconds = self._request.retry.poll_interval_seconds
+            else:
+                remaining = deadline - self._clock.monotonic()
+                if remaining <= 0:
+                    return False
+                wait_seconds = self._bounded_wait_seconds(deadline, include_group_end=sample_disconnected)
             self._clock.wait(stop_event, wait_seconds)
             if sample_disconnected and not self._sample_disconnected_if_active(stop_event, interrupted_event):
                 return False
@@ -541,6 +544,11 @@ class CaptureRunner:
     def _bounded_deadline(self, duration: float, owning_deadline: float | None) -> float:
         deadline = self._clock.monotonic() + duration
         return deadline if owning_deadline is None else min(deadline, owning_deadline)
+
+    def _optional_bounded_deadline(self, duration: float | None, owning_deadline: float | None) -> float | None:
+        if duration is None:
+            return owning_deadline
+        return self._bounded_deadline(duration, owning_deadline)
 
     def _establish_aircraft(
         self,
@@ -550,15 +558,21 @@ class CaptureRunner:
         *,
         sample_disconnected: bool = False,
     ) -> None:
-        identity_deadline = self._bounded_deadline(
+        identity_deadline = self._optional_bounded_deadline(
             self._request.retry.aircraft_identity_timeout_seconds,
+            owning_deadline,
+        )
+        identity_subscription_deadline = self._bounded_deadline(
+            self._request.retry.subscription_timeout_seconds,
             owning_deadline,
         )
         identity_result = self._subscribe(
             self._request.identity_readiness.refs,
             "aircraft_identity",
-            identity_deadline,
+            identity_subscription_deadline,
         )
+        if self._transport is not None and identity_result.accepted_ref_ids:
+            self._transport.arm_identity_wait(identity_deadline)
         if sample_disconnected:
             if not self._sample_disconnected_if_active(stop_event, interrupted_event):
                 return

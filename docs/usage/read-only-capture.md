@@ -130,8 +130,12 @@ strict: booleans and stringified numbers are not accepted.
 ```
 
 The 10-second subscription timeout bounds each adapter's metadata/send/feedback
-work; it does not truncate the 300-second aircraft-loading window. UDP reports
-`awaiting_first_identity_packet` against that full aircraft-identity deadline.
+work; it does not truncate the aircraft-loading window. Set
+`aircraft_identity_timeout_seconds` to `null` when aircraft loading is a
+human-controlled action that must wait until a matching aircraft appears or the
+worker is explicitly stopped. UDP reports `awaiting_first_identity_packet`
+throughout that unbounded wait. Finite values retain the bounded timeout
+behavior.
 
 To use UDP instead, replace `transport` with:
 
