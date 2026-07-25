@@ -45,7 +45,7 @@ uv run xpwebapi-capture --version-json
 ```
 
 `--version-json` is mutually exclusive with all capture arguments. It emits
-one compact, key-sorted protocol-v1 JSON object plus a newline. It makes no
+one compact, key-sorted protocol-v1 JSON object plus LF (`0x0A`), never CRLF. It makes no
 network calls and performs no filesystem mutation. It may read local package,
 Git, and filesystem provenance. The object is the machine-readable handshake
 q4xpcc should inspect before launching capture:

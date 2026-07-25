@@ -13,7 +13,7 @@ from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from types import FrameType
-from typing import Literal, TextIO, cast
+from typing import BinaryIO, Literal, TextIO, cast
 
 from xpwebapi.capture_events import CaptureEventIdentity, SourceProvenance, VersionJsonDocument
 from xpwebapi.capture_output import AtomicStatusWriter, CaptureEventWriter, resolve_source_provenance
@@ -86,7 +86,12 @@ def emit_version_json(document: VersionJsonDocument, stream: TextIO) -> None:
         sort_keys=True,
         separators=(",", ":"),
     )
-    stream.write(rendered + "\n")
+    payload = (rendered + "\n").encode("utf-8")
+    binary_stream = getattr(stream, "buffer", None)
+    if binary_stream is None:
+        stream.write(payload.decode("utf-8"))
+    else:
+        cast(BinaryIO, binary_stream).write(payload)
 
 
 def install_signal_handlers(

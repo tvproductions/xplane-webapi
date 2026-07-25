@@ -40,6 +40,14 @@ PROVENANCE = SourceProvenance(
     git_dirty=False,
     read_only=True,
 )
+EXPECTED_VERSION_JSON = (
+    '{"git_dirty":false,"git_origin":"https://github.com/tvproductions/xplane-webapi.git",'
+    '"git_revision":"0000000000000000000000000000000000000000",'
+    '"git_root":"C:/src/xplane-webapi","git_state":"available",'
+    '"package_name":"xpwebapi","package_version":"3.5.0","python_version":"3.12.0",'
+    '"read_only":true,"supported_transports":["udp","websocket"],'
+    '"worker":"xpwebapi-capture","worker_protocol_version":1}\n'
+)
 
 
 def request_document(*, stop_file: str | None = None) -> dict[str, object]:
@@ -159,14 +167,6 @@ class CaptureCliTests(unittest.TestCase):
         self.assertEqual("", stderr)
 
     def test_version_json_is_exact_and_does_not_enter_capture_mode(self) -> None:
-        expected = (
-            '{"git_dirty":false,"git_origin":"https://github.com/tvproductions/xplane-webapi.git",'
-            '"git_revision":"0000000000000000000000000000000000000000",'
-            '"git_root":"C:/src/xplane-webapi","git_state":"available",'
-            '"package_name":"xpwebapi","package_version":"3.5.0","python_version":"3.12.0",'
-            '"read_only":true,"supported_transports":["udp","websocket"],'
-            '"worker":"xpwebapi-capture","worker_protocol_version":1}\n'
-        )
         with (
             patch("xpwebapi.capture_cli.resolve_source_provenance", return_value=PROVENANCE),
             patch("xpwebapi.capture_cli.run_capture", side_effect=AssertionError("capture mode entered")),
@@ -174,9 +174,27 @@ class CaptureCliTests(unittest.TestCase):
             result, stdout, stderr = self.capture_main(["--version-json"])
 
         self.assertEqual(0, result)
-        self.assertEqual(expected, stdout)
+        self.assertEqual(EXPECTED_VERSION_JSON, stdout)
         self.assertEqual("", stderr)
         self.assertEqual(["request.json"], sorted(path.name for path in self.root.iterdir()))
+
+    def test_version_json_bypasses_text_newline_translation(self) -> None:
+        raw_stdout = io.BytesIO()
+        translated_stdout = io.TextIOWrapper(raw_stdout, encoding="utf-8", newline="\r\n")
+        stderr = io.StringIO()
+        with (
+            redirect_stdout(translated_stdout),
+            redirect_stderr(stderr),
+            patch("xpwebapi.capture_cli.resolve_source_provenance", return_value=PROVENANCE),
+        ):
+            result = main(["--version-json"])
+            translated_stdout.flush()
+
+        payload = raw_stdout.getvalue()
+        self.assertEqual(0, result)
+        self.assertEqual(EXPECTED_VERSION_JSON.encode("utf-8"), payload)
+        self.assertNotIn(b"\r", payload)
+        self.assertEqual("", stderr.getvalue())
 
     def test_version_json_keeps_unavailable_git_fields_null(self) -> None:
         unavailable = PROVENANCE.model_copy(
