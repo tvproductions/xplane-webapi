@@ -40,6 +40,7 @@ __all__ = [
     "async_rest_api",
     "ws_api",
     "udp_api",
+    "__version__",
     "version",
 ]
 
@@ -64,4 +65,5 @@ def udp_api(**kwargs):
     return XPUDPAPI(**kwargs)
 
 
-version = "3.5.0"
+__version__ = "4.0.0"
+version = __version__

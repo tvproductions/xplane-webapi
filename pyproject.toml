@@ -1,20 +1,24 @@
 [project]
 name = "xpwebapi"
-version = "3.5.0"
+version = "4.0.0"
 authors = [
-  { name="Pierre M.", email="pierre@devleaks.be" }
+  { name = "Pierre Mareschal", email = "pierre@devleaks.be" }
 ]
-description = "Python Wrapper for Laminar Research X-Plane Web API"
+maintainers = [
+  { name = "Jeffry" }
+]
+description = "Python client and development tools for the Laminar Research X-Plane Web API"
 readme = "README.md"
-license = {file = "LICENCE"}
+license = "MIT"
+license-files = ["LICENSE"]
 classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
-    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.13",
     "Operating System :: OS Independent",
     "Topic :: Games/Entertainment :: Simulation",
 ]
-requires-python = ">=3.12,<3.13"
+requires-python = ">=3.12,<3.14"
 dependencies = [
     "ifaddr~=0.2",
     "natsort~=8.4",
@@ -28,10 +32,10 @@ dependencies = [
 xpwebapi-capture = "xpwebapi.capture_cli:main"
 
 [project.urls]
-Homepage = "https://devleaks.github.io/xplane-webapi/"
-Documentation = "https://devleaks.github.io/xplane-webapi/"
-Issues = "https://github.com/devleaks/xplane-webapi/issues"
-Source = "https://github.com/devleaks/xplane-webapi"
+Homepage = "https://tvproductions.github.io/xplane-webapi/"
+Documentation = "https://tvproductions.github.io/xplane-webapi/"
+Issues = "https://github.com/tvproductions/xplane-webapi/issues"
+Repository = "https://github.com/tvproductions/xplane-webapi"
 
 [dependency-groups]
 dev = [
@@ -66,7 +70,7 @@ exclude_lines = [
 ]
 
 [build-system]
-requires = ["uv_build>=0.11.22,<0.12"]
+requires = ["uv_build>=0.11.26,<0.12"]
 build-backend = "uv_build"
 
 [tool.uv.build-backend]

@@ -31,7 +31,7 @@ from xpwebapi.capture_runner import CaptureInterruption, CaptureOutcome
 
 PROVENANCE = SourceProvenance(
     package_name="xpwebapi",
-    package_version="3.5.0",
+    package_version="4.0.0",
     python_version="3.12.0",
     git_state="available",
     git_root="C:/src/xplane-webapi",
@@ -44,7 +44,7 @@ EXPECTED_VERSION_JSON = (
     '{"git_dirty":false,"git_origin":"https://github.com/tvproductions/xplane-webapi.git",'
     '"git_revision":"0000000000000000000000000000000000000000",'
     '"git_root":"C:/src/xplane-webapi","git_state":"available",'
-    '"package_name":"xpwebapi","package_version":"3.5.0","python_version":"3.12.0",'
+    '"package_name":"xpwebapi","package_version":"4.0.0","python_version":"3.12.0",'
     '"read_only":true,"supported_transports":["udp","websocket"],'
     '"worker":"xpwebapi-capture","worker_protocol_version":1}\n'
 )
