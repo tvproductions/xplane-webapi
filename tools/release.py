@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Iterable
 from email import policy
 from email.parser import BytesParser
 from pathlib import Path
@@ -60,7 +61,7 @@ def _contains_sequence(path: PurePosixPath, sequence: tuple[str, ...]) -> bool:
     return any(path.parts[index : index + width] == sequence for index in range(len(path.parts) - width + 1))
 
 
-def _check_member_policy(members: set[str], *, archive: Path, forbid_any_superpowers: bool) -> tuple[PurePosixPath, ...]:
+def _check_member_policy(members: Iterable[str], *, archive: Path, forbid_any_superpowers: bool) -> tuple[PurePosixPath, ...]:
     paths = tuple(PurePosixPath(name) for name in members)
     license_count = sum(path.name == "LICENSE" for path in paths)
     contains_licence = any(path.name == "LICENCE" for path in paths)
@@ -102,7 +103,8 @@ def check_dist(directory: Path) -> None:
         raise ReleaseValidationError(f"distribution directory contains unexpected files: {', '.join(unexpected_files)}")
 
     with zipfile.ZipFile(wheel) as archive:
-        members = set(archive.namelist())
+        member_names = archive.namelist()
+        members = set(member_names)
         metadata_name = f"xpwebapi-{version}.dist-info/METADATA"
         required = {
             metadata_name,
@@ -110,12 +112,13 @@ def check_dist(directory: Path) -> None:
             *(f"xpwebapi/schemas/{name}" for name in SCHEMAS),
         }
         _require_members(members, required, archive=wheel)
-        _check_member_policy(members, archive=wheel, forbid_any_superpowers=True)
+        _check_member_policy(member_names, archive=wheel, forbid_any_superpowers=True)
         _check_metadata(archive.read(metadata_name), archive=wheel, version=version)
 
     prefix = f"xpwebapi-{version}"
     with tarfile.open(source, "r:gz") as archive:
-        members = {member.name for member in archive.getmembers()}
+        member_names = tuple(member.name for member in archive.getmembers())
+        members = set(member_names)
         metadata_name = f"{prefix}/PKG-INFO"
         required = {
             f"{prefix}/LICENSE",
@@ -123,7 +126,7 @@ def check_dist(directory: Path) -> None:
             *(f"{prefix}/xpwebapi/schemas/{name}" for name in SCHEMAS),
         }
         _require_members(members, required, archive=source)
-        paths = _check_member_policy(members, archive=source, forbid_any_superpowers=False)
+        paths = _check_member_policy(member_names, archive=source, forbid_any_superpowers=False)
         unexpected_roots = sorted(str(path) for path in paths if not _has_expected_source_root(path, prefix))
         if unexpected_roots:
             raise ReleaseValidationError(f"{source.name} contains members outside the expected top-level {prefix}: {', '.join(unexpected_roots)}")

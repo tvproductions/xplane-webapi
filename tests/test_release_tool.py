@@ -11,6 +11,7 @@ import tarfile
 from tempfile import TemporaryDirectory
 import unittest
 from unittest import mock
+import warnings
 import zipfile
 
 from tools import installed_smoke, release
@@ -49,11 +50,14 @@ def write_archives(
     source_forbidden: str | None = None,
     extra_archive: bool = False,
     extra_wheel: bool = False,
+    duplicate_wheel_license: bool = False,
+    duplicate_source_license: bool = False,
 ) -> None:
     wheel = root / f"xpwebapi-{VERSION}-py3-none-any.whl"
+    wheel_license = f"xpwebapi-{VERSION}.dist-info/licenses/LICENSE"
     wheel_members = {
         f"xpwebapi-{VERSION}.dist-info/METADATA": (wheel_metadata or metadata()).encode(),
-        f"xpwebapi-{VERSION}.dist-info/licenses/LICENSE": b"MIT",
+        wheel_license: b"MIT",
         **{f"xpwebapi/schemas/{name}": b"{}" for name in SCHEMAS},
     }
     if wheel_omit is not None:
@@ -63,10 +67,17 @@ def write_archives(
     with zipfile.ZipFile(wheel, "w") as archive:
         for name, contents in wheel_members.items():
             archive.writestr(name, contents)
+        if duplicate_wheel_license:
+            with warnings.catch_warnings(record=True) as duplicate_warnings:
+                warnings.simplefilter("always")
+                archive.writestr(wheel_license, b"duplicate MIT")
+            if len(duplicate_warnings) != 1 or "Duplicate name" not in str(duplicate_warnings[0].message):
+                raise AssertionError("zipfile did not report the expected duplicate-name warning")
 
     prefix = f"xpwebapi-{VERSION}"
+    source_license = f"{prefix}/LICENSE"
     source_members = {
-        f"{prefix}/LICENSE": b"MIT",
+        source_license: b"MIT",
         f"{prefix}/PKG-INFO": (source_metadata or metadata()).encode(),
         **{f"{prefix}/xpwebapi/schemas/{name}": b"{}" for name in SCHEMAS},
     }
@@ -77,6 +88,11 @@ def write_archives(
     with tarfile.open(root / f"{prefix}.tar.gz", "w:gz") as archive:
         for name, contents in source_members.items():
             info = tarfile.TarInfo(name)
+            info.size = len(contents)
+            archive.addfile(info, BytesIO(contents))
+        if duplicate_source_license:
+            contents = b"duplicate MIT"
+            info = tarfile.TarInfo(source_license)
             info.size = len(contents)
             archive.addfile(info, BytesIO(contents))
 
@@ -199,6 +215,13 @@ class ReleaseToolTests(unittest.TestCase):
             with self.assertRaisesRegex(ReleaseValidationError, "forbidden material"):
                 check_dist(root)
 
+    def test_wheel_rejects_duplicate_canonical_license_entry(self) -> None:
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            write_archives(root, duplicate_wheel_license=True)
+            with self.assertRaisesRegex(ReleaseValidationError, "forbidden material"):
+                check_dist(root)
+
     def test_wheel_rejects_root_level_licence(self) -> None:
         with TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -219,6 +242,13 @@ class ReleaseToolTests(unittest.TestCase):
         with TemporaryDirectory() as temporary:
             root = Path(temporary)
             write_archives(root, source_forbidden=f"xpwebapi-{VERSION}/docs/LICENSE")
+            with self.assertRaisesRegex(ReleaseValidationError, "forbidden material"):
+                check_dist(root)
+
+    def test_source_rejects_duplicate_canonical_license_entry(self) -> None:
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            write_archives(root, duplicate_source_license=True)
             with self.assertRaisesRegex(ReleaseValidationError, "forbidden material"):
                 check_dist(root)
 
@@ -333,6 +363,32 @@ class ReleaseToolTests(unittest.TestCase):
             self.assertRaisesRegex(RuntimeError, "read-only mode"),
         ):
             installed_smoke.main()
+
+    def test_installed_smoke_rejects_incorrect_capture_identity(self) -> None:
+        invalid_fields = (
+            ("package_name", "other", "package name"),
+            ("package_version", "4.0.1", "package version"),
+        )
+        for field, value, message in invalid_fields:
+            with self.subTest(field=field):
+                payload = {
+                    "package_name": "xpwebapi",
+                    "package_version": VERSION,
+                    "read_only": True,
+                }
+                payload[field] = value
+                completed = subprocess.CompletedProcess(
+                    ("xpwebapi-capture", "--version-json"),
+                    0,
+                    stdout=json.dumps(payload),
+                    stderr="",
+                )
+                with (
+                    mock.patch.object(sys, "argv", ["installed_smoke.py", VERSION]),
+                    mock.patch.object(installed_smoke.subprocess, "run", return_value=completed),
+                    self.assertRaisesRegex(RuntimeError, message),
+                ):
+                    installed_smoke.main()
 
 
 if __name__ == "__main__":
