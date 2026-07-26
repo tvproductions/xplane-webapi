@@ -16,8 +16,12 @@ jobs:
           fetch-depth: 0
       - uses: astral-sh/setup-uv@v8
       - run: uv python install 3.13
-      - run: test "${{ github.sha }}" = "$(git rev-parse origin/main)"
-      - run: uv run --python 3.13 python tools/release.py check-tag ${{ github.ref_name }}
+      - run: test "$TAG_SHA" = "$(git rev-parse origin/main)"
+        env:
+          TAG_SHA: ${{ github.sha }}
+      - run: uv run --python 3.13 python tools/release.py check-tag "$RELEASE_TAG"
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
       - run: uv build --no-sources
       - run: uv tool run twine check --strict dist/*
       - run: uv run --python 3.13 python tools/release.py check-dist dist
@@ -44,7 +48,12 @@ jobs:
           path: dist/
       - run: uv venv --python ${{ matrix.python-version }} .smoke
       - run: uv pip install --python .smoke/bin/python dist/*.whl
-      - run: cd "$RUNNER_TEMP" && "$GITHUB_WORKSPACE/.smoke/bin/python" "$GITHUB_WORKSPACE/tools/installed_smoke.py" 4.0.0
+      - run: |
+          expected_version="${RELEASE_TAG#v}"
+          cd "$RUNNER_TEMP"
+          "$GITHUB_WORKSPACE/.smoke/bin/python" "$GITHUB_WORKSPACE/tools/installed_smoke.py" "$expected_version"
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
 
   pypi:
     needs: compatibility

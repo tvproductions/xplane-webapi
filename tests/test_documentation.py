@@ -5,12 +5,33 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 import tomllib
+from typing import Any
 import unittest
+
+import yaml
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 EXAMPLES_DIR = REPO_ROOT / "examples"
 DOCS_DIR = REPO_ROOT / "docs"
+
+
+def _load_workflow(filename: str) -> dict[str, Any]:
+    workflow = yaml.load(
+        (REPO_ROOT / ".github" / "workflows" / filename).read_text(encoding="utf-8"),
+        Loader=yaml.BaseLoader,
+    )
+    if not isinstance(workflow, dict):
+        raise AssertionError(f"{filename} must contain a workflow mapping")
+    return workflow
+
+
+def _step_using(job: dict[str, Any], action: str) -> dict[str, Any]:
+    return next(step for step in job["steps"] if step.get("uses") == action)
+
+
+def _run_steps(job: dict[str, Any]) -> list[dict[str, Any]]:
+    return [step for step in job["steps"] if "run" in step]
 
 
 class TestExampleAnnotations(unittest.TestCase):
@@ -44,34 +65,251 @@ class TestExampleAnnotations(unittest.TestCase):
 
 
 class TestDocumentationContent(unittest.TestCase):
+    def test_workflow_tests_have_explicit_yaml_parser_dependency(self) -> None:
+        pyproject = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+
+        self.assertIn("pyyaml>=6.0.3", pyproject["dependency-groups"]["dev"])
+
+    def test_release_run_steps_do_not_interpolate_git_context(self) -> None:
+        jobs = _load_workflow("release.yml")["jobs"]
+        commands = [step["run"] for job in jobs.values() for step in _run_steps(job)]
+
+        for expression in ("${{ github.ref_name }}", "${{ github.sha }}"):
+            with self.subTest(expression=expression):
+                self.assertFalse(
+                    any(expression in command for command in commands),
+                    f"{expression} must enter Bash through step env, not source interpolation",
+                )
+
+    def test_release_tag_validation_quotes_environment_value(self) -> None:
+        build = _load_workflow("release.yml")["jobs"]["build"]
+        tag_step = next(step for step in _run_steps(build) if "tools/release.py check-tag" in step["run"])
+
+        self.assertEqual(
+            {"RELEASE_TAG": "${{ github.ref_name }}"},
+            tag_step.get("env"),
+        )
+        self.assertEqual(
+            'uv run --python 3.13 python tools/release.py check-tag "$RELEASE_TAG"',
+            tag_step["run"],
+        )
+
+    def test_release_main_sha_comparison_quotes_environment_value(self) -> None:
+        build = _load_workflow("release.yml")["jobs"]["build"]
+        sha_step = next(step for step in _run_steps(build) if "git rev-parse origin/main" in step["run"])
+
+        self.assertEqual({"TAG_SHA": "${{ github.sha }}"}, sha_step.get("env"))
+        self.assertEqual(
+            'test "$TAG_SHA" = "$(git rev-parse origin/main)"',
+            sha_step["run"],
+        )
+
+    def test_release_smoke_version_comes_from_quoted_tag_environment(self) -> None:
+        compatibility = _load_workflow("release.yml")["jobs"]["compatibility"]
+        smoke_step = next(step for step in _run_steps(compatibility) if "tools/installed_smoke.py" in step["run"])
+
+        self.assertEqual(
+            {"RELEASE_TAG": "${{ github.ref_name }}"},
+            smoke_step.get("env"),
+        )
+        self.assertEqual(
+            [
+                'expected_version="${RELEASE_TAG#v}"',
+                'cd "$RUNNER_TEMP"',
+                '"$GITHUB_WORKSPACE/.smoke/bin/python" "$GITHUB_WORKSPACE/tools/installed_smoke.py" "$expected_version"',
+            ],
+            smoke_step["run"].splitlines(),
+        )
+
     def test_release_workflow_builds_once_and_publishes_exact_artifacts(self) -> None:
-        workflow = (REPO_ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
-        self.assertIn('tags: ["v*"]', workflow)
-        self.assertEqual(1, workflow.count("uv build --no-sources"))
-        self.assertIn("python tools/release.py check-tag ${{ github.ref_name }}", workflow)
-        self.assertIn('test "${{ github.sha }}" = "$(git rev-parse origin/main)"', workflow)
-        self.assertIn("python tools/release.py check-dist dist", workflow)
-        self.assertIn('python-version: ["3.12", "3.13"]', workflow)
-        self.assertIn("environment: pypi", workflow)
-        self.assertIn("id-token: write", workflow)
-        self.assertIn("contents: write", workflow)
-        self.assertIn("pypa/gh-action-pypi-publish@release/v1", workflow)
-        self.assertIn("attestations: true", workflow)
-        self.assertIn("softprops/action-gh-release@v3", workflow)
+        workflow = _load_workflow("release.yml")
+        jobs = workflow["jobs"]
+
+        self.assertEqual("Release", workflow["name"])
+        self.assertEqual({"push": {"tags": ["v*"]}}, workflow["on"])
+        self.assertNotIn("workflow_dispatch", workflow["on"])
+        self.assertEqual({"contents": "read"}, workflow["permissions"])
+        self.assertEqual(
+            {"build", "compatibility", "pypi", "github-release"},
+            set(jobs),
+        )
+        self.assertIsNone(jobs["build"].get("needs"))
+        self.assertEqual("build", jobs["compatibility"]["needs"])
+        self.assertEqual("compatibility", jobs["pypi"]["needs"])
+        self.assertEqual("pypi", jobs["github-release"]["needs"])
+        self.assertEqual(
+            ["3.12", "3.13"],
+            jobs["compatibility"]["strategy"]["matrix"]["python-version"],
+        )
+
+        expected_actions = {
+            "build": [
+                "actions/checkout@v6",
+                "astral-sh/setup-uv@v8",
+                "actions/upload-artifact@v7",
+            ],
+            "compatibility": [
+                "actions/checkout@v6",
+                "astral-sh/setup-uv@v8",
+                "actions/download-artifact@v8",
+            ],
+            "pypi": [
+                "actions/download-artifact@v8",
+                "pypa/gh-action-pypi-publish@release/v1",
+            ],
+            "github-release": [
+                "actions/download-artifact@v8",
+                "softprops/action-gh-release@v3",
+            ],
+        }
+        for job_name, actions in expected_actions.items():
+            with self.subTest(job=job_name):
+                self.assertEqual(
+                    actions,
+                    [step["uses"] for step in jobs[job_name]["steps"] if "uses" in step],
+                )
+
+        commands = [step["run"] for job in jobs.values() for step in _run_steps(job)]
+        self.assertEqual(
+            ["uv build --no-sources"],
+            [command for command in commands if "uv build" in command],
+        )
+
+        upload = _step_using(jobs["build"], "actions/upload-artifact@v7")
+        downloads = [_step_using(jobs[job_name], "actions/download-artifact@v8") for job_name in ("compatibility", "pypi", "github-release")]
+        self.assertEqual("python-distributions", upload["with"]["name"])
+        self.assertEqual(
+            {"python-distributions"},
+            {step["with"]["name"] for step in downloads},
+        )
+
+        self.assertEqual("pypi", jobs["pypi"]["environment"])
+        self.assertEqual({"id-token": "write"}, jobs["pypi"]["permissions"])
+        self.assertEqual(
+            {"contents": "write"},
+            jobs["github-release"]["permissions"],
+        )
+        for job_name in ("build", "compatibility"):
+            with self.subTest(job=job_name):
+                self.assertNotIn("permissions", jobs[job_name])
+
+        publish = _step_using(
+            jobs["pypi"],
+            "pypa/gh-action-pypi-publish@release/v1",
+        )
+        self.assertEqual("true", publish["with"]["attestations"])
+
+        for job_name in ("pypi", "github-release"):
+            with self.subTest(job=job_name):
+                self.assertFalse(any(step.get("uses", "").startswith("actions/checkout@") for step in jobs[job_name]["steps"]))
+                self.assertFalse(any("build" in step["run"] for step in _run_steps(jobs[job_name])))
+
+        executable_inputs = "\n".join(
+            value
+            for job in jobs.values()
+            for step in job["steps"]
+            for value in [
+                str(step.get("uses", "")),
+                str(step.get("run", "")),
+                *[f"{key}={value}" for key, value in step.get("with", {}).items()],
+                *[f"{key}={value}" for key, value in step.get("env", {}).items()],
+            ]
+        ).lower()
+        for forbidden in ("credential", "password", "testpypi", "token"):
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden, executable_inputs)
 
     def test_ci_separates_quality_package_compatibility_and_docs(self) -> None:
-        workflow = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
-        for job in ("quality:", "package:", "compatibility:", "docs:"):
-            with self.subTest(job=job):
-                self.assertIn(job, workflow)
-        self.assertIn('python-version: "3.13"', workflow)
-        self.assertIn('python-version: ["3.12", "3.13"]', workflow)
-        self.assertIn("uv run python tools/release.py check-dist dist", workflow)
-        self.assertIn("actions/upload-artifact@v7", workflow)
-        self.assertIn("actions/download-artifact@v8", workflow)
-        self.assertIn("python -m unittest discover -v", workflow)
-        self.assertIn("tools/installed_smoke.py 4.0.0", workflow)
-        self.assertIn("uv run mkdocs gh-deploy --force", workflow)
+        workflow = _load_workflow("ci.yml")
+        jobs = workflow["jobs"]
+
+        self.assertEqual("ci", workflow["name"])
+        self.assertEqual(
+            {"push": {"branches": ["main"]}, "pull_request": ""},
+            workflow["on"],
+        )
+        self.assertEqual({"contents": "read"}, workflow["permissions"])
+        self.assertEqual(
+            {"quality", "package", "compatibility", "docs"},
+            set(jobs),
+        )
+        self.assertIsNone(jobs["quality"].get("needs"))
+        self.assertEqual("quality", jobs["package"]["needs"])
+        self.assertEqual("package", jobs["compatibility"]["needs"])
+        self.assertEqual(["quality", "compatibility"], jobs["docs"]["needs"])
+        self.assertEqual(
+            ["3.12", "3.13"],
+            jobs["compatibility"]["strategy"]["matrix"]["python-version"],
+        )
+
+        expected_actions = {
+            "quality": ["actions/checkout@v6", "astral-sh/setup-uv@v8"],
+            "package": [
+                "actions/checkout@v6",
+                "astral-sh/setup-uv@v8",
+                "actions/upload-artifact@v7",
+            ],
+            "compatibility": [
+                "actions/checkout@v6",
+                "astral-sh/setup-uv@v8",
+                "actions/download-artifact@v8",
+            ],
+            "docs": ["actions/checkout@v6", "astral-sh/setup-uv@v8"],
+        }
+        expected_commands = {
+            "quality": [
+                "uv python install 3.13",
+                "uv sync --frozen --python 3.13",
+                "uv run --python 3.13 python tools/quality.py check",
+                "uv run --python 3.13 mkdocs build --strict",
+            ],
+            "package": [
+                "uv python install 3.13",
+                "uv build --no-sources",
+                "uv tool run twine check --strict dist/*",
+                "uv run --python 3.13 python tools/release.py check-dist dist",
+            ],
+            "compatibility": [
+                "uv python install ${{ matrix.python-version }}",
+                "uv sync --frozen --python ${{ matrix.python-version }}",
+                "uv run --python ${{ matrix.python-version }} python -m unittest discover -v",
+                "uv venv --python ${{ matrix.python-version }} .smoke",
+                "uv pip install --python .smoke/bin/python dist/*.whl",
+                'cd "$RUNNER_TEMP" && "$GITHUB_WORKSPACE/.smoke/bin/python" "$GITHUB_WORKSPACE/tools/installed_smoke.py" 4.0.0',
+            ],
+            "docs": [
+                "uv python install 3.13",
+                "uv sync --frozen --python 3.13",
+                "uv run --python 3.13 mkdocs gh-deploy --force",
+            ],
+        }
+        for job_name in jobs:
+            with self.subTest(job=job_name):
+                self.assertEqual(
+                    expected_actions[job_name],
+                    [step["uses"] for step in jobs[job_name]["steps"] if "uses" in step],
+                )
+                self.assertEqual(
+                    expected_commands[job_name],
+                    [step["run"] for step in _run_steps(jobs[job_name])],
+                )
+
+        upload = _step_using(jobs["package"], "actions/upload-artifact@v7")
+        download = _step_using(
+            jobs["compatibility"],
+            "actions/download-artifact@v8",
+        )
+        self.assertEqual("python-distributions", upload["with"]["name"])
+        self.assertEqual(upload["with"]["name"], download["with"]["name"])
+
+        self.assertEqual(
+            "github.event_name == 'push' && github.ref == 'refs/heads/main'",
+            jobs["docs"]["if"],
+        )
+        self.assertEqual({"contents": "write"}, jobs["docs"]["permissions"])
+        for job_name in ("quality", "package", "compatibility"):
+            with self.subTest(job=job_name):
+                self.assertNotIn("permissions", jobs[job_name])
 
     def test_read_only_capture_usage_documents_cli_contract(self) -> None:
         usage = (DOCS_DIR / "usage" / "read-only-capture.md").read_text(encoding="utf-8")
