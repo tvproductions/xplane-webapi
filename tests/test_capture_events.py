@@ -6,6 +6,7 @@ import subprocess
 import unittest
 from contextlib import nullcontext
 from datetime import UTC, datetime, timedelta
+from importlib.resources import files
 from io import BufferedWriter
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -53,7 +54,7 @@ from xpwebapi.capture_output import CaptureEventWriter, resolve_source_provenanc
 from xpwebapi.capture_protocol import CaptureCorrelation, WebsocketCaptureConfig
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+SCHEMA_ROOT = files("xpwebapi.schemas")
 
 
 class FakeClock:
@@ -515,8 +516,8 @@ class CaptureEventModelTests(unittest.TestCase):
 
     def test_checked_event_and_version_schemas_equal_generated_canonical_json(self) -> None:
         pairs = (
-            (TypeAdapter(CaptureEvent).json_schema(), REPO_ROOT / "schemas" / "capture-event-v1.schema.json"),
-            (VersionJsonDocument.model_json_schema(), REPO_ROOT / "schemas" / "capture-version-v1.schema.json"),
+            (TypeAdapter(CaptureEvent).json_schema(), SCHEMA_ROOT.joinpath("capture-event-v1.schema.json")),
+            (VersionJsonDocument.model_json_schema(), SCHEMA_ROOT.joinpath("capture-version-v1.schema.json")),
         )
         for generated, path in pairs:
             with self.subTest(path=path.name):

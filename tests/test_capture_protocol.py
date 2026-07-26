@@ -4,6 +4,7 @@ import math
 import os
 import unittest
 from enum import Enum, IntEnum, StrEnum
+from importlib.resources import files
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
@@ -18,7 +19,7 @@ from xpwebapi.capture_protocol import (
 )
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+SCHEMA_ROOT = files("xpwebapi.schemas")
 
 
 class CaptureSessionEnum(StrEnum):
@@ -575,7 +576,9 @@ class TestCaptureRequestFileLoading(unittest.TestCase):
                     load_capture_request(path)
 
     def test_checked_schema_is_the_exact_canonical_model_schema(self):
-        checked_schema = json.loads((REPO_ROOT / "schemas" / "capture-request-v1.schema.json").read_text(encoding="utf-8"))
+        checked_schema = json.loads(
+            SCHEMA_ROOT.joinpath("capture-request-v1.schema.json").read_text(encoding="utf-8")
+        )
 
         self.assertEqual(checked_schema, CaptureRequest.model_json_schema())
 

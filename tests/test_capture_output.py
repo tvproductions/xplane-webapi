@@ -1,6 +1,7 @@
 import json
 import os
 import unittest
+from importlib.resources import files
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
@@ -20,7 +21,7 @@ from xpwebapi.capture_events import (
 from xpwebapi.capture_output import AtomicStatusWriter
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+SCHEMA_ROOT = files("xpwebapi.schemas")
 
 
 class ManualClock:
@@ -237,7 +238,9 @@ class StatusModelTests(unittest.TestCase):
 
     def test_checked_status_schema_equals_generated_canonical_json(self) -> None:
         generated = TypeAdapter(StatusDocument).json_schema()
-        checked = json.loads((REPO_ROOT / "schemas" / "capture-status-v1.schema.json").read_text(encoding="utf-8"))
+        checked = json.loads(
+            SCHEMA_ROOT.joinpath("capture-status-v1.schema.json").read_text(encoding="utf-8")
+        )
         self.assertEqual(
             json.dumps(generated, allow_nan=False, sort_keys=True, separators=(",", ":")),
             json.dumps(checked, allow_nan=False, sort_keys=True, separators=(",", ":")),

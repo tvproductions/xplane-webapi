@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+from importlib.resources import files
+import json
 from pathlib import Path
 import tomllib
 import unittest
 
 import xpwebapi
+from xpwebapi.schemas import SCHEMA_FILENAMES
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -63,6 +66,23 @@ class ReleaseMetadataTests(unittest.TestCase):
         ):
             with self.subTest(notice=notice):
                 self.assertIn(notice, license_text)
+
+
+class PackagedSchemaTests(unittest.TestCase):
+    def test_all_capture_schemas_are_installed_package_resources(self) -> None:
+        expected = {
+            "capture-event-v1.schema.json",
+            "capture-request-v1.schema.json",
+            "capture-status-v1.schema.json",
+            "capture-version-v1.schema.json",
+        }
+        self.assertEqual(expected, set(SCHEMA_FILENAMES))
+
+        root = files("xpwebapi.schemas")
+        for name in sorted(expected):
+            with self.subTest(name=name):
+                payload = json.loads(root.joinpath(name).read_text(encoding="utf-8"))
+                self.assertIsInstance(payload, dict)
 
 
 if __name__ == "__main__":
