@@ -44,6 +44,21 @@ class TestExampleAnnotations(unittest.TestCase):
 
 
 class TestDocumentationContent(unittest.TestCase):
+    def test_release_workflow_builds_once_and_publishes_exact_artifacts(self) -> None:
+        workflow = (REPO_ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+        self.assertIn('tags: ["v*"]', workflow)
+        self.assertEqual(1, workflow.count("uv build --no-sources"))
+        self.assertIn("python tools/release.py check-tag ${{ github.ref_name }}", workflow)
+        self.assertIn('test "${{ github.sha }}" = "$(git rev-parse origin/main)"', workflow)
+        self.assertIn("python tools/release.py check-dist dist", workflow)
+        self.assertIn('python-version: ["3.12", "3.13"]', workflow)
+        self.assertIn("environment: pypi", workflow)
+        self.assertIn("id-token: write", workflow)
+        self.assertIn("contents: write", workflow)
+        self.assertIn("pypa/gh-action-pypi-publish@release/v1", workflow)
+        self.assertIn("attestations: true", workflow)
+        self.assertIn("softprops/action-gh-release@v3", workflow)
+
     def test_ci_separates_quality_package_compatibility_and_docs(self) -> None:
         workflow = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
         for job in ("quality:", "package:", "compatibility:", "docs:"):
