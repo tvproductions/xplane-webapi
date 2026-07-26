@@ -6,6 +6,7 @@ import argparse
 from email import policy
 from email.parser import BytesParser
 from pathlib import Path
+from pathlib import PurePosixPath
 import tarfile
 import tomllib
 import zipfile
@@ -54,6 +55,28 @@ def _require_members(members: set[str], required: set[str], *, archive: Path) ->
         raise ReleaseValidationError(f"{archive.name} is missing: {', '.join(missing)}")
 
 
+def _contains_sequence(path: PurePosixPath, sequence: tuple[str, ...]) -> bool:
+    width = len(sequence)
+    return any(path.parts[index : index + width] == sequence for index in range(len(path.parts) - width + 1))
+
+
+def _check_member_policy(members: set[str], *, archive: Path, forbid_any_superpowers: bool) -> tuple[PurePosixPath, ...]:
+    paths = tuple(PurePosixPath(name) for name in members)
+    license_count = sum(path.name == "LICENSE" for path in paths)
+    contains_licence = any(path.name == "LICENCE" for path in paths)
+    if forbid_any_superpowers:
+        contains_superpowers = any("superpowers" in path.parts for path in paths)
+    else:
+        contains_superpowers = any(_contains_sequence(path, ("docs", "superpowers")) for path in paths)
+    if license_count != 1 or contains_licence or contains_superpowers:
+        raise ReleaseValidationError(f"{archive.name} contains forbidden material")
+    return paths
+
+
+def _has_expected_source_root(path: PurePosixPath, prefix: str) -> bool:
+    return ".." not in path.parts and (path == PurePosixPath(prefix) or bool(path.parts) and path.parts[0] == prefix)
+
+
 def _check_metadata(metadata_bytes: bytes, *, archive: Path, version: str) -> None:
     metadata = BytesParser(policy=policy.default).parsebytes(metadata_bytes)
     if metadata["Name"] != "xpwebapi" or metadata["Version"] != version:
@@ -87,8 +110,7 @@ def check_dist(directory: Path) -> None:
             *(f"xpwebapi/schemas/{name}" for name in SCHEMAS),
         }
         _require_members(members, required, archive=wheel)
-        if any(name.endswith("/LICENCE") or "/superpowers/" in name for name in members):
-            raise ReleaseValidationError(f"{wheel.name} contains forbidden material")
+        _check_member_policy(members, archive=wheel, forbid_any_superpowers=True)
         _check_metadata(archive.read(metadata_name), archive=wheel, version=version)
 
     prefix = f"xpwebapi-{version}"
@@ -101,8 +123,10 @@ def check_dist(directory: Path) -> None:
             *(f"{prefix}/xpwebapi/schemas/{name}" for name in SCHEMAS),
         }
         _require_members(members, required, archive=source)
-        if any(name.endswith("/LICENCE") or "/docs/superpowers/" in name for name in members):
-            raise ReleaseValidationError(f"{source.name} contains forbidden material")
+        paths = _check_member_policy(members, archive=source, forbid_any_superpowers=False)
+        unexpected_roots = sorted(str(path) for path in paths if not _has_expected_source_root(path, prefix))
+        if unexpected_roots:
+            raise ReleaseValidationError(f"{source.name} contains members outside the expected top-level {prefix}: {', '.join(unexpected_roots)}")
         metadata_member = archive.extractfile(metadata_name)
         if metadata_member is None:
             raise ReleaseValidationError(f"{source.name} metadata is unreadable")
