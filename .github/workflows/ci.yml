@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: astral-sh/setup-uv@v8
+      - uses: astral-sh/setup-uv@v9.0.0
         with:
           enable-cache: true
       - run: uv python install 3.13
@@ -27,7 +27,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: astral-sh/setup-uv@v8
+      - uses: astral-sh/setup-uv@v9.0.0
       - run: uv python install 3.13
       - run: uv build --no-sources
       - run: uv tool run twine check --strict dist/*
@@ -48,7 +48,7 @@ jobs:
         python-version: ["3.12", "3.13"]
     steps:
       - uses: actions/checkout@v6
-      - uses: astral-sh/setup-uv@v8
+      - uses: astral-sh/setup-uv@v9.0.0
       - run: uv python install ${{ matrix.python-version }}
       - run: uv sync --frozen --python ${{ matrix.python-version }}
       - run: uv run --python ${{ matrix.python-version }} python -m unittest discover -v
@@ -71,7 +71,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: astral-sh/setup-uv@v8
+      - uses: astral-sh/setup-uv@v9.0.0
       - run: uv python install 3.13
       - run: uv sync --frozen --python 3.13
       # uv run mkdocs gh-deploy --force uses Python 3.13 below.

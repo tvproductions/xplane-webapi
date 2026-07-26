@@ -145,12 +145,12 @@ class TestDocumentationContent(unittest.TestCase):
         expected_actions = {
             "build": [
                 "actions/checkout@v6",
-                "astral-sh/setup-uv@v8",
+                "astral-sh/setup-uv@v9.0.0",
                 "actions/upload-artifact@v7",
             ],
             "compatibility": [
                 "actions/checkout@v6",
-                "astral-sh/setup-uv@v8",
+                "astral-sh/setup-uv@v9.0.0",
                 "actions/download-artifact@v8",
             ],
             "pypi": [
@@ -243,18 +243,18 @@ class TestDocumentationContent(unittest.TestCase):
         )
 
         expected_actions = {
-            "quality": ["actions/checkout@v6", "astral-sh/setup-uv@v8"],
+            "quality": ["actions/checkout@v6", "astral-sh/setup-uv@v9.0.0"],
             "package": [
                 "actions/checkout@v6",
-                "astral-sh/setup-uv@v8",
+                "astral-sh/setup-uv@v9.0.0",
                 "actions/upload-artifact@v7",
             ],
             "compatibility": [
                 "actions/checkout@v6",
-                "astral-sh/setup-uv@v8",
+                "astral-sh/setup-uv@v9.0.0",
                 "actions/download-artifact@v8",
             ],
-            "docs": ["actions/checkout@v6", "astral-sh/setup-uv@v8"],
+            "docs": ["actions/checkout@v6", "astral-sh/setup-uv@v9.0.0"],
         }
         expected_commands = {
             "quality": [
