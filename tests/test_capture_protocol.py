@@ -576,9 +576,7 @@ class TestCaptureRequestFileLoading(unittest.TestCase):
                     load_capture_request(path)
 
     def test_checked_schema_is_the_exact_canonical_model_schema(self):
-        checked_schema = json.loads(
-            SCHEMA_ROOT.joinpath("capture-request-v1.schema.json").read_text(encoding="utf-8")
-        )
+        checked_schema = json.loads(SCHEMA_ROOT.joinpath("capture-request-v1.schema.json").read_text(encoding="utf-8"))
 
         self.assertEqual(checked_schema, CaptureRequest.model_json_schema())
 

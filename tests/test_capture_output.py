@@ -238,9 +238,7 @@ class StatusModelTests(unittest.TestCase):
 
     def test_checked_status_schema_equals_generated_canonical_json(self) -> None:
         generated = TypeAdapter(StatusDocument).json_schema()
-        checked = json.loads(
-            SCHEMA_ROOT.joinpath("capture-status-v1.schema.json").read_text(encoding="utf-8")
-        )
+        checked = json.loads(SCHEMA_ROOT.joinpath("capture-status-v1.schema.json").read_text(encoding="utf-8"))
         self.assertEqual(
             json.dumps(generated, allow_nan=False, sort_keys=True, separators=(",", ":")),
             json.dumps(checked, allow_nan=False, sort_keys=True, separators=(",", ":")),

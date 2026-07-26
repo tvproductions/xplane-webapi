@@ -169,8 +169,7 @@ class TestDocumentationContent(unittest.TestCase):
         self.assertIn("repo_url: https://github.com/tvproductions/xplane-webapi", mkdocs)
         self.assertIn("repo_name: tvproductions/xplane-webapi", mkdocs)
         self.assertIn("edit_uri: edit/main/docs/", mkdocs)
-        self.assertIn("exclude_docs:", mkdocs)
-        self.assertIn("  superpowers/**", mkdocs)
+        self.assertIn("exclude_docs: |\n  superpowers/**", mkdocs)
 
     def test_capture_docs_describe_installed_schema_resources(self) -> None:
         reference = (DOCS_DIR / "reference" / "capture.md").read_text(encoding="utf-8")
