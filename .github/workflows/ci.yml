@@ -2,8 +2,7 @@ name: ci
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   pull_request:
 
 permissions:
@@ -11,33 +10,69 @@ permissions:
 
 jobs:
   quality:
+    # python-version: "3.13" is selected explicitly by the uv commands below.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v8
         with:
-          python-version: "3.12"
-      - run: python -m pip install uv
-      - run: uv sync --frozen
-      - run: uv run ruff check .
-      - run: uv run ruff format --check .
-      - run: uv run ty check
-      - run: uv run python -m unittest discover -v
-      - run: uv build
+          enable-cache: true
+      - run: uv python install 3.13
+      - run: uv sync --frozen --python 3.13
+      - run: uv run --python 3.13 python tools/quality.py check
+      - run: uv run --python 3.13 mkdocs build --strict
+
+  package:
+    needs: quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v8
+      - run: uv python install 3.13
+      - run: uv build --no-sources
+      - run: uv tool run twine check --strict dist/*
+      # uv run python tools/release.py check-dist dist uses Python 3.13 below.
+      - run: uv run --python 3.13 python tools/release.py check-dist dist
+      - uses: actions/upload-artifact@v7
+        with:
+          name: python-distributions
+          path: dist/
+          if-no-files-found: error
+
+  compatibility:
+    needs: package
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v8
+      - run: uv python install ${{ matrix.python-version }}
+      - run: uv sync --frozen --python ${{ matrix.python-version }}
+      - run: uv run --python ${{ matrix.python-version }} python -m unittest discover -v
+      - uses: actions/download-artifact@v8
+        with:
+          name: python-distributions
+          path: dist/
+      - run: uv venv --python ${{ matrix.python-version }} .smoke
+      - run: uv pip install --python .smoke/bin/python dist/*.whl
+      # tools/installed_smoke.py 4.0.0 is executed from the isolated workspace path.
+      - run: cd "$RUNNER_TEMP" && "$GITHUB_WORKSPACE/.smoke/bin/python" "$GITHUB_WORKSPACE/tools/installed_smoke.py" 4.0.0
 
   docs:
-    needs: quality
+    needs: [quality, compatibility]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
       contents: write
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - run: python -m pip install uv
-      - run: uv sync --frozen
-      - run: uv run mkdocs gh-deploy --force
+      - uses: astral-sh/setup-uv@v8
+      - run: uv python install 3.13
+      - run: uv sync --frozen --python 3.13
+      # uv run mkdocs gh-deploy --force uses Python 3.13 below.
+      - run: uv run --python 3.13 mkdocs gh-deploy --force

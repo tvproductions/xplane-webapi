@@ -44,6 +44,20 @@ class TestExampleAnnotations(unittest.TestCase):
 
 
 class TestDocumentationContent(unittest.TestCase):
+    def test_ci_separates_quality_package_compatibility_and_docs(self) -> None:
+        workflow = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+        for job in ("quality:", "package:", "compatibility:", "docs:"):
+            with self.subTest(job=job):
+                self.assertIn(job, workflow)
+        self.assertIn('python-version: "3.13"', workflow)
+        self.assertIn('python-version: ["3.12", "3.13"]', workflow)
+        self.assertIn("uv run python tools/release.py check-dist dist", workflow)
+        self.assertIn("actions/upload-artifact@v7", workflow)
+        self.assertIn("actions/download-artifact@v8", workflow)
+        self.assertIn("python -m unittest discover -v", workflow)
+        self.assertIn("tools/installed_smoke.py 4.0.0", workflow)
+        self.assertIn("uv run mkdocs gh-deploy --force", workflow)
+
     def test_read_only_capture_usage_documents_cli_contract(self) -> None:
         usage = (DOCS_DIR / "usage" / "read-only-capture.md").read_text(encoding="utf-8")
         normalized_usage = " ".join(usage.split())
