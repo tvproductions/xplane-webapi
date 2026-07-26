@@ -8,8 +8,10 @@
       
       
       
+        <link rel="canonical" href="https://tvproductions.github.io/xplane-webapi/reference/package/">
       
-        <link rel="prev" href="../">
+      
+        <link rel="prev" href="../capture/">
       
       
         <link rel="next" href="../core-api/">
@@ -19,15 +21,15 @@
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
-        <title>Package - Python wrapper for X-Plane Web API</title>
+        <title>Package - xpwebapi</title>
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
       
         
         <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
@@ -94,7 +96,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="../.." title="Python wrapper for X-Plane Web API" class="md-header__button md-logo" aria-label="Python wrapper for X-Plane Web API" data-md-component="logo">
+    <a href="../.." title="xpwebapi" class="md-header__button md-logo" aria-label="xpwebapi" data-md-component="logo">
       
   <img src="../../x-plane.svg" alt="logo">
 
@@ -107,7 +109,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Python wrapper for X-Plane Web API
+            xpwebapi
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -202,6 +204,18 @@
       
     
     
+      <div class="md-header__source">
+        <a href="https://github.com/tvproductions/xplane-webapi" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    tvproductions/xplane-webapi
+  </div>
+</a>
+      </div>
+    
   </nav>
   
 </header>
@@ -227,13 +241,25 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="../.." title="Python wrapper for X-Plane Web API" class="md-nav__button md-logo" aria-label="Python wrapper for X-Plane Web API" data-md-component="logo">
+    <a href="../.." title="xpwebapi" class="md-nav__button md-logo" aria-label="xpwebapi" data-md-component="logo">
       
   <img src="../../x-plane.svg" alt="logo">
 
     </a>
-    Python wrapper for X-Plane Web API
+    xpwebapi
   </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/tvproductions/xplane-webapi" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    tvproductions/xplane-webapi
+  </div>
+</a>
+    </div>
   
   <ul class="md-nav__list" data-md-scrollfix>
     
@@ -353,9 +379,20 @@
   
   
   
-    <li class="md-nav__item">
-      <a href="../../usage/" class="md-nav__link">
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
         
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
   
   
   <span class="md-ellipsis">
@@ -369,7 +406,79 @@
   
   
 
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Usage
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../usage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
       </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../usage/read-only-capture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Read-only capture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
     </li>
   
 
@@ -438,6 +547,34 @@
     
   
     Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../capture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Capture protocol
   
 
     
@@ -754,6 +891,9 @@
                   
 
 
+  
+  
+
 
 <h1 id="package">Package</h1>
 
@@ -799,10 +939,59 @@
           </div>
         </li>
         <li class="doc-section-item field-body">
+          <b><code><span title="xpwebapi.capture_cli">capture_cli</span></code></b>
+          –
+          <div class="doc-md-description">
+            <p>Command-line entry point for strictly read-only X-Plane capture.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><a class="autorefs autorefs-internal" title="            capture_events (xpwebapi.capture_events)" href="../capture/#xpwebapi.capture_events">capture_events</a></code></b>
+          –
+          <div class="doc-md-description">
+            <p>Strict event, status, and version models for capture protocol version 1.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="xpwebapi.capture_output">capture_output</span></code></b>
+          –
+          <div class="doc-md-description">
+            <p>Durable JSONL events, atomic status output, and source provenance.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><a class="autorefs autorefs-internal" title="            capture_protocol (xpwebapi.capture_protocol)" href="../capture/#xpwebapi.capture_protocol">capture_protocol</a></code></b>
+          –
+          <div class="doc-md-description">
+            <p>Strict version-1 request protocol for the read-only capture worker.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="xpwebapi.capture_runner">capture_runner</span></code></b>
+          –
+          <div class="doc-md-description">
+            <p>Bounded lifecycle, readiness, sampling, and cleanup for capture workers.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><a class="autorefs autorefs-internal" title="            capture_transport (xpwebapi.capture_transport)" href="../capture/#xpwebapi.capture_transport">capture_transport</a></code></b>
+          –
+          <div class="doc-md-description">
+            <p>Deadline-bounded, read-only transport adapters for capture workers.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
           <b><code><a class="autorefs autorefs-internal" title="            logging_config (xpwebapi.logging_config)" href="../logging/#xpwebapi.logging_config">logging_config</a></code></b>
           –
           <div class="doc-md-description">
             <p>Logging configuration helpers for xpwebapi.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="xpwebapi.read_only">read_only</span></code></b>
+          –
+          <div class="doc-md-description">
+            <p>Restricted raw-handle proxies for read-only API clients.</p>
           </div>
         </li>
         <li class="doc-section-item field-body">
@@ -817,6 +1006,13 @@
           –
           <div class="doc-md-description">
             <p>Retry helpers for transient X-Plane connection probes.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="xpwebapi.schemas">schemas</span></code></b>
+          –
+          <div class="doc-md-description">
+            <p>Installed JSON Schema resources for the capture protocol.</p>
           </div>
         </li>
         <li class="doc-section-item field-body">
@@ -979,6 +1175,7 @@
     <span class="n"><span title="xpwebapi.AsyncXPRestAPI(retry_attempts)">retry_attempts</span></span><span class="p">:</span> <span class="n"><span title="int">int</span></span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
     <span class="n"><span title="xpwebapi.AsyncXPRestAPI(retry_backoff)">retry_backoff</span></span><span class="p">:</span> <span class="n"><span title="float">float</span></span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>
     <span class="n"><span title="xpwebapi.AsyncXPRestAPI(retry_backoff_max)">retry_backoff_max</span></span><span class="p">:</span> <span class="n"><span title="float">float</span></span> <span class="o">=</span> <span class="mf">5.0</span><span class="p">,</span>
+    <span class="n"><span title="xpwebapi.AsyncXPRestAPI(read_only)">read_only</span></span><span class="p">:</span> <span class="n"><span title="bool">bool</span></span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
 <span class="p">)</span>
 </code></pre></div>
 
@@ -3585,6 +3782,7 @@ Callback function prototype</p>
     <span class="n"><span title="xpwebapi.XPRestAPI(max_keepalive_connections)">max_keepalive_connections</span></span><span class="p">:</span> <span class="n"><span title="int">int</span></span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n"><span title="xpwebapi.XPRestAPI(keepalive_expiry)">keepalive_expiry</span></span><span class="p">:</span> <span class="n"><span title="float">float</span></span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n"><span title="xpwebapi.XPRestAPI(timeout)">timeout</span></span><span class="p">:</span> <span class="n"><span title="float">float</span></span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n"><span title="xpwebapi.XPRestAPI(read_only)">read_only</span></span><span class="p">:</span> <span class="n"><span title="bool">bool</span></span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
 <span class="p">)</span>
 </code></pre></div>
 
@@ -4954,6 +5152,13 @@ Use a class to implement RAI Pattern for the UDP socket.</p>
 <p><span class="doc-section-title">Methods:</span></p>
     <ul>
           <li class="doc-section-item field-body">
+            <b><code><a class="autorefs autorefs-internal" title="            abort (xpwebapi.XPUDPAPI.abort)" href="#xpwebapi.XPUDPAPI.abort">abort</a></code></b>
+            –
+            <div class="doc-md-description">
+              <p>Signal the listener before immediately closing its socket.</p>
+            </div>
+          </li>
+          <li class="doc-section-item field-body">
             <b><code><a class="autorefs autorefs-internal" title="            add_callback (xpwebapi.XPUDPAPI.add_callback)" href="#xpwebapi.XPUDPAPI.add_callback">add_callback</a></code></b>
             –
             <div class="doc-md-description">
@@ -5290,6 +5495,26 @@ Use a class to implement RAI Pattern for the UDP socket.</p>
 
 
 
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="xpwebapi.XPUDPAPI.abort" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">abort</span>
+
+
+</h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">abort</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Signal the listener before immediately closing its socket.</p>
+
+
+    </div>
+
+</div>
 
 <div class="doc doc-object doc-function">
 
@@ -5658,7 +5883,7 @@ whether the value has changed or not.</p>
 
 
 </h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">monitor_dataref</span><span class="p">(</span><span class="n"><a class="autorefs autorefs-internal" title="dataref (xpwebapi.XPUDPAPI.monitor_dataref(dataref))" href="#xpwebapi.XPUDPAPI.monitor_dataref(dataref)">dataref</a></span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-internal" title="            Dataref (xpwebapi.api.Dataref)" href="../core-api/#xpwebapi.api.Dataref">Dataref</a></span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n"><span title="bool">bool</span></span> <span class="o">|</span> <span class="n"><span title="int">int</span></span>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">monitor_dataref</span><span class="p">(</span><span class="n"><a class="autorefs autorefs-internal" title="dataref (xpwebapi.XPUDPAPI.monitor_dataref(dataref))" href="#xpwebapi.XPUDPAPI.monitor_dataref(dataref)">dataref</a></span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-internal" title="            Dataref (xpwebapi.api.Dataref)" href="../core-api/#xpwebapi.api.Dataref">Dataref</a></span><span class="p">,</span> <span class="n"><span title="xpwebapi.XPUDPAPI.monitor_dataref(frequency_hz)">frequency_hz</span></span><span class="p">:</span> <span class="n"><span title="int">int</span></span> <span class="o">=</span> <span class="mi">1</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n"><span title="bool">bool</span></span> <span class="o">|</span> <span class="n"><span title="int">int</span></span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -5890,7 +6115,7 @@ Rounding is applied to value before it is sent to callback function.</p>
 
 
 </h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">stop</span><span class="p">()</span>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">stop</span><span class="p">(</span><span class="n"><span title="xpwebapi.XPUDPAPI.stop(timeout_seconds)">timeout_seconds</span></span><span class="p">:</span> <span class="n"><span title="float">float</span></span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -6031,6 +6256,10 @@ Rounding is applied to value before it is sent to callback function.</p>
     <span class="n"><span title="xpwebapi.XPWebsocketAPI(retry_attempts)">retry_attempts</span></span><span class="p">:</span> <span class="n"><span title="int">int</span></span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
     <span class="n"><span title="xpwebapi.XPWebsocketAPI(retry_backoff)">retry_backoff</span></span><span class="p">:</span> <span class="n"><span title="float">float</span></span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>
     <span class="n"><span title="xpwebapi.XPWebsocketAPI(retry_backoff_max)">retry_backoff_max</span></span><span class="p">:</span> <span class="n"><span title="float">float</span></span> <span class="o">=</span> <span class="mf">5.0</span><span class="p">,</span>
+    <span class="n"><span title="xpwebapi.XPWebsocketAPI(http_timeout)">http_timeout</span></span><span class="p">:</span> <span class="n"><span title="float">float</span></span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n"><span title="xpwebapi.XPWebsocketAPI(open_timeout)">open_timeout</span></span><span class="p">:</span> <span class="n"><span title="float">float</span></span> <span class="o">=</span> <span class="mf">10.0</span><span class="p">,</span>
+    <span class="n"><span title="xpwebapi.XPWebsocketAPI(close_timeout)">close_timeout</span></span><span class="p">:</span> <span class="n"><span title="float">float</span></span> <span class="o">=</span> <span class="mf">10.0</span><span class="p">,</span>
+    <span class="n"><span title="xpwebapi.XPWebsocketAPI(read_only)">read_only</span></span><span class="p">:</span> <span class="n"><span title="bool">bool</span></span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
 <span class="p">)</span>
 </code></pre></div>
 
@@ -6093,6 +6322,13 @@ to process responses coming through the websocket.</p>
 
 <p><span class="doc-section-title">Methods:</span></p>
     <ul>
+          <li class="doc-section-item field-body">
+            <b><code><a class="autorefs autorefs-internal" title="            abort_websocket (xpwebapi.XPWebsocketAPI.abort_websocket)" href="#xpwebapi.XPWebsocketAPI.abort_websocket">abort_websocket</a></code></b>
+            –
+            <div class="doc-md-description">
+              <p>Immediately terminate the socket to interrupt a blocked operation.</p>
+            </div>
+          </li>
           <li class="doc-section-item field-body">
             <b><code><a class="autorefs autorefs-internal" title="            add_callback (xpwebapi.XPWebsocketAPI.add_callback)" href="#xpwebapi.XPWebsocketAPI.add_callback">add_callback</a></code></b>
             –
@@ -6876,6 +7112,26 @@ to process responses coming through the websocket.</p>
 <div class="doc doc-object doc-function">
 
 
+<h3 id="xpwebapi.XPWebsocketAPI.abort_websocket" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">abort_websocket</span>
+
+
+</h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">abort_websocket</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Immediately terminate the socket to interrupt a blocked operation.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
 <h3 id="xpwebapi.XPWebsocketAPI.add_callback" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">add_callback</span>
 
@@ -7105,7 +7361,7 @@ to process responses coming through the websocket.</p>
 
 
 </h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">connect_websocket</span><span class="p">()</span>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">connect_websocket</span><span class="p">(</span><span class="n"><span title="xpwebapi.XPWebsocketAPI.connect_websocket(timeout_resolver)">timeout_resolver</span></span><span class="p">:</span> <span class="n"><span title="xpwebapi.ws.WebsocketTimeoutResolver">WebsocketTimeoutResolver</span></span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -7271,7 +7527,7 @@ If a connection fails, drops, disappears, will try periodically to restore it.</
 
 
 </h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">disconnect</span><span class="p">()</span>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">disconnect</span><span class="p">(</span><span class="n"><span title="xpwebapi.XPWebsocketAPI.disconnect(timeout_seconds)">timeout_seconds</span></span><span class="p">:</span> <span class="n"><span title="float">float</span></span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -7291,7 +7547,9 @@ If a connection fails, drops, disappears, will try periodically to restore it.</
 
 
 </h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">disconnect_websocket</span><span class="p">(</span><span class="n"><span title="xpwebapi.XPWebsocketAPI.disconnect_websocket(silent)">silent</span></span><span class="p">:</span> <span class="n"><span title="bool">bool</span></span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">disconnect_websocket</span><span class="p">(</span>
+    <span class="n"><span title="xpwebapi.XPWebsocketAPI.disconnect_websocket(silent)">silent</span></span><span class="p">:</span> <span class="n"><span title="bool">bool</span></span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n"><span title="xpwebapi.XPWebsocketAPI.disconnect_websocket(timeout_resolver)">timeout_resolver</span></span><span class="p">:</span> <span class="n"><span title="xpwebapi.ws.WebsocketCloseTimeoutResolver">WebsocketCloseTimeoutResolver</span></span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="p">)</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -8382,7 +8640,7 @@ Rounding is applied to value before it is sent to callback function.</p>
 
 
 </h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">stop</span><span class="p">()</span>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">stop</span><span class="p">(</span><span class="n"><span title="xpwebapi.XPWebsocketAPI.stop(timeout_seconds)">timeout_seconds</span></span><span class="p">:</span> <span class="n"><span title="float">float</span></span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -8800,7 +9058,7 @@ Rounding is applied to value before it is sent to callback function.</p>
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": [], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
       
         <script src="../../js/timeago.min.js"></script>
       
