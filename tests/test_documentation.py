@@ -74,7 +74,7 @@ class TestDocumentationContent(unittest.TestCase):
             "output_reservation_partial",
             "complete but unclean",
             "per-stage shutdown budget",
-            "q4xpcc owns",
+            "the consuming development tool owns",
         ]:
             with self.subTest(contract=contract):
                 self.assertIn(contract, usage)
@@ -126,8 +126,63 @@ class TestDocumentationContent(unittest.TestCase):
 
         self.assertIn("WebSocket is the primary capture transport", readme)
         self.assertIn("UDP is the diagnostic/fallback capture transport", readme)
-        self.assertIn("## Unreleased", changelog)
+        self.assertIn("## 4.0.0", changelog)
         self.assertIn("read-only capture worker", changelog)
+
+    def test_public_materials_identify_the_maintained_fork(self) -> None:
+        readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+        changelog = (REPO_ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+
+        self.assertIn("pip install xpwebapi", readme)
+        self.assertIn("TV Productions", readme)
+        self.assertIn("devleaks/xplane-webapi", readme)
+        self.assertIn("independently maintained fork", readme)
+        self.assertIn("https://tvproductions.github.io/xplane-webapi/", readme)
+        self.assertNotIn("git+https://github.com/devleaks", readme)
+        self.assertNotIn("development infrastructure for q4xpcc", readme)
+
+        self.assertIn("## 4.0.0", changelog)
+        self.assertIn("upstream source reported version 3.5.0", changelog)
+        self.assertIn("no corresponding upstream changelog entry or release tag", changelog)
+
+    def test_public_materials_have_no_stale_active_upstream_or_consumer_links(self) -> None:
+        paths = (
+            REPO_ROOT / "README.md",
+            DOCS_DIR / "usage" / "index.md",
+            DOCS_DIR / "usage" / "read-only-capture.md",
+            DOCS_DIR / "reference" / "index.md",
+            DOCS_DIR / "reference" / "capture.md",
+            REPO_ROOT / "examples" / "template.py",
+            REPO_ROOT / "examples" / "xpwsapp.py",
+        )
+        for path in paths:
+            text = path.read_text(encoding="utf-8")
+            with self.subTest(path=path.relative_to(REPO_ROOT)):
+                self.assertNotIn("devleaks.github.io/xplane-webapi", text)
+                self.assertNotIn("git+https://github.com/devleaks/xplane-webapi.git", text)
+                self.assertNotIn("q4xpcc", text)
+
+    def test_mkdocs_uses_tvproductions_canonical_site_and_excludes_internal_plans(self) -> None:
+        mkdocs = (REPO_ROOT / "mkdocs.yml").read_text(encoding="utf-8")
+
+        self.assertIn("site_url: https://tvproductions.github.io/xplane-webapi/", mkdocs)
+        self.assertIn("repo_url: https://github.com/tvproductions/xplane-webapi", mkdocs)
+        self.assertIn("repo_name: tvproductions/xplane-webapi", mkdocs)
+        self.assertIn("edit_uri: edit/main/docs/", mkdocs)
+        self.assertIn("exclude_docs:", mkdocs)
+        self.assertIn("  superpowers/**", mkdocs)
+
+    def test_capture_docs_describe_installed_schema_resources(self) -> None:
+        reference = (DOCS_DIR / "reference" / "capture.md").read_text(encoding="utf-8")
+        self.assertIn("xpwebapi.schemas", reference)
+        for name in (
+            "capture-event-v1.schema.json",
+            "capture-request-v1.schema.json",
+            "capture-status-v1.schema.json",
+            "capture-version-v1.schema.json",
+        ):
+            with self.subTest(name=name):
+                self.assertIn(name, reference)
 
     def test_governing_documents_record_final_capture_interfaces(self) -> None:
         paths = [

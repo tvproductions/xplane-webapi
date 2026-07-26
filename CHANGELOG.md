@@ -2,12 +2,33 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 4.0.0 - 2026-07-26
 
-- Added a strictly read-only capture worker with versioned request, JSONL
-  event, atomic status, provenance, WebSocket, UDP, and command-line contracts
-  for disciplined q4xpcc development capture. This entry does not declare a
-  package release or version change.
+First independently maintained TV Productions release and first PyPI release.
+The upstream source reported version 3.5.0 when extension work began, but it
+contained no corresponding upstream changelog entry or release tag; no missing
+upstream releases are inferred here.
+
+### Added
+
+- Async REST client support.
+- Typed metadata caches, typed exceptions, retries, and structured logging.
+- Context-managed cleanup and REST connection pooling.
+- Strictly read-only capture worker, installed CLI, versioned JSON protocols,
+  and packaged JSON Schemas.
+- Expanded API reference, usage guidance, examples, and `unittest` coverage.
+
+### Changed
+
+- TV Productions is the canonical maintainer and release source.
+- HTTP and WebSocket transports use current `httpx` and `websockets` clients.
+- Supported Python versions are 3.12 and 3.13.
+- CI, security, typing, documentation, and release verification are blocking.
+
+### Attribution
+
+TV Productions thanks Pierre Mareschal and `devleaks` for the original
+`xplane-webapi` project. Historical entries below are retained from upstream.
 
 ## 3.2.0 - 2025-08-09
 

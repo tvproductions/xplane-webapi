@@ -18,3 +18,4 @@ The reference section is generated from source docstrings with `mkdocstrings`.
 - [Exceptions](exceptions.md)
 - [Logging](logging.md)
 - [Capture protocol](capture.md)
+- [Installed JSON Schemas](capture.md#installed-json-schemas)

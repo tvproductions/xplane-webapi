@@ -4,9 +4,9 @@ title: Capture protocol
 
 # Capture protocol
 
-Protocol version 1 is the file/process boundary between q4xpcc and the
-xplane-webapi read-only capture worker. The generated JSON Schemas in
-`schemas/` are the machine-readable contract; the models below are canonical.
+Protocol version 1 is the file/process boundary between a consuming development
+tool and the xpwebapi read-only capture worker. The installed JSON Schemas are
+the machine-readable contract; the models below are canonical.
 
 ## Request fields
 
@@ -143,6 +143,25 @@ WebSocket capture sends only subscribe/unsubscribe value messages. UDP sends
 only validated `RREF\0` packets. Reservation collision handling uses exclusive
 creation and no cross-path rollback so a path replacement race cannot cause
 the worker to delete another process's file.
+
+## Installed JSON Schemas
+
+The four protocol-v1 schemas ship in the `xpwebapi.schemas` package:
+
+- `capture-event-v1.schema.json`
+- `capture-request-v1.schema.json`
+- `capture-status-v1.schema.json`
+- `capture-version-v1.schema.json`
+
+```python
+from importlib.resources import files
+
+schema_text = (
+    files("xpwebapi.schemas")
+    .joinpath("capture-request-v1.schema.json")
+    .read_text(encoding="utf-8")
+)
+```
 
 ## API declarations
 

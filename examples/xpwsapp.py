@@ -8,7 +8,7 @@ from typing import Any
 try:
     import xpwebapi
 except ImportError:
-    print("xpwebapi module not detected. install with\npip install 'xpwebapi @ git+https://github.com/devleaks/xplane-webapi.git'")
+    print("xpwebapi module not detected. install with\npip install xpwebapi")
     os._exit(1)
 
 FORMAT = "[%(asctime)s] %(levelname)s %(threadName)s %(filename)s:%(funcName)s:%(lineno)d: %(message)s"

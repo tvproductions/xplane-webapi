@@ -7,6 +7,17 @@ title: Usage
 For repeatable, strictly read-only development evidence, see
 [Read-only capture](read-only-capture.md).
 
+## Installation
+
+Install the maintained release from PyPI:
+
+```sh
+pip install xpwebapi
+```
+
+Source and issue tracking are available in the canonical
+[TV Productions repository](https://github.com/tvproductions/xplane-webapi).
+
 ## Connection lifecycle
 
 Use context managers for REST clients so the underlying HTTP session is closed even when a request fails.

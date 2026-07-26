@@ -1,25 +1,34 @@
-# Python Wrapper for Laminar Research X-Plane Web API
+# xpwebapi
 
-See [X-Plane Web API](https://developer.x-plane.com/article/x-plane-web-api/).
+`xpwebapi` is a Python client and development toolkit for the Laminar Research
+X-Plane Web API, including REST, async REST, WebSocket, UDP, beacon discovery,
+and a strictly read-only capture worker.
 
+This is an independently maintained fork of
+[`devleaks/xplane-webapi`](https://github.com/devleaks/xplane-webapi).
+TV Productions thanks Pierre Mareschal and `devleaks` for creating the original
+library. The upstream source reported version 3.5.0 when this fork's extension
+work began; TV Productions maintains releases beginning with 4.0.0.
 
-[Documentation](https://devleaks.github.io/xplane-webapi/usage/)
+This project is not endorsed by or affiliated with the upstream maintainer or
+Laminar Research. X-Plane is a trademark of Laminar Research.
 
+## Installation
 
-# Installation
-
+Requires Python 3.12 or 3.13.
 
 ```sh
-pip install 'xpwebapi @ git+https://github.com/devleaks/xplane-webapi.git'
+pip install xpwebapi
 ```
 
-For development, clone the repository and sync the development dependency group:
+## Quick start
 
+```python
+import xpwebapi
 
-```sh
-git clone https://github.com/devleaks/xplane-webapi.git
-cd xplane-webapi
-uv sync
+with xpwebapi.rest_api(api_version="v2") as api:
+    clock = api.dataref("sim/cockpit2/clock_timer/local_time_seconds")
+    print(api.dataref_value(clock))
 ```
 
 ## Read-only capture worker
@@ -27,11 +36,25 @@ uv sync
 The installed `xpwebapi-capture` command records a bounded, versioned stream of
 configured X-Plane DataRefs without exposing command execution or DataRef
 writes. WebSocket is the primary capture transport.
-UDP is the diagnostic/fallback capture transport when WebSocket observation is not
-available or when transport comparison is part of a test.
+UDP is the diagnostic/fallback capture transport.
 
-This worker is development infrastructure for q4xpcc. q4xpcc remains the
-XPPython3 plugin, defines the watchlists and sorties, launches the worker, and
-owns normalized evidence and final bundles. See the
-[read-only capture guide](docs/usage/read-only-capture.md) and
-[protocol reference](docs/reference/capture.md).
+See the [capture guide](https://tvproductions.github.io/xplane-webapi/usage/read-only-capture/)
+and [capture protocol reference](https://tvproductions.github.io/xplane-webapi/reference/capture/).
+
+## Documentation
+
+Full documentation is available at
+https://tvproductions.github.io/xplane-webapi/.
+
+## Development
+
+```sh
+git clone https://github.com/tvproductions/xplane-webapi.git
+cd xplane-webapi
+uv sync
+uv run python -m unittest discover -v
+```
+
+## License
+
+MIT. See [`LICENSE`](https://github.com/tvproductions/xplane-webapi/blob/main/LICENSE).

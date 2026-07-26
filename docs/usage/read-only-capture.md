@@ -15,12 +15,10 @@ of the test. UDP supports only float DataRefs at integral rates from 1 through
 
 ## Ownership boundary
 
-xplane-webapi owns network discovery, connections, subscriptions, retries,
-read-only enforcement, raw events, status, and source provenance. q4xpcc owns
-the watchlist, campaign, route, scenario, sortie, worker process, normalized
-recorder events, replay, correlation, integrity checks, and final evidence
-bundle. q4xpcc remains the XPPython3 plugin and the system under test; it does
-not import `xpwebapi`.
+Within this boundary, the consuming development tool owns watchlists, run or
+sortie boundaries, worker launch, normalized evidence, and final bundles.
+`xpwebapi-capture` owns only the bounded read-only observation process and its
+versioned outputs.
 
 ## Command modes
 
@@ -48,10 +46,10 @@ uv run xpwebapi-capture --version-json
 one compact, key-sorted protocol-v1 JSON object plus LF (`0x0A`), never CRLF. It makes no
 network calls and performs no filesystem mutation. It may read local package,
 Git, and filesystem provenance. The object is the machine-readable handshake
-q4xpcc should inspect before launching capture:
+the consumer should inspect before launching capture:
 
 ```json
-{"git_dirty":null,"git_origin":null,"git_revision":null,"git_root":null,"git_state":"unavailable","package_name":"xpwebapi","package_version":"3.5.0","python_version":"3.12.0","read_only":true,"supported_transports":["udp","websocket"],"worker":"xpwebapi-capture","worker_protocol_version":1}
+{"git_dirty":null,"git_origin":null,"git_revision":null,"git_root":null,"git_state":"unavailable","package_name":"xpwebapi","package_version":"4.0.0","python_version":"3.12.0","read_only":true,"supported_transports":["udp","websocket"],"worker":"xpwebapi-capture","worker_protocol_version":1}
 ```
 
 ## Complete protocol-v1 request
@@ -242,5 +240,5 @@ Poll for transport readiness, load Q4XP, poll for aircraft readiness and
 `capturing`, create the stop file, and verify exit 0 plus terminal status
 `complete`. Inspect `capture_started.provenance`, terminal hashes, and captured
 traffic. Traffic must contain only WebSocket subscribe/unsubscribe requests or
-UDP `RREF` packets. Raw live capture is not committed unless q4xpcc explicitly
-promotes it into its evidence workflow.
+UDP `RREF` packets. Raw live capture is not committed unless the consumer
+explicitly promotes it into its evidence workflow.
