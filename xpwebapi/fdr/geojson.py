@@ -9,13 +9,24 @@ from .models import FDRRecording, FDRSample
 _FEET_TO_METRES = 0.3048
 
 
-def _metres_from_feet(altitude_msl_ft: int | float) -> int | float:
+def _exact_metres_decimal(numerator: int) -> str:
+    """Render an exact signed decimal for a metres numerator over 1250."""
+    sign = "-" if numerator < 0 else ""
+    whole_metres, remainder = divmod(abs(numerator), 1250)
+    return f"{sign}{whole_metres}.{remainder * 8:04d}".rstrip("0")
+
+
+def _metres_from_feet(altitude_msl_ft: int | float) -> int | float | str:
     """Convert feet using the exact 0.3048 ratio when an integer result exists."""
     if type(altitude_msl_ft) is int:
         numerator = altitude_msl_ft * 381
         metres, remainder = divmod(numerator, 1250)
         if remainder == 0:
             return metres
+        try:
+            return altitude_msl_ft * _FEET_TO_METRES
+        except OverflowError:
+            return _exact_metres_decimal(numerator)
     return altitude_msl_ft * _FEET_TO_METRES
 
 

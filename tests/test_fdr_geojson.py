@@ -161,3 +161,14 @@ class FDRGeoJSONTests(unittest.TestCase):
         properties = self.features(result)[0]["properties"]
         self.assertEqual(381 * 10**400, properties["altitude_msl_m"])
         self.assertIsInstance(json.dumps(result, allow_nan=False), str)
+
+    def test_large_fractional_integer_altitude_uses_an_exact_json_decimal_string(self) -> None:
+        altitude_msl_ft = 10**400 + 1
+        numerator = altitude_msl_ft * 3048
+        whole_metres, fractional_ten_thousandths = divmod(numerator, 10000)
+        expected = f"{whole_metres}.{fractional_ten_thousandths:04d}".rstrip("0")
+        result = recording_to_geojson(self.recording(samples=(self.sample(altitude_msl_ft=altitude_msl_ft),)))
+
+        properties = self.features(result)[0]["properties"]
+        self.assertEqual(expected, properties["altitude_msl_m"])
+        self.assertIsInstance(json.dumps(result, allow_nan=False), str)
