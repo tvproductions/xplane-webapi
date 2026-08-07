@@ -22,9 +22,15 @@ def _require_text(value: object, name: str, *, allow_empty: bool = False) -> str
 
 
 def _require_finite_number(value: object, name: str) -> int | float:
-    if type(value) not in {int, float} or not math.isfinite(value):
+    if type(value) is int:
+        number = value
+    elif type(value) is float:
+        number = value
+    else:
         raise FDRValidationError(f"{name} must be a finite int or float")
-    return value
+    if not math.isfinite(number):
+        raise FDRValidationError(f"{name} must be a finite int or float")
+    return number
 
 
 def _validate_values(values: tuple[object, ...], name: str) -> tuple[int | float, ...]:
@@ -76,6 +82,17 @@ class FDRLegacyColumn:
         return self.identifier
 
 
+def _validate_header_schema(
+    source_version: Literal[3, 4],
+    datarefs: tuple[object, ...],
+    legacy_columns: tuple[object, ...],
+) -> None:
+    if source_version == 3 and datarefs:
+        raise FDRValidationError("version 3 headers must not declare DataRefs")
+    if source_version == 4 and legacy_columns:
+        raise FDRValidationError("version 4 headers must not declare legacy columns")
+
+
 @dataclass(frozen=True, slots=True)
 class FDRHeader:
     """The ordered header declarations shared by an FDR recording."""
@@ -109,10 +126,7 @@ class FDRHeader:
             raise FDRValidationError("DataRef paths must be unique")
         if len({item.identifier for item in legacy_columns}) != len(legacy_columns):
             raise FDRValidationError("legacy column identifiers must be unique")
-        if self.source_version == 3 and datarefs:
-            raise FDRValidationError("version 3 headers must not declare DataRefs")
-        if self.source_version == 4 and legacy_columns:
-            raise FDRValidationError("version 4 headers must not declare legacy columns")
+        _validate_header_schema(self.source_version, datarefs, legacy_columns)
         if self.local_date is not None and type(self.local_date) is not date:
             raise FDRValidationError("local date must be a date or None")
         object.__setattr__(self, "comments", comments)

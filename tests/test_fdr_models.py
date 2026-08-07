@@ -58,9 +58,9 @@ class FDRModelTests(unittest.TestCase):
         self.assertEqual(0.5, header.datarefs[0].scale)
         self.assertEqual("ratio", header.datarefs[0].comment)
         with self.assertRaises(FrozenInstanceError):
-            sample.longitude = 0.0  # type: ignore[misc]
+            sample.longitude = 0.0  # ty: ignore[invalid-assignment]
         with self.assertRaises(TypeError):
-            sample.extra = "not slotted"  # type: ignore[attr-defined]
+            sample.extra = "not slotted"  # ty: ignore[invalid-assignment]
 
     def test_duration_counts_midnight_rollover(self) -> None:
         recording = FDRRecording(
