@@ -8,6 +8,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from xpwebapi.capture_protocol import WebsocketCaptureConfig
 from xpwebapi.fdr.models import FDRDataref, FDRHeader, FDRMetadata
@@ -22,6 +23,14 @@ MANDATORY_PATHS = (
     "sim/cockpit2/gauges/indicators/heading_electric_deg_mag_pilot",
     "sim/cockpit2/gauges/indicators/pitch_electric_deg_pilot",
     "sim/cockpit2/gauges/indicators/roll_electric_deg_pilot",
+)
+MANDATORY_IDS = (
+    "longitude",
+    "latitude",
+    "altitude_msl_ft",
+    "heading_magnetic_deg",
+    "pitch_deg",
+    "roll_deg",
 )
 
 
@@ -228,6 +237,16 @@ class LiveFDRSampleSourceTests(unittest.TestCase):
         self.assertFalse(hasattr(source, "execute_command"))
         source.close()
 
+    def test_rejects_optional_paths_that_collide_with_mandatory_output_ids(self) -> None:
+        for mandatory_id in MANDATORY_IDS:
+            with self.subTest(mandatory_id=mandatory_id):
+                factory = FakeWebsocketFactory(initial_values())
+
+                with self.assertRaisesRegex(ValueError, "mandatory output IDs"):
+                    self.make_source(factory, header=make_header(FDRDataref(mandatory_id, 1, None)))
+
+                self.assertEqual([], factory.calls)
+
     def test_missing_required_subscription_fails_before_sampling_and_closes(self) -> None:
         factory = FakeWebsocketFactory(initial_values(), missing_metadata=(MANDATORY_PATHS[2],))
         clock = FakeClock()
@@ -351,6 +370,56 @@ class LiveFDRSampleSourceTests(unittest.TestCase):
             tuple(second.values),
         )
         self.assertIs(UTC, second.timestamp_utc.tzinfo)
+        source.close()
+
+    def test_samples_preserve_original_phase_after_wait_oversleeps(self) -> None:
+        factory = FakeWebsocketFactory(initial_values())
+        clock = FakeClock()
+        source = self.make_source(factory, clock, sample_interval_seconds=0.25)
+        samples = source.samples(threading.Event())
+
+        first = next(samples)
+
+        def oversleep_once() -> None:
+            clock.monotonic_now += 0.35
+            clock.on_wait = None
+
+        clock.on_wait = oversleep_once
+        second = next(samples)
+        third = next(samples)
+
+        self.assertEqual(datetime(2026, 8, 7, 18, 30, tzinfo=UTC), first.timestamp_utc)
+        self.assertEqual(datetime(2026, 8, 7, 18, 30, 0, 600000, tzinfo=UTC), second.timestamp_utc)
+        self.assertEqual(datetime(2026, 8, 7, 18, 30, 0, 750000, tzinfo=UTC), third.timestamp_utc)
+        self.assertEqual(2, len(clock.wait_calls))
+        self.assertAlmostEqual(0.25, clock.wait_calls[0])
+        self.assertAlmostEqual(0.15, clock.wait_calls[1])
+        source.close()
+
+    def test_samples_skip_slots_missed_during_snapshot_without_burst(self) -> None:
+        factory = FakeWebsocketFactory(initial_values())
+        clock = FakeClock()
+        source = self.make_source(factory, clock, sample_interval_seconds=0.25)
+        samples = source.samples(threading.Event())
+        original_snapshot = source._snapshot
+        snapshot_count = 0
+
+        def slow_first_snapshot() -> Mapping[str, float]:
+            nonlocal snapshot_count
+            values = original_snapshot()
+            snapshot_count += 1
+            if snapshot_count == 1:
+                clock.monotonic_now += 0.6
+            return values
+
+        with patch.object(source, "_snapshot", side_effect=slow_first_snapshot):
+            first = next(samples)
+            second = next(samples)
+
+        self.assertEqual(datetime(2026, 8, 7, 18, 30, 0, 600000, tzinfo=UTC), first.timestamp_utc)
+        self.assertEqual(datetime(2026, 8, 7, 18, 30, 0, 750000, tzinfo=UTC), second.timestamp_utc)
+        self.assertEqual(1, len(clock.wait_calls))
+        self.assertAlmostEqual(0.15, clock.wait_calls[0])
         source.close()
 
     def test_naive_injected_utc_clock_is_rejected(self) -> None:

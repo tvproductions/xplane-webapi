@@ -139,6 +139,8 @@ class LiveFDRSampleSource:
         self._first_values_timeout_seconds = _positive_finite(first_values_timeout_seconds, "first_values_timeout_seconds")
         if any(dataref.path in _MANDATORY_PATHS for dataref in header.datarefs):
             raise ValueError("optional FDR DataRefs must not duplicate mandatory navigation DataRefs")
+        if any(dataref.path in _MANDATORY_IDS for dataref in header.datarefs):
+            raise ValueError("optional FDR DataRef paths must not collide with mandatory output IDs")
         self._header = header
         self._config = config
         self._monotonic_clock = monotonic_clock
@@ -253,8 +255,13 @@ class LiveFDRSampleSource:
             if stop_event.is_set():
                 break
             values = self._snapshot()
-            next_sample_at = self._monotonic_clock() + self._sample_interval_seconds
             yield FDRSourceSample(timestamp_utc=self._utc_clock(), values=values)
+            if stop_event.is_set():
+                break
+            next_sample_at += self._sample_interval_seconds
+            current_time = self._monotonic_clock()
+            while next_sample_at < current_time:
+                next_sample_at += self._sample_interval_seconds
 
     def close(self) -> None:
         """Close the owned read-only observation transport once."""
