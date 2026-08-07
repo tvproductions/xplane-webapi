@@ -109,6 +109,10 @@ class FDRHeader:
             raise FDRValidationError("DataRef paths must be unique")
         if len({item.identifier for item in legacy_columns}) != len(legacy_columns):
             raise FDRValidationError("legacy column identifiers must be unique")
+        if self.source_version == 3 and datarefs:
+            raise FDRValidationError("version 3 headers must not declare DataRefs")
+        if self.source_version == 4 and legacy_columns:
+            raise FDRValidationError("version 4 headers must not declare legacy columns")
         if self.local_date is not None and type(self.local_date) is not date:
             raise FDRValidationError("local date must be a date or None")
         object.__setattr__(self, "comments", comments)
@@ -221,6 +225,8 @@ class FDRNormalizationResult:
     def __post_init__(self) -> None:
         if not isinstance(self.recording, FDRRecording):
             raise FDRValidationError("recording must be an FDRRecording")
+        if self.recording.header.source_version != 4:
+            raise FDRValidationError("normalization results must contain a version 4 recording")
         omitted = _tuple(self.omitted_legacy_field_ids)
         if any(not isinstance(identifier, str) for identifier in omitted):
             raise FDRValidationError("omitted legacy field ids must contain only strings")

@@ -125,6 +125,19 @@ class FDRModelTests(unittest.TestCase):
                 legacy_columns=(FDRLegacyColumn("elapsed_seconds"), FDRLegacyColumn("elapsed_seconds")),
             )
 
+    def test_rejects_version_three_datarefs_and_version_four_legacy_columns(self) -> None:
+        with self.assertRaises(FDRValidationError):
+            self.header(source_version=3)
+        with self.assertRaises(FDRValidationError):
+            self.header(legacy_columns=(FDRLegacyColumn("elapsed_seconds"),))
+
+    def test_normalization_result_requires_a_version_four_recording(self) -> None:
+        version_three_header = self.header(source_version=3, datarefs=())
+        version_three_recording = FDRRecording(version_three_header, (self.sample(additional_values=()),))
+
+        with self.assertRaises(FDRValidationError):
+            FDRNormalizationResult(version_three_recording, ())
+
     def test_rejects_sample_values_that_do_not_match_declared_widths(self) -> None:
         with self.assertRaises(FDRValidationError):
             FDRRecording(self.header(), (self.sample(additional_values=()),))
