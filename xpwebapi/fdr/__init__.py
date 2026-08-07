@@ -3,6 +3,7 @@
 from .errors import FDRParseError, FDRValidationError
 from .models import FDRDataref, FDRHeader, FDRLegacyColumn, FDRMetadata, FDRNormalizationResult, FDRRecording, FDRSample
 from .reader import FDRReader
+from .writer import FDRStreamWriter, FDRWriter
 
 __all__ = [
     "FDRDataref",
@@ -14,5 +15,7 @@ __all__ = [
     "FDRRecording",
     "FDRReader",
     "FDRSample",
+    "FDRStreamWriter",
     "FDRValidationError",
+    "FDRWriter",
 ]
