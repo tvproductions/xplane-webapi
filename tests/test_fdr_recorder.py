@@ -13,6 +13,7 @@ from types import SimpleNamespace
 from typing import Any
 from unittest.mock import patch
 
+import xpwebapi.fdr.recorder as fdr_recorder_module
 from xpwebapi.capture_protocol import WebsocketCaptureConfig
 from xpwebapi.fdr import FDRReader, FDRWriter
 from xpwebapi.fdr.models import FDRDataref, FDRHeader, FDRMetadata, FDRSample
@@ -543,6 +544,18 @@ class RecorderClock:
         return self.now
 
 
+class InterruptingClock:
+    def __init__(self, raise_on_call: int) -> None:
+        self.raise_on_call = raise_on_call
+        self.calls = 0
+
+    def monotonic(self) -> float:
+        self.calls += 1
+        if self.calls == self.raise_on_call:
+            raise KeyboardInterrupt
+        return 10.0
+
+
 class FDRRecorderTests(unittest.TestCase):
     def source_sample(self, second: int = 0, **changes: Any) -> FDRSourceSample:
         values: dict[str, Any] = {
@@ -629,6 +642,67 @@ class FDRRecorderTests(unittest.TestCase):
         self.assertEqual("keyboard_interrupt", result.termination)
         self.assertEqual(1, result.sample_count)
         self.assertEqual(1, sink.commit_count)
+        self.assertEqual(1, source.close_count)
+
+    def test_keyboard_interrupt_from_deadline_check_after_a_sample_is_graceful(self) -> None:
+        clock = InterruptingClock(4)
+        source = SyntheticSource(make_header(), [self.source_sample(), self.source_sample(1)])
+        sink = SyntheticSink()
+
+        result = FDRRecorder(source=source, sink=sink, monotonic_clock=clock.monotonic).record(stop_event=threading.Event(), maximum_duration=30.0)
+
+        self.assertEqual("keyboard_interrupt", result.termination)
+        self.assertEqual(1, result.sample_count)
+        self.assertEqual(1, sink.commit_count)
+        self.assertEqual(0, sink.abort_count)
+
+    def test_keyboard_interrupt_during_mapping_after_a_sample_is_graceful_before_sink_mutation(self) -> None:
+        original_mapping = fdr_recorder_module._sample_from_source
+        mapping_calls = 0
+
+        def interrupt_second_mapping(header: FDRHeader, source_sample: FDRSourceSample) -> FDRSample:
+            nonlocal mapping_calls
+            mapping_calls += 1
+            if mapping_calls == 2:
+                raise KeyboardInterrupt
+            return original_mapping(header, source_sample)
+
+        source = SyntheticSource(make_header(), [self.source_sample(), self.source_sample(1)])
+        sink = SyntheticSink()
+        with patch("xpwebapi.fdr.recorder._sample_from_source", side_effect=interrupt_second_mapping):
+            result = FDRRecorder(source=source, sink=sink).record(stop_event=threading.Event())
+
+        self.assertEqual("keyboard_interrupt", result.termination)
+        self.assertEqual(1, result.sample_count)
+        self.assertEqual(1, len(sink.samples))
+        self.assertEqual(1, sink.commit_count)
+        self.assertEqual(0, sink.abort_count)
+
+    def test_keyboard_interrupt_during_termination_resolution_after_a_sample_is_graceful(self) -> None:
+        source = SyntheticSource(make_header(), [self.source_sample()])
+        sink = SyntheticSink()
+
+        with patch.object(FDRRecorder, "_resolve_termination", side_effect=KeyboardInterrupt):
+            result = FDRRecorder(source=source, sink=sink).record(stop_event=threading.Event())
+
+        self.assertEqual("keyboard_interrupt", result.termination)
+        self.assertEqual(1, result.sample_count)
+        self.assertEqual(1, sink.commit_count)
+        self.assertEqual(0, sink.abort_count)
+
+    def test_keyboard_interrupt_from_sink_write_is_unsafe_and_never_commits(self) -> None:
+        source = SyntheticSource(make_header(), [self.source_sample()])
+
+        def interrupt_write(_sample: FDRSample) -> None:
+            raise KeyboardInterrupt
+
+        sink = SyntheticSink(on_write=interrupt_write)
+
+        with self.assertRaises(KeyboardInterrupt):
+            FDRRecorder(source=source, sink=sink).record(stop_event=threading.Event())
+
+        self.assertEqual(0, sink.commit_count)
+        self.assertEqual(1, sink.abort_count)
         self.assertEqual(1, source.close_count)
 
     def test_empty_or_invalid_sessions_abort_and_never_commit(self) -> None:

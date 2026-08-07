@@ -261,29 +261,50 @@ class FDRRecorder:
             failures.append(exc)
         self._raise_failures(failures)
 
-    def _accept_source_sample(self, progress: _RecordingProgress, source_sample: FDRSourceSample) -> None:
+    def _map_source_sample(self, progress: _RecordingProgress, source_sample: FDRSourceSample) -> FDRSample:
         if progress.last_sample_at is not None and source_sample.timestamp_utc < progress.last_sample_at:
             raise FDRValidationError("source sample UTC timestamps must not move backwards")
-        sample = _sample_from_source(self._source.header, source_sample)
+        return _sample_from_source(self._source.header, source_sample)
+
+    def _write_mapped_sample(self, progress: _RecordingProgress, source_sample: FDRSourceSample, sample: FDRSample) -> None:
         self._sink.write_sample(sample)
         progress.sample_count += 1
         progress.first_sample_at = progress.first_sample_at or source_sample.timestamp_utc
         progress.last_sample_at = source_sample.timestamp_utc
 
+    @staticmethod
+    def _mark_graceful_interrupt(progress: _RecordingProgress, interrupt: KeyboardInterrupt) -> None:
+        if progress.sample_count == 0:
+            raise interrupt.with_traceback(interrupt.__traceback__)
+        progress.termination = "keyboard_interrupt"
+
     def _consume_samples(self, recording_stop: _RecordingStopEvent) -> _RecordingProgress:
         progress = _RecordingProgress()
         iterator = iter(self._source.samples(recording_stop))
-        while not recording_stop.is_set():
+        while True:
+            try:
+                if recording_stop.is_set():
+                    break
+            except KeyboardInterrupt as interrupt:
+                self._mark_graceful_interrupt(progress, interrupt)
+                break
+
             try:
                 source_sample = next(iterator)
             except StopIteration:
                 break
-            except KeyboardInterrupt:
-                progress.termination = "keyboard_interrupt"
+            except KeyboardInterrupt as interrupt:
+                self._mark_graceful_interrupt(progress, interrupt)
                 break
-            if recording_stop.is_set():
+
+            try:
+                if recording_stop.is_set():
+                    break
+                sample = self._map_source_sample(progress, source_sample)
+            except KeyboardInterrupt as interrupt:
+                self._mark_graceful_interrupt(progress, interrupt)
                 break
-            self._accept_source_sample(progress, source_sample)
+            self._write_mapped_sample(progress, source_sample, sample)
         return progress
 
     @staticmethod
@@ -338,7 +359,10 @@ class FDRRecorder:
 
         try:
             progress = self._consume_samples(recording_stop)
-            self._resolve_termination(progress, recording_stop, stop_event)
+            try:
+                self._resolve_termination(progress, recording_stop, stop_event)
+            except KeyboardInterrupt as interrupt:
+                self._mark_graceful_interrupt(progress, interrupt)
         except BaseException as exc:
             failures.append(exc)
         finally:

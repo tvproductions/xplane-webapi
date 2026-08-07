@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 import re
 import secrets
-from typing import TextIO, cast
+from typing import NoReturn, TextIO, cast
 
 from .errors import FDRValidationError
 from .models import FDRHeader, FDRNormalizationResult, FDRRecording, FDRSample
@@ -129,9 +129,8 @@ class FDRStreamWriter:
         self._state = "active"
         try:
             self._stream.write(header_text)
-        except BaseException:
-            self.abort()
-            raise
+        except BaseException as primary:
+            self._abort_after(primary)
 
     @property
     def partial_path(self) -> Path | None:
@@ -154,24 +153,21 @@ class FDRStreamWriter:
         try:
             line = _render_sample(sample, len(self._header.datarefs))
             self._stream.write(line)
-        except BaseException:
-            self.abort()
-            raise
+        except BaseException as primary:
+            self._abort_after(primary)
         self._sample_count += 1
 
     def commit(self) -> None:
         """Flush output and expose path output only after a valid sample."""
         self._require_active()
         if self._sample_count == 0:
-            self.abort()
-            raise FDRValidationError("cannot commit an FDR recording without samples")
+            self._abort_after(FDRValidationError("cannot commit an FDR recording without samples"))
 
         if self._destination is None:
             try:
                 self._stream.flush()
-            except BaseException:
-                self.abort()
-                raise
+            except BaseException as primary:
+                self._abort_after(primary)
             self._state = "committed"
             return
 
@@ -188,11 +184,8 @@ class FDRStreamWriter:
                     partial_path.unlink()
                 except OSError:
                     pass
-        except BaseException:
-            self._state = "aborted"
-            if not self._stream.closed:
-                self._stream.close()
-            raise
+        except BaseException as primary:
+            self._abort_after(primary)
         self._state = "committed"
 
     def abort(self) -> None:
@@ -209,14 +202,27 @@ class FDRStreamWriter:
         if self._state != "active":
             raise FDRValidationError(f"writer is already {self._state}")
 
+    def _abort_after(self, primary: BaseException) -> NoReturn:
+        try:
+            self.abort()
+        except BaseException as cleanup:
+            raise BaseExceptionGroup("FDR writer operation and cleanup failed", [primary, cleanup]) from None
+        raise primary.with_traceback(primary.__traceback__)
+
     def __enter__(self) -> FDRStreamWriter:
         """Return this active writer for explicit-commit context use."""
         self._require_active()
         return self
 
-    def __exit__(self, _exc_type: object, _exc_value: object, _traceback: object) -> None:
+    def __exit__(self, _exc_type: object, exc_value: BaseException | None, _traceback: object) -> None:
         """Abort an uncommitted writer while preserving path partials."""
-        self.abort()
+        if exc_value is None:
+            self.abort()
+            return
+        try:
+            self.abort()
+        except BaseException as cleanup:
+            raise BaseExceptionGroup("FDR context body and cleanup failed", [exc_value, cleanup]) from None
 
 
 class FDRWriter:

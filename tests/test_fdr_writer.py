@@ -35,6 +35,33 @@ class TrackingStream(StringIO):
         super().flush()
 
 
+class FaultingStream(StringIO):
+    """Inject distinct writer operation and cleanup failures."""
+
+    def __init__(
+        self,
+        *,
+        flush_errors: tuple[BaseException, ...] = (),
+        close_error: BaseException | None = None,
+    ) -> None:
+        super().__init__()
+        self.flush_errors = list(flush_errors)
+        self.close_error = close_error
+
+    def flush(self) -> None:
+        if self.flush_errors:
+            raise self.flush_errors.pop(0)
+        super().flush()
+
+    def fileno(self) -> int:
+        return 17
+
+    def close(self) -> None:
+        if self.close_error is not None:
+            raise self.close_error
+        super().close()
+
+
 class FDRWriterTests(unittest.TestCase):
     def header(self, **changes: object) -> FDRHeader:
         values: dict[str, object] = {
@@ -307,6 +334,80 @@ DREF, sim/test/whole 2
                 committed.commit()
 
             self.assertTrue(destination.exists())
+
+    def test_context_body_and_caller_stream_abort_failures_are_both_preserved(self) -> None:
+        stream = FaultingStream(flush_errors=(RuntimeError("abort flush broke"),))
+
+        with self.assertRaises(BaseExceptionGroup) as caught:
+            with FDRWriter().open(self.header(), stream):
+                raise ValueError("body broke")
+
+        self.assertEqual((ValueError, RuntimeError), tuple(type(item) for item in caught.exception.exceptions))
+        self.assertEqual(("body broke", "abort flush broke"), tuple(str(item) for item in caught.exception.exceptions))
+
+    def test_context_body_and_path_close_failures_are_both_preserved(self) -> None:
+        stream = FaultingStream(close_error=RuntimeError("partial close broke"))
+        writer = FDRStreamWriter(
+            self.header(),
+            stream,
+            destination=Path("flight.fdr"),
+            partial_path=Path(".flight.fdr.partial"),
+            overwrite=False,
+            header_text="A\n4\n",
+        )
+
+        with self.assertRaises(BaseExceptionGroup) as caught:
+            with writer:
+                raise ValueError("body broke")
+
+        self.assertEqual(("body broke", "partial close broke"), tuple(str(item) for item in caught.exception.exceptions))
+        stream.close_error = None
+        stream.close()
+
+    def test_context_preserves_body_exception_and_raises_cleanup_failure_alone(self) -> None:
+        with self.assertRaisesRegex(ValueError, "body broke"):
+            with FDRWriter().open(self.header(), StringIO()):
+                raise ValueError("body broke")
+
+        stream = FaultingStream(flush_errors=(RuntimeError("abort alone broke"),))
+        with self.assertRaisesRegex(RuntimeError, "abort alone broke"):
+            with FDRWriter().open(self.header(), stream):
+                pass
+
+    def test_commit_preserves_caller_flush_and_abort_flush_failures(self) -> None:
+        stream = FaultingStream(
+            flush_errors=(
+                RuntimeError("commit flush broke"),
+                RuntimeError("abort flush broke"),
+            )
+        )
+        writer = FDRWriter().open(self.header(), stream)
+        writer.write_sample(self.sample())
+
+        with self.assertRaises(BaseExceptionGroup) as caught:
+            writer.commit()
+
+        self.assertEqual(("commit flush broke", "abort flush broke"), tuple(str(item) for item in caught.exception.exceptions))
+
+    def test_commit_preserves_path_fsync_and_close_failures(self) -> None:
+        stream = FaultingStream(close_error=RuntimeError("partial close broke"))
+        writer = FDRStreamWriter(
+            self.header(),
+            stream,
+            destination=Path("flight.fdr"),
+            partial_path=Path(".flight.fdr.partial"),
+            overwrite=False,
+            header_text="A\n4\n",
+        )
+        writer.write_sample(self.sample())
+
+        with patch("xpwebapi.fdr.writer.os.fsync", side_effect=OSError("fsync broke")):
+            with self.assertRaises(BaseExceptionGroup) as caught:
+                writer.commit()
+
+        self.assertEqual(("fsync broke", "partial close broke"), tuple(str(item) for item in caught.exception.exceptions))
+        stream.close_error = None
+        stream.close()
 
 
 if __name__ == "__main__":
