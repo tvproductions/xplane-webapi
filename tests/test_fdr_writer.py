@@ -150,6 +150,40 @@ DREF, sim/test/whole 2
         self.assertEqual(original.header.datarefs, parsed.header.datarefs)
         self.assertEqual(original.samples, parsed.samples)
 
+    def test_rejects_malformed_and_impossible_date_before_stream_mutation(self) -> None:
+        for value in ("not-a-date", "02/30/2026"):
+            with self.subTest(value=value):
+                destination = StringIO("sentinel")
+                recording = self.recording(header=self.header(metadata=(FDRMetadata("DATE", value),)))
+
+                with self.assertRaises(FDRValidationError):
+                    FDRWriter().write(recording, destination)
+
+                self.assertEqual("sentinel", destination.getvalue())
+                self.assertFalse(destination.closed)
+
+    def test_invalid_date_creates_no_path_or_partial(self) -> None:
+        recording = self.recording(header=self.header(metadata=(FDRMetadata("DATE", "2026-02-29"),)))
+        with TemporaryDirectory() as temporary_directory:
+            destination = Path(temporary_directory, "flight.fdr")
+
+            with self.assertRaises(FDRValidationError):
+                FDRWriter().write(recording, destination)
+
+            self.assertFalse(destination.exists())
+            self.assertEqual((), tuple(destination.parent.glob(f".{destination.name}.*.partial")))
+
+    def test_valid_canonical_date_writes_and_round_trips(self) -> None:
+        recording = self.recording(header=self.header(metadata=(FDRMetadata("DATE", "2026-08-07"),)))
+        destination = StringIO()
+
+        FDRWriter().write(recording, destination)
+        destination.seek(0)
+        parsed = FDRReader().read(destination)
+
+        self.assertEqual(date(2026, 8, 7), parsed.header.local_date)
+        self.assertEqual("2026-08-07", parsed.header.metadata_value("DATE"))
+
     def test_streaming_writer_rejects_sample_width_and_preserves_partial(self) -> None:
         with TemporaryDirectory() as temporary_directory:
             destination = Path(temporary_directory, "flight.fdr")

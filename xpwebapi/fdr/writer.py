@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 import math
 import os
 from pathlib import Path
@@ -15,6 +16,11 @@ from .models import FDRHeader, FDRNormalizationResult, FDRRecording, FDRSample
 
 _METADATA_PATTERN = re.compile(r"^[A-Z0-9]{4}$")
 _RESERVED_METADATA_KEYS = frozenset({"COMM", "DREF"})
+_DATE_FORMATS = (
+    (re.compile(r"^[0-9]{2}/[0-9]{2}/[0-9]{4}$"), "%m/%d/%Y"),
+    (re.compile(r"^[0-9]{2}/[0-9]{2}/[0-9]{2}$"), "%m/%d/%y"),
+    (re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$"), "%Y-%m-%d"),
+)
 
 
 def _single_line(value: str, name: str) -> str:
@@ -31,6 +37,18 @@ def _render_number(value: int | float) -> str:
     return repr(value)
 
 
+def _validate_date(value: str) -> None:
+    for pattern, date_format in _DATE_FORMATS:
+        if pattern.fullmatch(value) is None:
+            continue
+        try:
+            datetime.strptime(value, date_format)
+        except ValueError:
+            break
+        return
+    raise FDRValidationError("DATE must be MM/DD/YYYY, MM/DD/YY, or YYYY-MM-DD")
+
+
 def _render_header(header: FDRHeader) -> str:
     if not isinstance(header, FDRHeader):
         raise FDRValidationError("header must be an FDRHeader")
@@ -42,7 +60,10 @@ def _render_header(header: FDRHeader) -> str:
     for item in header.metadata:
         if _METADATA_PATTERN.fullmatch(item.key) is None or item.key in _RESERVED_METADATA_KEYS:
             raise FDRValidationError("metadata key must be four-character uppercase text")
-        lines.append(f"{item.key}, {_single_line(item.value, 'metadata value')}")
+        value = _single_line(item.value, "metadata value")
+        if item.key == "DATE":
+            _validate_date(value)
+        lines.append(f"{item.key}, {value}")
     for dataref in header.datarefs:
         path = _single_line(dataref.path, "DataRef path")
         if any(character.isspace() for character in path) or "//" in path:
