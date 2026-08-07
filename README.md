@@ -49,8 +49,9 @@ the read-only observation transport, and exports GeoJSON. The installed
 `xpwebapi-fdr` command provides `record`, `inspect`, `validate`, and
 `to-geojson`; see the [FDR toolkit guide](https://tvproductions.github.io/xplane-webapi/usage/fdr-toolkit/).
 
-Version 3 file parsing remains gated on an official reference fixture, so this
-release rejects v3 files rather than guessing their fixed-column layout.
+Version 3 file parsing remains gated on an official reference fixture, so the
+next 4.1.0 release will reject v3 files rather than guessing their fixed-column
+layout.
 
 ## Documentation
 

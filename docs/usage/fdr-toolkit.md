@@ -4,19 +4,20 @@ title: Flight Data Recorder toolkit
 
 # Flight Data Recorder toolkit
 
-`xpwebapi.fdr` is the always-installed Flight Data Recorder (FDR) subpackage
-in xpwebapi 4.1.0. It provides deterministic version 4 FDR construction,
-strict version 4 reading and validation, read-only live recording, and GeoJSON
-export. It is useful both for inspecting recorded flights and for creating
-small, offline simulator inputs for a dependent project's tests.
+`xpwebapi.fdr` is the Flight Data Recorder (FDR) subpackage targeted for the
+next xpwebapi 4.1.0 release. It will provide deterministic version 4 FDR
+construction, strict version 4 reading and validation, read-only live
+recording, and GeoJSON export. It is useful both for inspecting recorded flights
+and for creating small, offline simulator inputs for a dependent project's
+tests.
 
 The toolkit does not start X-Plane, control its replay UI, install a native
 plugin, or decide whether another component passed a test.
 
 ## Commands
 
-The installed `xpwebapi-fdr` command uses the same public library behavior as
-the Python API:
+The `xpwebapi-fdr` command targeted for that release uses the same public
+library behavior as the Python API:
 
 ```sh
 # Strictly parse a version 4 recording. Successful validation is silent.
@@ -42,9 +43,11 @@ the mandatory navigation values and declared optional DataRefs using the
 existing read-only observation transport. A bounded duration or interrupt ends
 a graceful recording after at least one valid sample. The writer uses a unique
 sibling `.partial` file and publishes the requested final filename only after
-flush, synchronization, and atomic commit. If recording fails, inspect or
-recover the preserved `.partial` file instead of treating the final path as a
-recording.
+flush, synchronization, and atomic commit. An early connection, subscription,
+readiness, or setup failure creates no final output and may create no `.partial`
+file. Only a failure after writer/output setup preserves and reports a
+diagnostic `.partial` file. Do not treat the final path as a recording unless
+the command reports a successful commit.
 
 ## Offline, deterministic fixtures
 

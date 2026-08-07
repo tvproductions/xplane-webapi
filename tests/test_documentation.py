@@ -584,6 +584,33 @@ class TestFDRDocumentationContracts(unittest.TestCase):
             with self.subTest(contract=contract):
                 self.assertIn(contract, normalized_usage)
 
+    def test_fdr_materials_mark_the_next_release_as_unreleased(self) -> None:
+        readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+        usage = (DOCS_DIR / "usage" / "fdr-toolkit.md").read_text(encoding="utf-8")
+        changelog = (REPO_ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+
+        self.assertIn("next 4.1.0 release", readme)
+        self.assertIn("next xpwebapi 4.1.0 release", usage)
+        self.assertIn("## 4.1.0 (unreleased)", changelog)
+        self.assertNotIn("## 4.1.0 -", changelog)
+
+    def test_fdr_usage_distinguishes_early_setup_from_recoverable_partials(self) -> None:
+        usage = " ".join((DOCS_DIR / "usage" / "fdr-toolkit.md").read_text(encoding="utf-8").split())
+
+        self.assertIn(
+            "connection, subscription, readiness, or setup failure creates no final output and may create no `.partial` file.",
+            usage,
+        )
+        self.assertIn(
+            "Only a failure after writer/output setup preserves and reports a diagnostic `.partial` file.",
+            usage,
+        )
+
+    def test_read_only_capture_usage_uses_the_next_release_version(self) -> None:
+        usage = (DOCS_DIR / "usage" / "read-only-capture.md").read_text(encoding="utf-8")
+
+        self.assertIn('"package_version":"4.1.0"', usage)
+
     def test_fdr_docs_define_packaging_boundaries_without_mislabeling_examples(self) -> None:
         usage = (DOCS_DIR / "usage" / "fdr-toolkit.md").read_text(encoding="utf-8")
 

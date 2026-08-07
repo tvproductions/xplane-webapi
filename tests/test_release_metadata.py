@@ -39,7 +39,8 @@ class ReleaseMetadataTests(unittest.TestCase):
         changelog = (REPO_ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
 
         self.assertIn('tools/installed_smoke.py" 4.1.0', workflow)
-        self.assertIn("## 4.1.0 - 2026-08-07", changelog)
+        self.assertIn("## 4.1.0 (unreleased)", changelog)
+        self.assertNotIn("## 4.1.0 -", changelog)
 
     def test_authorship_maintenance_and_canonical_urls(self) -> None:
         project = PROJECT["project"]

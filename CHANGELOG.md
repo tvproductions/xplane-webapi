@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## 4.1.0 - 2026-08-07
+## 4.1.0 (unreleased)
 
 ### Added
 
@@ -16,7 +16,7 @@ All notable changes to this project will be documented in this file.
 
 ### Compatibility
 
-- Version 3 file parsing is not part of this release: it remains gated on the
+- Version 3 file parsing is not planned for this release: it remains gated on the
   official reference fixture required to verify its fixed-column schema. The
   version 4 reader rejects v3 files rather than inferring the layout.
 - Programmatically constructed legacy models may be written as version 4 only

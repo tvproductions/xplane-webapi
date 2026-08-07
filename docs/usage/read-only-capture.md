@@ -49,7 +49,7 @@ Git, and filesystem provenance. The object is the machine-readable handshake
 the consumer should inspect before launching capture:
 
 ```json
-{"git_dirty":null,"git_origin":null,"git_revision":null,"git_root":null,"git_state":"unavailable","package_name":"xpwebapi","package_version":"4.0.0","python_version":"3.12.0","read_only":true,"supported_transports":["udp","websocket"],"worker":"xpwebapi-capture","worker_protocol_version":1}
+{"git_dirty":null,"git_origin":null,"git_revision":null,"git_root":null,"git_state":"unavailable","package_name":"xpwebapi","package_version":"4.1.0","python_version":"3.12.0","read_only":true,"supported_transports":["udp","websocket"],"worker":"xpwebapi-capture","worker_protocol_version":1}
 ```
 
 ## Complete protocol-v1 request
