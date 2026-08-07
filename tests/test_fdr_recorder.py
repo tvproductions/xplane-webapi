@@ -309,22 +309,42 @@ class LiveFDRSampleSourceTests(unittest.TestCase):
         self.assertEqual(2.0, sample.values["pitch_deg"])
         source.close()
 
-    def test_unobserved_accepted_optional_is_excluded_and_later_updates_are_ignored(self) -> None:
+    def test_delayed_initial_accepted_optional_is_awaited_and_retained_in_order(self) -> None:
         values = initial_values()
         del values["sim/test/ratio"]
         factory = FakeWebsocketFactory(values)
         clock = FakeClock()
+        clock.on_wait = lambda: factory.clients[0].emit("sim/test/ratio", 0.75)
         source = self.make_source(factory, clock)
 
         first = next(source.samples(threading.Event()))
-        factory.clients[0].emit("sim/test/ratio", 0.75)
-        stop_event = threading.Event()
-        samples = source.samples(stop_event)
-        second = next(samples)
 
-        self.assertEqual((), source.header.datarefs)
-        self.assertNotIn("sim/test/ratio", first.values)
-        self.assertNotIn("sim/test/ratio", second.values)
+        self.assertEqual((FDRDataref("sim/test/ratio", 0.5, "ratio"),), source.header.datarefs)
+        self.assertEqual([0.1], clock.wait_calls)
+        self.assertEqual(0.75, first.values["sim/test/ratio"])
+        self.assertEqual((*MANDATORY_IDS, "sim/test/ratio"), tuple(first.values))
+        source.close()
+
+    def test_missing_initial_accepted_optional_fails_at_deadline_and_closes(self) -> None:
+        values = initial_values()
+        del values["sim/test/ratio"]
+        factory = FakeWebsocketFactory(values)
+        clock = FakeClock()
+
+        with self.assertRaisesRegex(RuntimeError, "sim/test/ratio"):
+            self.make_source(factory, clock)
+
+        self.assertAlmostEqual(2.0, sum(clock.wait_calls))
+        self.assertIn("session.close", factory.clients[0].events)
+
+    def test_initial_callbacks_before_subscription_response_satisfy_readiness(self) -> None:
+        factory = FakeWebsocketFactory(initial_values())
+        clock = FakeClock()
+
+        source = self.make_source(factory, clock)
+
+        self.assertEqual([], clock.wait_calls)
+        self.assertEqual((FDRDataref("sim/test/ratio", 0.5, "ratio"),), source.header.datarefs)
         source.close()
 
     def test_first_values_timeout_is_a_strict_positive_finite_float(self) -> None:

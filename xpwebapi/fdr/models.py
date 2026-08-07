@@ -5,9 +5,17 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime, time, timedelta
 import math
-from typing import Literal
+import re
+from typing import Literal, cast
 
 from .errors import FDRValidationError
+
+
+_DATE_FORMATS = (
+    (re.compile(r"^[0-9]{2}/[0-9]{2}/[0-9]{4}$"), "%m/%d/%Y"),
+    (re.compile(r"^[0-9]{2}/[0-9]{2}/[0-9]{2}$"), "%m/%d/%y"),
+    (re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$"), "%Y-%m-%d"),
+)
 
 
 def _tuple(values: tuple[object, ...] | list[object]) -> tuple[object, ...]:
@@ -35,6 +43,17 @@ def _validate_values(values: tuple[object, ...], name: str) -> tuple[int | float
     return tuple(_require_finite_number(value, f"{name}[{index}]") for index, value in enumerate(values))
 
 
+def _parse_local_date(value: str) -> date:
+    for pattern, date_format in _DATE_FORMATS:
+        if pattern.fullmatch(value) is None:
+            continue
+        try:
+            return datetime.strptime(value, date_format).date()
+        except ValueError:
+            break
+    raise FDRValidationError("DATE must be MM/DD/YYYY, MM/DD/YY, or YYYY-MM-DD")
+
+
 @dataclass(frozen=True, slots=True)
 class FDRMetadata:
     """An ordered FDR metadata entry."""
@@ -45,6 +64,21 @@ class FDRMetadata:
     def __post_init__(self) -> None:
         _require_text(self.key, "metadata key")
         _require_text(self.value, "metadata value", allow_empty=True)
+
+
+def _resolve_local_date(metadata: tuple[FDRMetadata, ...], local_date: object) -> date | None:
+    if local_date is not None and type(local_date) is not date:
+        raise FDRValidationError("local date must be a date or None")
+    declared_dates = tuple(_parse_local_date(item.value) for item in metadata if item.key == "DATE")
+    if not declared_dates:
+        if local_date is not None:
+            raise FDRValidationError("local date requires effective DATE metadata")
+        return None
+    if local_date is None:
+        return declared_dates[-1]
+    if local_date != declared_dates[-1]:
+        raise FDRValidationError("local date must match effective DATE metadata")
+    return local_date
 
 
 @dataclass(frozen=True, slots=True)
@@ -125,8 +159,11 @@ class FDRHeader:
         if len({item.identifier for item in legacy_columns}) != len(legacy_columns):
             raise FDRValidationError("legacy column identifiers must be unique")
         _validate_header_schema(self.source_version, datarefs, legacy_columns)
-        if self.local_date is not None and type(self.local_date) is not date:
-            raise FDRValidationError("local date must be a date or None")
+        object.__setattr__(
+            self,
+            "local_date",
+            _resolve_local_date(cast(tuple[FDRMetadata, ...], metadata), self.local_date),
+        )
         object.__setattr__(self, "comments", comments)
         object.__setattr__(self, "metadata", metadata)
         object.__setattr__(self, "datarefs", datarefs)

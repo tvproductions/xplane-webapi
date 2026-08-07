@@ -408,7 +408,8 @@ class LiveFDRSampleSource:
         self._wait = wait
         self._values: dict[str, float] = {}
         self._values_lock = threading.Lock()
-        self._required_values_ready = threading.Event()
+        self._initial_values_ready = threading.Event()
+        self._expected_initial_ref_ids: tuple[str, ...] | None = None
         self._active_ref_ids: frozenset[str] | None = None
         self._closed = False
         self._transport: CaptureTransport = create_observation_transport(
@@ -460,27 +461,27 @@ class LiveFDRSampleSource:
             accepted_ids = frozenset(result.accepted_ref_ids)
             accepted_datarefs = tuple(dataref for dataref in self._header.datarefs if dataref.path in accepted_ids)
             self._header = replace(self._header, datarefs=accepted_datarefs)
+            expected_ids = (*_MANDATORY_IDS, *tuple(dataref.path for dataref in accepted_datarefs))
+            with self._values_lock:
+                self._expected_initial_ref_ids = expected_ids
+                self._active_ref_ids = frozenset(expected_ids)
+                if all(ref_id in self._values for ref_id in expected_ids):
+                    self._initial_values_ready.set()
             self._await_initial_values()
-            self._freeze_effective_header()
         except BaseException:
             self._close_after_failure()
             raise
 
     def _await_initial_values(self) -> None:
         deadline = self._monotonic_clock() + self._first_values_timeout_seconds
-        while not self._required_values_ready.is_set():
+        while not self._initial_values_ready.is_set():
             remaining = deadline - self._monotonic_clock()
             if remaining <= 0:
                 with self._values_lock:
-                    missing = tuple(ref_id for ref_id in _MANDATORY_IDS if ref_id not in self._values)
-                raise RuntimeError(f"required FDR initial values readiness deadline expired: {', '.join(missing)}")
-            self._wait(self._required_values_ready, min(_READINESS_POLL_SECONDS, remaining))
-
-    def _freeze_effective_header(self) -> None:
-        with self._values_lock:
-            observed_datarefs = tuple(dataref for dataref in self._header.datarefs if dataref.path in self._values)
-            self._header = replace(self._header, datarefs=observed_datarefs)
-            self._active_ref_ids = frozenset((*_MANDATORY_IDS, *tuple(dataref.path for dataref in observed_datarefs)))
+                    expected_ids = self._expected_initial_ref_ids or ()
+                    missing = tuple(ref_id for ref_id in expected_ids if ref_id not in self._values)
+                raise RuntimeError(f"accepted FDR initial values readiness deadline expired: {', '.join(missing)}")
+            self._wait(self._initial_values_ready, min(_READINESS_POLL_SECONDS, remaining))
 
     def _record_observation(self, observation: Observation) -> None:
         value = observation.value
@@ -493,8 +494,8 @@ class LiveFDRSampleSource:
             if self._active_ref_ids is not None and observation.ref_id not in self._active_ref_ids:
                 return
             self._values[observation.ref_id] = numeric
-            if all(ref_id in self._values for ref_id in _MANDATORY_IDS):
-                self._required_values_ready.set()
+            if self._expected_initial_ref_ids is not None and all(ref_id in self._values for ref_id in self._expected_initial_ref_ids):
+                self._initial_values_ready.set()
 
     def _snapshot(self) -> Mapping[str, float]:
         with self._values_lock:

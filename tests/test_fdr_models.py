@@ -49,11 +49,14 @@ class FDRModelTests(unittest.TestCase):
         return FDRSample(**values)  # type: ignore[arg-type]
 
     def test_constructs_immutable_ordered_models(self) -> None:
-        header = self.header(metadata=[FDRMetadata("DATE", "first"), FDRMetadata("DATE", "last")])
+        header = self.header(
+            metadata=[FDRMetadata("ZZZZ", "first"), FDRMetadata("ZZZZ", "last")],
+            local_date=None,
+        )
         sample = self.sample(additional_values=[0.75])
 
-        self.assertEqual((FDRMetadata("DATE", "first"), FDRMetadata("DATE", "last")), header.metadata)
-        self.assertEqual("last", header.metadata_value("DATE"))
+        self.assertEqual((FDRMetadata("ZZZZ", "first"), FDRMetadata("ZZZZ", "last")), header.metadata)
+        self.assertEqual("last", header.metadata_value("ZZZZ"))
         self.assertEqual((0.75,), sample.additional_values)
         self.assertEqual(0.5, header.datarefs[0].scale)
         self.assertEqual("ratio", header.datarefs[0].comment)
@@ -122,6 +125,39 @@ class FDRModelTests(unittest.TestCase):
 
         self.assertEqual(value, sample.altitude_msl_ft)
         self.assertIs(type(value), type(sample.altitude_msl_ft))
+
+    def test_effective_date_metadata_derives_local_date_for_supported_forms(self) -> None:
+        cases = (
+            ("08/07/2026", date(2026, 8, 7)),
+            ("08/07/26", date(2026, 8, 7)),
+            ("2026-08-07", date(2026, 8, 7)),
+        )
+        for value, expected in cases:
+            with self.subTest(value=value):
+                header = self.header(metadata=(FDRMetadata("DATE", value),), local_date=None)
+
+                self.assertEqual(expected, header.local_date)
+
+    def test_effective_last_date_is_canonical_and_must_match_local_date(self) -> None:
+        header = self.header(
+            metadata=(FDRMetadata("DATE", "2025-01-02"), FDRMetadata("DATE", "2026-08-07")),
+            local_date=None,
+        )
+
+        self.assertEqual(date(2026, 8, 7), header.local_date)
+        with self.assertRaisesRegex(FDRValidationError, "local date must match"):
+            self.header(metadata=(FDRMetadata("DATE", "2026-08-08"),))
+
+    def test_rejects_invalid_effective_date_and_local_date_without_metadata(self) -> None:
+        invalid_metadata_cases = (
+            (FDRMetadata("DATE", "2026-02-29"),),
+            (FDRMetadata("DATE", "not-a-date"), FDRMetadata("DATE", "2026-08-07")),
+        )
+        for metadata in invalid_metadata_cases:
+            with self.subTest(metadata=metadata), self.assertRaisesRegex(FDRValidationError, "DATE must be"):
+                self.header(metadata=metadata, local_date=None)
+        with self.assertRaisesRegex(FDRValidationError, "requires effective DATE"):
+            self.header(metadata=(), local_date=date(2026, 8, 7))
 
     def test_rejects_duplicate_datarefs_and_legacy_column_ids(self) -> None:
         with self.assertRaises(FDRValidationError):

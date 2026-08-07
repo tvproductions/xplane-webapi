@@ -145,6 +145,18 @@ DREF, sim/test/two -0.25 //
         self.assertEqual(date(2026, 8, 7), recording.header.local_date)
         self.assertFalse(hasattr(recording.samples[0], "datetime_utc"))
 
+    def test_preserves_plain_integer_lexemes_without_float_rounding(self) -> None:
+        huge = 10**400 + 1
+        text = f"A\n4\nDREF, sim/test/huge {huge}\n12:00:00,-87,41,{huge},{huge},{huge},{huge},{huge}\n"
+
+        recording = FDRReader().read(StringIO(text))
+        sample = recording.samples[0]
+
+        self.assertEqual(huge, recording.header.datarefs[0].scale)
+        self.assertEqual((huge, huge, huge, huge), (sample.altitude_msl_ft, sample.heading_magnetic_deg, sample.pitch_deg, sample.roll_deg))
+        self.assertEqual((huge,), sample.additional_values)
+        self.assertTrue(all(type(value) is int for value in (sample.longitude, sample.latitude, *sample.additional_values)))
+
     def test_rejects_unsupported_origin_and_version_with_source_lines(self) -> None:
         cases = (("X\n4\n", 1, "origin"), ("A\n3 Version\n", 2, "version 4"), ("A\nVersion 4\n", 2, "version"))
         for text, line, phrase in cases:
@@ -199,12 +211,22 @@ DREF, sim/test/two -0.25 //
             self.assertIn("8 columns", caught.exception.message)
 
     def test_rejects_malformed_timestamp_and_numbers(self) -> None:
-        cases = (("25:00:00,1,2,3,4,5,6", "timestamp"), ("12:00:00,1,2,nope,4,5,6", "number"), ("12:00:00,1,2,3,4,5,True", "number"))
+        cases = (
+            ("25:00:00,1,2,3,4,5,6", "timestamp"),
+            ("12:00:00.1234567,1,2,3,4,5,6", "timestamp"),
+            ("12:00:00,1,2,nope,4,5,6", "number"),
+            ("12:00:00,1,2,3,4,5,True", "number"),
+        )
         for row, phrase in cases:
             with self.subTest(row=row), self.assertRaises(FDRParseError) as caught:
                 FDRReader().read(StringIO(f"A\n4\n{row}\n"))
             self.assertEqual(3, caught.exception.line)
             self.assertIn(phrase, caught.exception.message)
+
+    def test_preserves_valid_timestamp_microseconds(self) -> None:
+        recording = FDRReader().read(StringIO("A\n4\n12:00:00.123456,1,2,3,4,5,6\n"))
+
+        self.assertEqual(time(12, 0, 0, 123456), recording.samples[0].time_utc)
 
     def test_model_failures_retain_source_line_context(self) -> None:
         cases = (

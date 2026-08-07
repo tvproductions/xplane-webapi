@@ -15,7 +15,8 @@ from .models import FDRDataref, FDRHeader, FDRMetadata, FDRRecording, FDRSample
 
 _VERSION_PATTERN = re.compile(r"^([0-9]+)")
 _METADATA_PATTERN = re.compile(r"^[A-Z0-9]{4}$")
-_TIMESTAMP_PATTERN = re.compile(r"^[0-9]{1,2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]+)?$")
+_TIMESTAMP_PATTERN = re.compile(r"^[0-9]{1,2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{1,6})?$")
+_INTEGER_PATTERN = re.compile(r"^[+-]?[0-9]+$")
 _NUMBER_PATTERN = re.compile(r"^[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?$")
 _NONFINITE_PATTERN = re.compile(r"^[+-]?(?:inf(?:inity)?|nan)$", re.IGNORECASE)
 _DATE_FORMATS = (
@@ -245,11 +246,11 @@ class FDRSampleStream(Iterator[FDRSample]):
             legacy_values=(),
         )
 
-    def _parse_number(self, value: str, line: int, name: str) -> float:
+    def _parse_number(self, value: str, line: int, name: str) -> int | float:
         if _NUMBER_PATTERN.fullmatch(value) is None and _NONFINITE_PATTERN.fullmatch(value) is None:
             self._parse_error(line, f"invalid {name.lower()}")
         try:
-            return float(value)
+            return int(value) if _INTEGER_PATTERN.fullmatch(value) is not None else float(value)
         except ValueError:
             self._parse_error(line, f"invalid {name.lower()}")
 

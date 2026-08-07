@@ -177,25 +177,56 @@ DREF, sim/test/whole 2
         self.assertEqual(original.header.datarefs, parsed.header.datarefs)
         self.assertEqual(original.samples, parsed.samples)
 
+    def test_round_trip_preserves_exact_integers_beyond_float_precision_and_range(self) -> None:
+        for value in (2**53 + 1, 10**400 + 1):
+            with self.subTest(value=value):
+                header = self.header(datarefs=(FDRDataref("sim/test/huge", value),))
+                sample = self.sample(
+                    longitude=-87,
+                    latitude=41,
+                    altitude_msl_ft=value,
+                    heading_magnetic_deg=value,
+                    pitch_deg=value,
+                    roll_deg=value,
+                    additional_values=(value,),
+                )
+                original = self.recording(header=header, samples=(sample,))
+                destination = StringIO()
+
+                FDRWriter().write(original, destination)
+                destination.seek(0)
+                parsed = FDRReader().read(destination)
+
+                self.assertEqual(original.header.datarefs, parsed.header.datarefs)
+                self.assertEqual(original.samples, parsed.samples)
+                self.assertIs(type(value), type(parsed.header.datarefs[0].scale))
+                self.assertTrue(
+                    all(
+                        type(item) is int
+                        for item in (
+                            parsed.samples[0].longitude,
+                            parsed.samples[0].latitude,
+                            parsed.samples[0].altitude_msl_ft,
+                            parsed.samples[0].heading_magnetic_deg,
+                            parsed.samples[0].pitch_deg,
+                            parsed.samples[0].roll_deg,
+                            *parsed.samples[0].additional_values,
+                        )
+                    )
+                )
+
     def test_rejects_malformed_and_impossible_date_before_stream_mutation(self) -> None:
         for value in ("not-a-date", "02/30/2026"):
             with self.subTest(value=value):
-                destination = StringIO("sentinel")
-                recording = self.recording(header=self.header(metadata=(FDRMetadata("DATE", value),)))
-
                 with self.assertRaises(FDRValidationError):
-                    FDRWriter().write(recording, destination)
-
-                self.assertEqual("sentinel", destination.getvalue())
-                self.assertFalse(destination.closed)
+                    self.header(metadata=(FDRMetadata("DATE", value),), local_date=None)
 
     def test_invalid_date_creates_no_path_or_partial(self) -> None:
-        recording = self.recording(header=self.header(metadata=(FDRMetadata("DATE", "2026-02-29"),)))
         with TemporaryDirectory() as temporary_directory:
             destination = Path(temporary_directory, "flight.fdr")
 
             with self.assertRaises(FDRValidationError):
-                FDRWriter().write(recording, destination)
+                self.header(metadata=(FDRMetadata("DATE", "2026-02-29"),), local_date=None)
 
             self.assertFalse(destination.exists())
             self.assertEqual((), tuple(destination.parent.glob(f".{destination.name}.*.partial")))
