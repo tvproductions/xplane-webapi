@@ -20,6 +20,16 @@ SCHEMAS = (
     "capture-status-v1.schema.json",
     "capture-version-v1.schema.json",
 )
+FDR_MODULES = (
+    "__init__.py",
+    "cli.py",
+    "errors.py",
+    "geojson.py",
+    "models.py",
+    "reader.py",
+    "recorder.py",
+    "writer.py",
+)
 
 
 class ReleaseValidationError(RuntimeError):
@@ -110,6 +120,7 @@ def check_dist(directory: Path) -> None:
             metadata_name,
             f"xpwebapi-{version}.dist-info/licenses/LICENSE",
             *(f"xpwebapi/schemas/{name}" for name in SCHEMAS),
+            *(f"xpwebapi/fdr/{name}" for name in FDR_MODULES),
         }
         _require_members(members, required, archive=wheel)
         _check_member_policy(member_names, archive=wheel, forbid_any_superpowers=True)
@@ -124,6 +135,7 @@ def check_dist(directory: Path) -> None:
             f"{prefix}/LICENSE",
             metadata_name,
             *(f"{prefix}/xpwebapi/schemas/{name}" for name in SCHEMAS),
+            *(f"{prefix}/xpwebapi/fdr/{name}" for name in FDR_MODULES),
         }
         _require_members(members, required, archive=source)
         paths = _check_member_policy(member_names, archive=source, forbid_any_superpowers=False)
