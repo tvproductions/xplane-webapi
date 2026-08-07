@@ -18,7 +18,7 @@ import time
 from types import FrameType
 from typing import Any, BinaryIO, NoReturn, TextIO, cast
 
-from xpwebapi.capture_protocol import WebsocketCaptureConfig
+from xpwebapi.capture_protocol import CaptureRef, WebsocketCaptureConfig
 from xpwebapi.fdr import (
     FDRDataref,
     FDRHeader,
@@ -45,6 +45,26 @@ _MANDATORY_FIELDS = (
 _PARTIAL_ATTEMPTS = 100
 _SIGNAL_POLL_SECONDS = 0.1
 _SUBSCRIPTION_TIMEOUT_SECONDS = 5.0
+_MANDATORY_LIVE_REF_IDS = frozenset(
+    (
+        "longitude",
+        "latitude",
+        "altitude_msl_ft",
+        "heading_magnetic_deg",
+        "pitch_deg",
+        "roll_deg",
+    )
+)
+_MANDATORY_LIVE_REF_PATHS = frozenset(
+    (
+        "sim/flightmodel/position/longitude",
+        "sim/flightmodel/position/latitude",
+        "sim/flightmodel/position/elevation",
+        "sim/cockpit2/gauges/indicators/heading_electric_deg_mag_pilot",
+        "sim/cockpit2/gauges/indicators/pitch_electric_deg_pilot",
+        "sim/cockpit2/gauges/indicators/roll_electric_deg_pilot",
+    )
+)
 
 
 class FDRCliArgumentError(ValueError):
@@ -121,18 +141,29 @@ def _unique_assignments(values: Sequence[str], option: str) -> dict[str, str]:
     return assignments
 
 
-def _valid_dataref_path(path: str) -> bool:
-    return bool(path) and "//" not in path and not any(character.isspace() for character in path)
-
-
 def _record_datarefs(namespace: argparse.Namespace) -> tuple[FDRDataref, ...]:
     """Resolve ordered DataRefs and their path-keyed scale and comment options."""
 
     paths = cast(list[str], namespace.dataref)
     if len(set(paths)) != len(paths):
         raise FDRCliArgumentError("--dataref paths must be unique")
-    if any(not _valid_dataref_path(path) for path in paths):
-        raise FDRCliArgumentError("--dataref paths must be non-empty and contain no whitespace or '//'")
+    for path in paths:
+        if "//" in path or any(character.isspace() for character in path):
+            raise FDRCliArgumentError("--dataref paths must be non-empty and contain no whitespace or '//'")
+        try:
+            CaptureRef(
+                id=path,
+                path=path,
+                declared_type="double",
+                availability="optional",
+                sample_group_id="fdr-live",
+            )
+        except ValueError as exc:
+            raise FDRCliArgumentError(f"invalid --dataref {path!r}: {exc}") from exc
+        if path in _MANDATORY_LIVE_REF_PATHS:
+            raise FDRCliArgumentError("optional --dataref must not duplicate a mandatory navigation DataRef")
+        if path in _MANDATORY_LIVE_REF_IDS:
+            raise FDRCliArgumentError("optional --dataref must not collide with a mandatory output ID")
     scales = _unique_assignments(cast(list[str], namespace.scale), "--scale")
     comments = _unique_assignments(cast(list[str], namespace.comment), "--comment")
     undeclared = tuple(path for path in (*scales, *comments) if path not in paths)
@@ -153,12 +184,21 @@ def _record_datarefs(namespace: argparse.Namespace) -> tuple[FDRDataref, ...]:
     return tuple(FDRDataref(path, parsed_scales.get(path, 1.0), comments.get(path)) for path in paths)
 
 
+def _record_config(namespace: argparse.Namespace) -> WebsocketCaptureConfig:
+    try:
+        return WebsocketCaptureConfig(
+            kind="websocket",
+            host=namespace.host,
+            port=namespace.port,
+            api_path=namespace.api_path,
+            api_version=namespace.api_version,
+        )
+    except ValueError as exc:
+        raise FDRCliArgumentError(f"invalid WebSocket capture configuration: {exc}") from exc
+
+
 def _validate_record_arguments(namespace: argparse.Namespace) -> None:
-    if not 1 <= namespace.port <= 65535:
-        raise FDRCliArgumentError("--port must be from 1 through 65535")
-    for option in ("host", "api_path", "api_version"):
-        if not cast(str, getattr(namespace, option)).strip():
-            raise FDRCliArgumentError(f"--{option.replace('_', '-')} must be non-empty")
+    _record_config(namespace)
     _record_datarefs(namespace)
 
 
@@ -251,10 +291,12 @@ def _write_atomic_json(document: object, destination: Path, *, overwrite: bool) 
         raise FileExistsError(f"destination already exists: {destination}")
     payload = _json_line(document)
     partial, stream = _create_partial(destination)
+    close_attempted = False
     try:
         stream.write(payload)
         stream.flush()
         os.fsync(stream.fileno())
+        close_attempted = True
         stream.close()
         if overwrite:
             os.replace(partial, destination)
@@ -264,10 +306,25 @@ def _write_atomic_json(document: object, destination: Path, *, overwrite: bool) 
                 partial.unlink()
             except OSError:
                 pass
-    except BaseException:
-        if not stream.closed:
-            stream.close()
-        raise
+    except BaseException as primary:
+        cleanup_failures: list[BaseException] = []
+        if not close_attempted:
+            try:
+                stream.close()
+            except BaseException as exc:
+                cleanup_failures.append(exc)
+        try:
+            partial.unlink()
+        except FileNotFoundError:
+            pass
+        except BaseException as exc:
+            cleanup_failures.append(exc)
+        if cleanup_failures:
+            raise BaseExceptionGroup(
+                "atomic GeoJSON operation and cleanup failed",
+                [primary, *cleanup_failures],
+            ) from None
+        raise primary.with_traceback(primary.__traceback__)
 
 
 def _run_validate(namespace: argparse.Namespace) -> int:
@@ -361,6 +418,11 @@ def _cleanup_before_recording(source: LiveFDRSampleSource, sink: FDRStreamWriter
     raise primary.with_traceback(primary.__traceback__)
 
 
+def _interrupt_if_requested(interrupted_event: threading.Event) -> None:
+    if interrupted_event.is_set():
+        raise KeyboardInterrupt
+
+
 def _run_record(namespace: argparse.Namespace) -> int:
     """Compose the public live source, writer, and recorder for one session."""
 
@@ -369,27 +431,47 @@ def _run_record(namespace: argparse.Namespace) -> int:
     stop_event = threading.Event()
     interrupted_event = threading.Event()
     with _record_signal_context(stop_event, interrupted_event):
-        config = WebsocketCaptureConfig(
-            kind="websocket",
-            host=namespace.host,
-            port=namespace.port,
-            api_path=namespace.api_path,
-            api_version=namespace.api_version,
-        )
-        source = LiveFDRSampleSource(
-            config=config,
-            header=_record_header(namespace),
-            sample_interval_seconds=namespace.interval,
-            subscription_timeout_seconds=_SUBSCRIPTION_TIMEOUT_SECONDS,
-            wait=lambda target, timeout: _interruptible_wait(interrupted_event, target, timeout),
-        )
+        _interrupt_if_requested(interrupted_event)
+        try:
+            config = _record_config(namespace)
+            header = _record_header(namespace)
+        except BaseException:
+            _interrupt_if_requested(interrupted_event)
+            raise
+        _interrupt_if_requested(interrupted_event)
+        try:
+            source = LiveFDRSampleSource(
+                config=config,
+                header=header,
+                sample_interval_seconds=namespace.interval,
+                subscription_timeout_seconds=_SUBSCRIPTION_TIMEOUT_SECONDS,
+                wait=lambda target, timeout: _interruptible_wait(interrupted_event, target, timeout),
+            )
+        except BaseException:
+            _interrupt_if_requested(interrupted_event)
+            raise
         sink: FDRStreamWriter | None = None
+        if interrupted_event.is_set():
+            _cleanup_before_recording(source, sink, KeyboardInterrupt())
         try:
             sink = FDRWriter().open(source.header, destination, overwrite=namespace.overwrite)
+            _interrupt_if_requested(interrupted_event)
             recorder = FDRRecorder(source=source, sink=sink)
+            _interrupt_if_requested(interrupted_event)
         except BaseException as exc:
+            if interrupted_event.is_set() and not isinstance(exc, KeyboardInterrupt):
+                exc = KeyboardInterrupt()
             _cleanup_before_recording(source, sink, exc)
-        result = recorder.record(stop_event=stop_event, maximum_duration=namespace.duration)
+        try:
+            result = recorder.record(stop_event=stop_event, maximum_duration=namespace.duration)
+        except BaseException as exc:
+            if interrupted_event.is_set() and sink.sample_count == 0:
+                raise KeyboardInterrupt from None
+            partial = sink.partial_path
+            if partial is not None and partial.exists():
+                detail = str(exc).strip() or type(exc).__name__
+                raise RuntimeError(f"{detail}; preserved partial: {partial}") from exc
+            raise exc.with_traceback(exc.__traceback__)
 
     interrupted = interrupted_event.is_set() or result.termination == "keyboard_interrupt"
     if interrupted:

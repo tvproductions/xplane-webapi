@@ -16,7 +16,7 @@ from typing import Any, Literal
 from unittest.mock import Mock, patch
 
 from xpwebapi.fdr import FDRDataref, FDRHeader, FDRMetadata, FDRRecordResult, FDRSourceSample
-from xpwebapi.fdr.cli import build_parser, main
+from xpwebapi.fdr.cli import _write_atomic_json, build_parser, main
 
 
 VALID_FDR = """A
@@ -86,6 +86,53 @@ class FailingSource:
 
     def close(self) -> None:
         self.close_count += 1
+
+
+class InterruptBeforeSampleSource:
+    """Synthetic source that requests SIGINT before yielding its first sample."""
+
+    def __init__(self, header: FDRHeader) -> None:
+        self.header = header
+        self.signal_handler: Any = None
+        self.close_count = 0
+
+    def samples(self, _stop_event: threading.Event):  # type: ignore[no-untyped-def]
+        self.signal_handler(signal.SIGINT, None)
+        yield from ()
+
+    def close(self) -> None:
+        self.close_count += 1
+
+
+class FailingAtomicStream:
+    """Real sibling stream with one injected operation or cleanup failure."""
+
+    def __init__(self, path: Path, *, failure: str, close_failure: bool = False) -> None:
+        self._stream = path.open("x", encoding="utf-8", newline="\n")
+        self._failure = failure
+        self._close_failure = close_failure
+
+    @property
+    def closed(self) -> bool:
+        return self._stream.closed
+
+    def write(self, text: str) -> int:
+        if self._failure == "write":
+            raise OSError("injected write failure")
+        return self._stream.write(text)
+
+    def flush(self) -> None:
+        if self._failure == "flush":
+            raise OSError("injected flush failure")
+        self._stream.flush()
+
+    def fileno(self) -> int:
+        return self._stream.fileno()
+
+    def close(self) -> None:
+        self._stream.close()
+        if self._close_failure:
+            raise OSError("injected close cleanup failure")
 
 
 class FDRCliTests(unittest.TestCase):
@@ -290,6 +337,80 @@ class FDRCliTests(unittest.TestCase):
         self.assertIn("to-geojson failed", stderr)
         self.assertFalse(output.exists())
 
+    def test_atomic_geojson_removes_owned_partial_after_each_operation_failure(self) -> None:
+        for stage in ("write", "flush", "fsync", "link", "replace"):
+            with self.subTest(stage=stage):
+                output = self.root / f"{stage}.geojson"
+                partial = self.root / f".{output.name}.injected.partial"
+                if stage == "replace":
+                    output.write_text("existing\n", encoding="utf-8")
+
+                def create_partial(_destination: Path) -> tuple[Path, FailingAtomicStream]:
+                    failure = stage if stage in {"write", "flush"} else "none"
+                    return partial, FailingAtomicStream(partial, failure=failure)
+
+                def race_destination(_source: Path, destination: Path) -> None:
+                    destination.write_text("raced\n", encoding="utf-8")
+                    raise FileExistsError("injected link race")
+
+                patches = [patch("xpwebapi.fdr.cli._create_partial", side_effect=create_partial)]
+                if stage == "fsync":
+                    patches.append(patch("xpwebapi.fdr.cli.os.fsync", side_effect=OSError("injected fsync failure")))
+                elif stage == "link":
+                    patches.append(patch("xpwebapi.fdr.cli.os.link", side_effect=race_destination))
+                elif stage == "replace":
+                    patches.append(patch("xpwebapi.fdr.cli.os.replace", side_effect=OSError("injected replace failure")))
+
+                with patches[0]:
+                    if len(patches) == 1:
+                        with self.assertRaises(OSError):
+                            _write_atomic_json({"type": "FeatureCollection"}, output, overwrite=False)
+                    else:
+                        with patches[1], self.assertRaises(OSError):
+                            _write_atomic_json({"type": "FeatureCollection"}, output, overwrite=stage == "replace")
+
+                self.assertFalse(partial.exists())
+                if stage == "link":
+                    self.assertEqual("raced\n", output.read_text(encoding="utf-8"))
+                elif stage == "replace":
+                    self.assertEqual("existing\n", output.read_text(encoding="utf-8"))
+                else:
+                    self.assertFalse(output.exists())
+
+    def test_atomic_geojson_groups_primary_and_close_cleanup_failures_after_unlink(self) -> None:
+        output = self.root / "close-failure.geojson"
+        partial = self.root / ".close-failure.geojson.injected.partial"
+
+        def create_partial(_destination: Path) -> tuple[Path, FailingAtomicStream]:
+            return partial, FailingAtomicStream(partial, failure="write", close_failure=True)
+
+        with patch("xpwebapi.fdr.cli._create_partial", side_effect=create_partial), self.assertRaises(BaseExceptionGroup) as caught:
+            _write_atomic_json({"type": "FeatureCollection"}, output, overwrite=False)
+
+        self.assertEqual(["injected write failure", "injected close cleanup failure"], [str(error) for error in caught.exception.exceptions])
+        self.assertFalse(partial.exists())
+        self.assertFalse(output.exists())
+
+    def test_atomic_geojson_groups_primary_and_unlink_cleanup_failures(self) -> None:
+        output = self.root / "unlink-failure.geojson"
+        partial = self.root / ".unlink-failure.geojson.injected.partial"
+
+        def create_partial(_destination: Path) -> tuple[Path, FailingAtomicStream]:
+            return partial, FailingAtomicStream(partial, failure="none")
+
+        with (
+            patch("xpwebapi.fdr.cli._create_partial", side_effect=create_partial),
+            patch("xpwebapi.fdr.cli.os.link", side_effect=OSError("injected link failure")),
+            patch.object(Path, "unlink", side_effect=OSError("injected unlink cleanup failure")),
+            self.assertRaises(BaseExceptionGroup) as caught,
+        ):
+            _write_atomic_json({"type": "FeatureCollection"}, output, overwrite=False)
+
+        self.assertEqual(["injected link failure", "injected unlink cleanup failure"], [str(error) for error in caught.exception.exceptions])
+        self.assertTrue(partial.exists())
+        partial.unlink()
+        self.assertFalse(output.exists())
+
     def test_record_builds_public_library_objects_from_all_options(self) -> None:
         output = self.root / "recorded.fdr"
         effective_header = make_header(FDRDataref("sim/test/value", 2.5, "Test value=with equals"))
@@ -360,6 +481,47 @@ class FDRCliTests(unittest.TestCase):
             ["--dataref", "sim/test/value", "--dataref", "sim/test/value"],
             ["--dataref", "sim/test/value", "--scale", "sim/test/value=2", "--scale", "sim/test/value=3"],
             ["--dataref", "sim/test/value", "--comment", "sim/test/value=a", "--comment", "sim/test/value=b"],
+        )
+
+        with patch("xpwebapi.fdr.cli.LiveFDRSampleSource") as source_type:
+            for options in cases:
+                with self.subTest(options=options):
+                    result, stdout, stderr = self.capture_main(["record", str(output), *options])
+                    self.assertEqual(2, result)
+                    self.assertEqual("", stdout)
+                    self.assertIn("invalid arguments", stderr)
+            source_type.assert_not_called()
+
+    def test_record_rejects_protocol_invalid_values_and_mandatory_collisions_before_connection(self) -> None:
+        output = self.root / "recorded.fdr"
+        mandatory_ids = (
+            "longitude",
+            "latitude",
+            "altitude_msl_ft",
+            "heading_magnetic_deg",
+            "pitch_deg",
+            "roll_deg",
+        )
+        mandatory_paths = (
+            "sim/flightmodel/position/longitude",
+            "sim/flightmodel/position/latitude",
+            "sim/flightmodel/position/elevation",
+            "sim/cockpit2/gauges/indicators/heading_electric_deg_mag_pilot",
+            "sim/cockpit2/gauges/indicators/pitch_electric_deg_pilot",
+            "sim/cockpit2/gauges/indicators/roll_electric_deg_pilot",
+        )
+        cases = (
+            *(["--dataref", path] for path in ("sim/test/value[-1]", "sim/test/value[01]", "sim/test/value[]", "sim/test/value[abc]", "sim/test/value[")),
+            ["--dataref", " sim/test/value"],
+            ["--dataref", "sim/test/value "],
+            ["--host", " xplane.local"],
+            ["--host", "xplane.local "],
+            ["--api-path", " /api"],
+            ["--api-path", "/api "],
+            ["--api-version", " v2"],
+            ["--api-version", "v2 "],
+            *(["--dataref", path] for path in mandatory_ids),
+            *(["--dataref", path] for path in mandatory_paths),
         )
 
         with patch("xpwebapi.fdr.cli.LiveFDRSampleSource") as source_type:
@@ -446,6 +608,7 @@ class FDRCliTests(unittest.TestCase):
         self.assertFalse(output.exists())
         self.assertEqual(1, len(partials))
         self.assertGreater(partials[0].stat().st_size, 0)
+        self.assertIn(str(partials[0]), stderr)
         self.assertEqual(1, source.close_count)
 
     def test_record_returns_130_for_a_graceful_keyboard_interrupt(self) -> None:
@@ -497,6 +660,89 @@ class FDRCliTests(unittest.TestCase):
         self.assertEqual("", stderr)
         self.assertEqual(signal.SIG_DFL, installed[signal.SIGINT])
         self.assertEqual(signal.SIG_DFL, installed[signal.SIGTERM])
+
+    def test_signal_after_source_construction_exits_130_before_opening_writer(self) -> None:
+        output = self.root / "recorded.fdr"
+        source = Mock(header=make_header())
+        installed: dict[int, Any] = {}
+
+        def remember_handler(signum: int, handler: Any) -> None:
+            installed[signum] = handler
+
+        def construct_source(**_kwargs: Any) -> Mock:
+            installed[signal.SIGINT](signal.SIGINT, None)
+            return source
+
+        with (
+            patch("xpwebapi.fdr.cli.LiveFDRSampleSource", side_effect=construct_source),
+            patch("xpwebapi.fdr.cli.FDRWriter") as writer_type,
+            patch("xpwebapi.fdr.cli.signal.getsignal", return_value=signal.SIG_DFL),
+            patch("xpwebapi.fdr.cli.signal.signal", side_effect=remember_handler),
+        ):
+            result, stdout, stderr = self.capture_main(["record", str(output), "--local-date", "2026-08-07"])
+
+        self.assertEqual(130, result)
+        self.assertEqual("", stdout)
+        self.assertEqual("", stderr)
+        self.assertFalse(output.exists())
+        source.close.assert_called_once_with()
+        writer_type.assert_not_called()
+        self.assertEqual(signal.SIG_DFL, installed[signal.SIGINT])
+        self.assertEqual(signal.SIG_DFL, installed[signal.SIGTERM])
+
+    def test_signal_after_writer_open_exits_130_before_constructing_recorder(self) -> None:
+        output = self.root / "recorded.fdr"
+        source = Mock(header=make_header())
+        sink = Mock()
+        installed: dict[int, Any] = {}
+
+        def remember_handler(signum: int, handler: Any) -> None:
+            installed[signum] = handler
+
+        def open_writer(*_args: Any, **_kwargs: Any) -> Mock:
+            installed[signal.SIGTERM](signal.SIGTERM, None)
+            return sink
+
+        with (
+            patch("xpwebapi.fdr.cli.LiveFDRSampleSource", return_value=source),
+            patch("xpwebapi.fdr.cli.FDRWriter") as writer_type,
+            patch("xpwebapi.fdr.cli.FDRRecorder") as recorder_type,
+            patch("xpwebapi.fdr.cli.signal.getsignal", return_value=signal.SIG_DFL),
+            patch("xpwebapi.fdr.cli.signal.signal", side_effect=remember_handler),
+        ):
+            writer_type.return_value.open.side_effect = open_writer
+            result, stdout, stderr = self.capture_main(["record", str(output), "--local-date", "2026-08-07"])
+
+        self.assertEqual(130, result)
+        self.assertEqual("", stdout)
+        self.assertEqual("", stderr)
+        self.assertFalse(output.exists())
+        sink.abort.assert_called_once_with()
+        source.close.assert_called_once_with()
+        recorder_type.assert_not_called()
+        self.assertEqual(signal.SIG_DFL, installed[signal.SIGINT])
+        self.assertEqual(signal.SIG_DFL, installed[signal.SIGTERM])
+
+    def test_signal_during_recording_before_first_sample_exits_130_without_final(self) -> None:
+        output = self.root / "recorded.fdr"
+        source = InterruptBeforeSampleSource(make_header())
+
+        def remember_handler(signum: int, handler: Any) -> None:
+            if signum == signal.SIGINT and callable(handler):
+                source.signal_handler = handler
+
+        with (
+            patch("xpwebapi.fdr.cli.LiveFDRSampleSource", return_value=source),
+            patch("xpwebapi.fdr.cli.signal.getsignal", return_value=signal.SIG_DFL),
+            patch("xpwebapi.fdr.cli.signal.signal", side_effect=remember_handler),
+        ):
+            result, stdout, stderr = self.capture_main(["record", str(output), "--local-date", "2026-08-07"])
+
+        self.assertEqual(130, result)
+        self.assertEqual("", stdout)
+        self.assertEqual("", stderr)
+        self.assertFalse(output.exists())
+        self.assertEqual(1, source.close_count)
 
     def test_keyboard_interrupt_before_recording_is_exit_130_without_output(self) -> None:
         output = self.root / "recorded.fdr"
