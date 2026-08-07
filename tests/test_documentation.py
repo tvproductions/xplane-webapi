@@ -275,7 +275,7 @@ class TestDocumentationContent(unittest.TestCase):
                 "uv run --python ${{ matrix.python-version }} python -m unittest discover -v",
                 "uv venv --python ${{ matrix.python-version }} .smoke",
                 "uv pip install --python .smoke/bin/python dist/*.whl",
-                'cd "$RUNNER_TEMP" && "$GITHUB_WORKSPACE/.smoke/bin/python" "$GITHUB_WORKSPACE/tools/installed_smoke.py" 4.0.0',
+                'cd "$RUNNER_TEMP" && "$GITHUB_WORKSPACE/.smoke/bin/python" "$GITHUB_WORKSPACE/tools/installed_smoke.py" 4.1.0',
             ],
             "docs": [
                 "uv python install 3.13",
@@ -541,6 +541,79 @@ class TestDocumentationContent(unittest.TestCase):
         ]:
             with self.subTest(nav_entry=nav_entry):
                 self.assertIn(nav_entry, mkdocs)
+
+
+class TestFDRDocumentationContracts(unittest.TestCase):
+    """Public-documentation requirements for the supported FDR toolkit."""
+
+    def test_fdr_pages_are_published_from_usage_and_reference_navigation(self) -> None:
+        mkdocs = (REPO_ROOT / "mkdocs.yml").read_text(encoding="utf-8")
+        usage_index = (DOCS_DIR / "usage" / "index.md").read_text(encoding="utf-8")
+        reference_index = (DOCS_DIR / "reference" / "index.md").read_text(encoding="utf-8")
+
+        self.assertTrue((DOCS_DIR / "usage" / "fdr-toolkit.md").is_file())
+        self.assertTrue((DOCS_DIR / "reference" / "fdr.md").is_file())
+        self.assertIn("FDR toolkit: usage/fdr-toolkit.md", mkdocs)
+        self.assertIn("FDR API: reference/fdr.md", mkdocs)
+        self.assertIn("[FDR toolkit](fdr-toolkit.md)", usage_index)
+        self.assertIn("[FDR API](fdr.md)", reference_index)
+
+    def test_fdr_usage_documents_shipped_commands_and_safety_boundaries(self) -> None:
+        usage = (DOCS_DIR / "usage" / "fdr-toolkit.md").read_text(encoding="utf-8")
+        normalized_usage = " ".join(usage.split())
+
+        for command in (
+            "xpwebapi-fdr validate",
+            "xpwebapi-fdr inspect",
+            "xpwebapi-fdr to-geojson",
+            "xpwebapi-fdr record",
+        ):
+            with self.subTest(command=command):
+                self.assertIn(command, usage)
+        for contract in (
+            "two-dimensional `[longitude, latitude]`",
+            "`altitude_msl_ft`",
+            "`altitude_msl_m`",
+            "read-only",
+            ".partial",
+            "allow_lossy_legacy=True",
+            "Version 3 file parsing is not yet available",
+            "consumer responsibility",
+            "native X-Plane plugin",
+        ):
+            with self.subTest(contract=contract):
+                self.assertIn(contract, normalized_usage)
+
+    def test_fdr_docs_define_packaging_boundaries_without_mislabeling_examples(self) -> None:
+        usage = (DOCS_DIR / "usage" / "fdr-toolkit.md").read_text(encoding="utf-8")
+
+        for term in (
+            "**Module**",
+            "**Subpackage**",
+            "**Optional extra**",
+            "**Python extension**",
+            "**Companion distribution**",
+            "**Native X-Plane plugin**",
+        ):
+            with self.subTest(term=term):
+                self.assertIn(term, usage)
+        self.assertIn("Examples are consumer applications, not plugins.", usage)
+
+    def test_fdr_reference_uses_the_public_subpackage_directive(self) -> None:
+        reference = (DOCS_DIR / "reference" / "fdr.md").read_text(encoding="utf-8")
+
+        self.assertIn("::: xpwebapi.fdr", reference)
+
+    def test_readme_and_thin_example_point_to_supported_fdr_surfaces(self) -> None:
+        readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+        example = (EXAMPLES_DIR / "fdr.py").read_text(encoding="utf-8")
+
+        self.assertIn("fdr-toolkit", readme)
+        self.assertIn("import xpwebapi.fdr", example)
+        self.assertIn("from xpwebapi.fdr.cli import main", example)
+        for unsupported_detail in ("sys.path", "XPWSAPIApp", "datetime", "Websocket"):
+            with self.subTest(unsupported_detail=unsupported_detail):
+                self.assertNotIn(unsupported_detail, example)
 
 
 if __name__ == "__main__":

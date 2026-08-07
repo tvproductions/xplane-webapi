@@ -7,6 +7,9 @@ title: Usage
 For repeatable, strictly read-only development evidence, see
 [Read-only capture](read-only-capture.md).
 
+For deterministic version 4 Flight Data Recorder files, live read-only
+recording, and GeoJSON conversion, see the [FDR toolkit](fdr-toolkit.md).
+
 ## Installation
 
 Install the maintained release from PyPI:

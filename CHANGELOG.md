@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file.
 
+## 4.1.0 - 2026-08-07
+
+### Added
+
+- Supported `xpwebapi.fdr` subpackage for immutable FDR models, strict version
+  4 reading, deterministic canonical version 4 writing, read-only live
+  recording, GeoJSON conversion, and source/sink composition.
+- Installed `xpwebapi-fdr` command with `record`, `inspect`, `validate`, and
+  `to-geojson` subcommands.
+- FDR usage and API reference documentation, including downstream native-plugin
+  testing boundaries and partial-file recovery behavior.
+
+### Compatibility
+
+- Version 3 file parsing is not part of this release: it remains gated on the
+  official reference fixture required to verify its fixed-column schema. The
+  version 4 reader rejects v3 files rather than inferring the layout.
+- Programmatically constructed legacy models may be written as version 4 only
+  with explicit lossy-conversion opt-in; omitted legacy field identifiers are
+  reported to the caller.
+
 ## 4.0.0 - 2026-07-26
 
 First independently maintained TV Productions release and first PyPI release.

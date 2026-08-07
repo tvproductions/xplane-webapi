@@ -1,6 +1,6 @@
 [project]
 name = "xpwebapi"
-version = "4.0.0"
+version = "4.1.0"
 authors = [
   { name = "Pierre Mareschal", email = "pierre@devleaks.be" }
 ]

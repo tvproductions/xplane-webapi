@@ -41,6 +41,17 @@ UDP is the diagnostic/fallback capture transport.
 See the [capture guide](https://tvproductions.github.io/xplane-webapi/usage/read-only-capture/)
 and [capture protocol reference](https://tvproductions.github.io/xplane-webapi/reference/capture/).
 
+## Flight Data Recorder toolkit
+
+The always-installed `xpwebapi.fdr` subpackage reads and validates version 4
+FDR files, writes deterministic version 4 fixtures, records live values through
+the read-only observation transport, and exports GeoJSON. The installed
+`xpwebapi-fdr` command provides `record`, `inspect`, `validate`, and
+`to-geojson`; see the [FDR toolkit guide](https://tvproductions.github.io/xplane-webapi/usage/fdr-toolkit/).
+
+Version 3 file parsing remains gated on an official reference fixture, so this
+release rejects v3 files rather than guessing their fixed-column layout.
+
 ## Documentation
 
 Full documentation is available at

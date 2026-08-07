@@ -20,7 +20,7 @@ class ReleaseMetadataTests(unittest.TestCase):
     def test_distribution_identity_and_supported_python(self) -> None:
         project = PROJECT["project"]
         self.assertEqual("xpwebapi", project["name"])
-        self.assertEqual("4.0.0", project["version"])
+        self.assertEqual("4.1.0", project["version"])
         self.assertEqual(">=3.12,<3.14", project["requires-python"])
         self.assertIn("Programming Language :: Python :: 3.12", project["classifiers"])
         self.assertIn("Programming Language :: Python :: 3.13", project["classifiers"])
@@ -33,6 +33,13 @@ class ReleaseMetadataTests(unittest.TestCase):
         expected = PROJECT["project"]["version"]
         self.assertEqual(expected, xpwebapi.__version__)
         self.assertEqual(expected, xpwebapi.version)
+
+    def test_fdr_release_version_is_synchronized_with_ci_smoke(self) -> None:
+        workflow = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+        changelog = (REPO_ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+
+        self.assertIn('tools/installed_smoke.py" 4.1.0', workflow)
+        self.assertIn("## 4.1.0 - 2026-08-07", changelog)
 
     def test_authorship_maintenance_and_canonical_urls(self) -> None:
         project = PROJECT["project"]

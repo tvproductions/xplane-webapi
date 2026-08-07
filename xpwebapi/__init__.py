@@ -65,5 +65,5 @@ def udp_api(**kwargs):
     return XPUDPAPI(**kwargs)
 
 
-__version__ = "4.0.0"
+__version__ = "4.1.0"
 version = __version__

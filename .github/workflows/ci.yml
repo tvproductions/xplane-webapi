@@ -58,8 +58,8 @@ jobs:
           path: dist/
       - run: uv venv --python ${{ matrix.python-version }} .smoke
       - run: uv pip install --python .smoke/bin/python dist/*.whl
-      # tools/installed_smoke.py 4.0.0 is executed from the isolated workspace path.
-      - run: cd "$RUNNER_TEMP" && "$GITHUB_WORKSPACE/.smoke/bin/python" "$GITHUB_WORKSPACE/tools/installed_smoke.py" 4.0.0
+      # tools/installed_smoke.py 4.1.0 is executed from the isolated workspace path.
+      - run: cd "$RUNNER_TEMP" && "$GITHUB_WORKSPACE/.smoke/bin/python" "$GITHUB_WORKSPACE/tools/installed_smoke.py" 4.1.0
 
   docs:
     needs: [quality, compatibility]

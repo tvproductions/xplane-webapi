@@ -19,3 +19,4 @@ The reference section is generated from source docstrings with `mkdocstrings`.
 - [Logging](logging.md)
 - [Capture protocol](capture.md)
 - [Installed JSON Schemas](capture.md#installed-json-schemas)
+- [FDR API](fdr.md)
