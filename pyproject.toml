@@ -30,6 +30,7 @@ dependencies = [
 
 [project.scripts]
 xpwebapi-capture = "xpwebapi.capture_cli:main"
+xpwebapi-fdr = "xpwebapi.fdr.cli:main"
 
 [project.urls]
 Homepage = "https://tvproductions.github.io/xplane-webapi/"
