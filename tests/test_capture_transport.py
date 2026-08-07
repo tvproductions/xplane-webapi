@@ -24,7 +24,7 @@ from xpwebapi.capture_protocol import (
     UdpCaptureConfig,
     WebsocketCaptureConfig,
 )
-from xpwebapi.capture_transport import Observation, create_capture_transport
+from xpwebapi.capture_transport import Observation, create_capture_transport, create_observation_transport
 from xpwebapi.exceptions import XPReadOnlyViolation
 from xpwebapi.read_only import _ReadOnlyDatagramSocketProxy
 from xpwebapi.udp import XPUDPAPI, XPlaneTimeout
@@ -279,6 +279,130 @@ def make_request(kind: str = "websocket") -> CaptureRequest:
         ),
         retry=CaptureRetryPolicy(subscription_timeout_seconds=2.0, stale_after_seconds=3.0, shutdown_timeout_seconds=4.0),
     )
+
+
+class CaptureFactoryCompatibilityTests(unittest.TestCase):
+    def test_neutral_udp_factory_allows_capture_without_identity_and_retains_no_request(self) -> None:
+        clock = FakeClock()
+        udp_factory = UdpFactory()
+        beacon_factory = BeaconFactory()
+        request = make_request("udp")
+        adapter = create_observation_transport(
+            request.transport,
+            subscription_timeout_seconds=2.0,
+            ref_rates_hz={"sim/test/capture": 5.0},
+            client_factory=udp_factory,
+            beacon_factory=beacon_factory,
+            clock=clock.monotonic,
+        )
+
+        adapter.open(deadline=10.0)
+        result = adapter.subscribe(request.refs, "capture", lambda _: None, deadline=10.0)
+
+        self.assertEqual(("capture",), result.accepted_ref_ids)
+        self.assertEqual([("sim/test/capture", 5)], udp_factory.clients[0].monitor_calls)
+        self.assertFalse(hasattr(adapter, "_request"))
+        adapter.close(deadline=10.0)
+
+    def test_capture_factory_maps_request_to_neutral_inputs_exactly(self) -> None:
+        clock = FakeClock()
+        client_factory = MagicMock()
+        beacon_factory = MagicMock()
+        for kind in ("websocket", "udp"):
+            with self.subTest(kind=kind):
+                request = make_request(kind)
+                expected_transport = MagicMock()
+                with patch("xpwebapi.capture_transport.create_observation_transport", return_value=expected_transport) as neutral_factory:
+                    actual_transport = create_capture_transport(
+                        request,
+                        client_factory=client_factory,
+                        beacon_factory=beacon_factory,
+                        clock=clock.monotonic,
+                    )
+
+                self.assertIs(expected_transport, actual_transport)
+                neutral_factory.assert_called_once_with(
+                    request.transport,
+                    identity_refs=request.identity_readiness.refs,
+                    subscription_timeout_seconds=request.retry.subscription_timeout_seconds,
+                    ref_rates_hz={"sim/test/capture": 2.0},
+                    shutdown_timeout_seconds=request.retry.shutdown_timeout_seconds,
+                    client_factory=client_factory,
+                    beacon_factory=beacon_factory,
+                    clock=clock.monotonic,
+                )
+
+    def test_udp_request_policy_survives_factory_delegation(self) -> None:
+        clock = FakeClock()
+        udp_factory = UdpFactory()
+        beacon_factory = BeaconFactory()
+        request = make_request("udp")
+        request = request.model_copy(
+            update={
+                "sample_groups": (CaptureSampleGroup(id="group", rate_hz=7.0),),
+                "retry": request.retry.model_copy(
+                    update={
+                        "subscription_timeout_seconds": 6.0,
+                        "shutdown_timeout_seconds": 0.75,
+                    }
+                ),
+            }
+        )
+        observations: list[Observation] = []
+
+        adapter = create_capture_transport(
+            request,
+            client_factory=udp_factory,
+            beacon_factory=beacon_factory,
+            clock=clock.monotonic,
+        )
+        adapter.open(deadline=20.0)
+        adapter.subscribe(request.identity_readiness.refs, "aircraft_identity", observations.append, deadline=20.0)
+        with self.assertRaises(RuntimeError):
+            adapter.subscribe(request.refs, "capture", observations.append, deadline=20.0)
+        udp_factory.clients[0].emit("sim/test/identity", 1.0)
+        adapter.subscribe(request.refs, "capture", observations.append, deadline=20.0)
+        udp_factory.clients[0].emit("sim/test/capture", 42.0)
+        adapter.close(deadline=20.0)
+
+        self.assertEqual(("sim/test/capture", 7), udp_factory.clients[0].monitor_calls[-1])
+        self.assertEqual(("identity", "capture"), tuple(observation.ref_id for observation in observations))
+        self.assertEqual([0.75], udp_factory.clients[0].stop_timeouts)
+        self.assertTrue(udp_factory.calls[0]["read_only"])
+        self.assertTrue(udp_factory.clients[0].closed)
+        self.assertTrue(beacon_factory.monitors[0].stopped)
+
+    def test_websocket_request_config_callbacks_and_close_survive_factory_delegation(self) -> None:
+        clock = FakeClock()
+        client_factory = WebsocketFactory(metadata={"sim/test/identity": "data"})
+        request = make_request().model_copy(
+            update={
+                "transport": WebsocketCaptureConfig(
+                    kind="websocket",
+                    host="192.0.2.20",
+                    port=9090,
+                    api_path="/custom",
+                    api_version="v4",
+                    http_timeout_seconds=1.5,
+                    open_timeout_seconds=1.25,
+                    close_timeout_seconds=1.0,
+                )
+            }
+        )
+        observations: list[Observation] = []
+
+        adapter = create_capture_transport(request, client_factory=client_factory, clock=clock.monotonic)
+        capabilities = adapter.open(deadline=10.0)
+        adapter.subscribe(request.identity_readiness.refs, "aircraft_identity", observations.append, deadline=10.0)
+        client_factory.clients[0].emit("sim/test/identity", b"FlyJSim Q4XP")
+        adapter.close(deadline=10.0)
+
+        self.assertEqual("ws://192.0.2.20:9090/custom/v4", capabilities.endpoint)
+        self.assertEqual("192.0.2.20", client_factory.calls[0]["host"])
+        self.assertEqual("v4", client_factory.calls[0]["api_version"])
+        self.assertTrue(client_factory.calls[0]["read_only"])
+        self.assertEqual(("identity",), tuple(observation.ref_id for observation in observations))
+        self.assertIn("disconnect_websocket", client_factory.clients[0].events)
 
 
 class WebsocketCaptureTransportTests(unittest.TestCase):
@@ -1147,6 +1271,7 @@ class ReadOnlyUdpWireTests(unittest.TestCase):
         for adapter in (ws, udp):
             self.assertFalse(hasattr(adapter, "client"))
             self.assertFalse(hasattr(adapter, "socket"))
+            self.assertFalse(hasattr(adapter, "_request"))
 
 
 if __name__ == "__main__":

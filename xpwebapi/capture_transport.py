@@ -14,6 +14,7 @@ from .capture_protocol import (
     AircraftIdentityRef,
     CaptureRef,
     CaptureRequest,
+    CaptureTransportConfig,
     UdpCaptureConfig,
     WebsocketCaptureConfig,
 )
@@ -215,10 +216,19 @@ def _identity_matches(ref: AircraftIdentityRef, value: object) -> bool:
 
 
 class _TransportBase:
-    def __init__(self, request: CaptureRequest, clock: Clock) -> None:
-        self._request = request
+    def __init__(
+        self,
+        config: CaptureTransportConfig,
+        identity_refs: Sequence[AircraftIdentityRef],
+        subscription_timeout_seconds: float,
+        shutdown_timeout_seconds: float,
+        clock: Clock,
+    ) -> None:
+        self._config = config
         self._clock = clock
-        self._identity_refs = {ref.path: ref for ref in request.identity_readiness.refs}
+        self._identity_refs = {ref.path: ref for ref in identity_refs}
+        self._subscription_timeout_seconds = subscription_timeout_seconds
+        self._shutdown_timeout_seconds = shutdown_timeout_seconds
         self._matching_identity_paths: set[str] = set()
         self._callbacks: dict[str, Callable[[Observation], None]] = {}
         self._refs_by_path: dict[str, AircraftIdentityRef | CaptureRef] = {}
@@ -236,7 +246,7 @@ class _TransportBase:
         now = self._clock()
         if owning_deadline - now <= 0:
             raise TimeoutError("capture transport deadline expired")
-        return min(owning_deadline, now + self._request.retry.subscription_timeout_seconds)
+        return min(owning_deadline, now + self._subscription_timeout_seconds)
 
     def _record_observation(self, path: str, value: object, observed_at: float | None = None) -> bool:
         ref = self._refs_by_path.get(path)
@@ -256,9 +266,16 @@ class _TransportBase:
 
 
 class _WebsocketCaptureTransport(_TransportBase):
-    def __init__(self, request: CaptureRequest, client_factory: ClientFactory, clock: Clock) -> None:
-        super().__init__(request, clock)
-        self._config = cast(WebsocketCaptureConfig, request.transport)
+    def __init__(
+        self,
+        config: WebsocketCaptureConfig,
+        identity_refs: Sequence[AircraftIdentityRef],
+        subscription_timeout_seconds: float,
+        shutdown_timeout_seconds: float,
+        client_factory: ClientFactory,
+        clock: Clock,
+    ) -> None:
+        super().__init__(config, identity_refs, subscription_timeout_seconds, shutdown_timeout_seconds, clock)
         self._client_factory = client_factory
         self._client: Any | None = None
         self._feedback: dict[int, Mapping[str, object]] = {}
@@ -433,7 +450,7 @@ class _WebsocketCaptureTransport(_TransportBase):
             self._cleanup_datarefs.update(prepared)
 
     def _feedback_for(self, request_id: int, deadline: float) -> Mapping[str, object] | None:
-        feedback_deadline = min(deadline, self._clock() + self._request.retry.subscription_timeout_seconds)
+        feedback_deadline = min(deadline, self._clock() + self._subscription_timeout_seconds)
         with self._feedback_condition:
             while request_id not in self._feedback:
                 remaining = feedback_deadline - self._clock()
@@ -515,7 +532,7 @@ class _WebsocketCaptureTransport(_TransportBase):
             lambda: self._bounded_websocket_call(
                 lambda: self._client.stop(
                     timeout_seconds=min(
-                        self._request.retry.shutdown_timeout_seconds,
+                        self._shutdown_timeout_seconds,
                         max(0.0, phases.listener_stop - self._clock()),
                     )
                 ),
@@ -561,13 +578,17 @@ class _WebsocketCaptureTransport(_TransportBase):
 class _UdpCaptureTransport(_TransportBase):
     def __init__(
         self,
-        request: CaptureRequest,
+        config: UdpCaptureConfig,
+        identity_refs: Sequence[AircraftIdentityRef],
+        subscription_timeout_seconds: float,
+        ref_rates_hz: Mapping[str, float],
+        shutdown_timeout_seconds: float,
         client_factory: ClientFactory,
         beacon_factory: ClientFactory,
         clock: Clock,
     ) -> None:
-        super().__init__(request, clock)
-        self._config = cast(UdpCaptureConfig, request.transport)
+        super().__init__(config, identity_refs, subscription_timeout_seconds, shutdown_timeout_seconds, clock)
+        self._ref_rates_hz = ref_rates_hz
         self._client_factory = client_factory
         self._beacon_factory = beacon_factory
         self._client: Any | None = None
@@ -652,8 +673,7 @@ class _UdpCaptureTransport(_TransportBase):
     def _rate_for(self, ref: AircraftIdentityRef | CaptureRef) -> int:
         if isinstance(ref, AircraftIdentityRef):
             return int(ref.rate_hz)
-        groups = {group.id: group for group in self._request.sample_groups}
-        return int(groups[ref.sample_group_id].rate_hz)
+        return int(self._ref_rates_hz.get(ref.path, 1.0))
 
     def subscribe(
         self,
@@ -717,7 +737,7 @@ class _UdpCaptureTransport(_TransportBase):
                 lambda: self._bounded_udp_call(
                     lambda: self._client.stop(
                         timeout_seconds=min(
-                            self._request.retry.shutdown_timeout_seconds,
+                            self._shutdown_timeout_seconds,
                             max(0.0, phases.listener_stop - self._clock()),
                         )
                     ),
@@ -751,6 +771,40 @@ class _UdpCaptureTransport(_TransportBase):
             raise failure
 
 
+def create_observation_transport(
+    config: CaptureTransportConfig,
+    *,
+    identity_refs: Sequence[AircraftIdentityRef] = (),
+    subscription_timeout_seconds: float,
+    ref_rates_hz: Mapping[str, float] | None = None,
+    shutdown_timeout_seconds: float = 10.0,
+    client_factory: ClientFactory | None = None,
+    beacon_factory: ClientFactory | None = None,
+    clock: Clock = time.monotonic,
+) -> CaptureTransport:
+    """Create a fresh read-only transport from neutral observation inputs."""
+
+    if isinstance(config, WebsocketCaptureConfig):
+        return _WebsocketCaptureTransport(
+            config,
+            identity_refs,
+            subscription_timeout_seconds,
+            shutdown_timeout_seconds,
+            client_factory or XPWebsocketAPI,
+            clock,
+        )
+    return _UdpCaptureTransport(
+        config,
+        identity_refs,
+        subscription_timeout_seconds,
+        ref_rates_hz or {},
+        shutdown_timeout_seconds,
+        client_factory or XPUDPAPI,
+        beacon_factory or XPBeaconMonitor,
+        clock,
+    )
+
+
 def create_capture_transport(
     request: CaptureRequest,
     *,
@@ -758,8 +812,16 @@ def create_capture_transport(
     beacon_factory: ClientFactory | None = None,
     clock: Clock = time.monotonic,
 ) -> CaptureTransport:
-    """Create a fresh transport and client owner for one connection generation."""
+    """Create a fresh transport and client owner for one capture generation."""
 
-    if isinstance(request.transport, WebsocketCaptureConfig):
-        return _WebsocketCaptureTransport(request, client_factory or XPWebsocketAPI, clock)
-    return _UdpCaptureTransport(request, client_factory or XPUDPAPI, beacon_factory or XPBeaconMonitor, clock)
+    rates_by_group = {group.id: group.rate_hz for group in request.sample_groups}
+    return create_observation_transport(
+        request.transport,
+        identity_refs=request.identity_readiness.refs,
+        subscription_timeout_seconds=request.retry.subscription_timeout_seconds,
+        ref_rates_hz={ref.path: rates_by_group[ref.sample_group_id] for ref in request.refs},
+        shutdown_timeout_seconds=request.retry.shutdown_timeout_seconds,
+        client_factory=client_factory,
+        beacon_factory=beacon_factory,
+        clock=clock,
+    )
