@@ -23,14 +23,12 @@ def _require_text(value: object, name: str, *, allow_empty: bool = False) -> str
 
 def _require_finite_number(value: object, name: str) -> int | float:
     if type(value) is int:
-        number = value
-    elif type(value) is float:
-        number = value
-    else:
+        return value
+    if type(value) is not float:
         raise FDRValidationError(f"{name} must be a finite int or float")
-    if not math.isfinite(number):
+    if not math.isfinite(value):
         raise FDRValidationError(f"{name} must be a finite int or float")
-    return number
+    return value
 
 
 def _validate_values(values: tuple[object, ...], name: str) -> tuple[int | float, ...]:

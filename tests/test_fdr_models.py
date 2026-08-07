@@ -115,6 +115,14 @@ class FDRModelTests(unittest.TestCase):
             with self.subTest(legacy_value=value), self.assertRaises(FDRValidationError):
                 self.sample(legacy_values=(value,))
 
+    def test_accepts_arbitrarily_large_exact_integer(self) -> None:
+        value = 10**400
+
+        sample = self.sample(altitude_msl_ft=value)
+
+        self.assertEqual(value, sample.altitude_msl_ft)
+        self.assertIs(type(value), type(sample.altitude_msl_ft))
+
     def test_rejects_duplicate_datarefs_and_legacy_column_ids(self) -> None:
         with self.assertRaises(FDRValidationError):
             self.header(datarefs=(FDRDataref("sim/test/value", 1.0), FDRDataref("sim/test/value", 2.0)))
