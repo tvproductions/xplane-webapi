@@ -292,6 +292,7 @@ def _write_atomic_json(document: object, destination: Path, *, overwrite: bool) 
     payload = _json_line(document)
     partial, stream = _create_partial(destination)
     close_attempted = False
+    destination_committed = False
     try:
         stream.write(payload)
         stream.flush()
@@ -302,11 +303,11 @@ def _write_atomic_json(document: object, destination: Path, *, overwrite: bool) 
             os.replace(partial, destination)
         else:
             os.link(partial, destination)
-            try:
-                partial.unlink()
-            except OSError:
-                pass
+            destination_committed = True
+            partial.unlink()
     except BaseException as primary:
+        if destination_committed:
+            raise primary.with_traceback(primary.__traceback__)
         cleanup_failures: list[BaseException] = []
         if not close_attempted:
             try:

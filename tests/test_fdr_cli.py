@@ -310,6 +310,24 @@ class FDRCliTests(unittest.TestCase):
         self.assertEqual("", stdout)
         self.assertEqual("", stderr)
 
+    def test_to_geojson_reports_partial_cleanup_failure_after_successful_link(self) -> None:
+        output = self.root / "flight.geojson"
+
+        with patch.object(Path, "unlink", side_effect=OSError("injected committed-partial cleanup failure")):
+            result, stdout, stderr = self.capture_main(["to-geojson", str(self.input), str(output)])
+
+        partials = list(self.root.glob(f".{output.name}.*.partial"))
+        self.assertEqual(1, result)
+        self.assertEqual("", stdout)
+        self.assertIn("to-geojson failed", stderr)
+        self.assertIn("injected committed-partial cleanup failure", stderr)
+        self.assertTrue(output.exists())
+        self.assertEqual("FeatureCollection", json.loads(output.read_text(encoding="utf-8"))["type"])
+        self.assertEqual(1, len(partials))
+        self.assertEqual(output.read_bytes(), partials[0].read_bytes())
+        partials[0].unlink()
+        self.assertTrue(output.exists())
+
     def test_to_geojson_protects_existing_output_unless_overwrite_is_explicit(self) -> None:
         output = self.root / "flight.geojson"
         output.write_text("existing\n", encoding="utf-8")
