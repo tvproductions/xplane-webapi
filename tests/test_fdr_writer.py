@@ -291,6 +291,23 @@ DREF, sim/test/whole 2
         self.assertFalse(stream.closed)
         self.assertGreaterEqual(stream.flush_count, 1)
 
+    def test_stream_writer_context_manager_requires_explicit_commit(self) -> None:
+        with TemporaryDirectory() as temporary_directory:
+            destination = Path(temporary_directory, "flight.fdr")
+            with FDRWriter().open(self.header(), destination) as writer:
+                writer.write_sample(self.sample())
+                partial_path = writer.partial_path
+
+            self.assertFalse(destination.exists())
+            self.assertIsNotNone(partial_path)
+            self.assertTrue(partial_path.is_file())  # type: ignore[union-attr]
+
+            with FDRWriter().open(self.header(), destination) as committed:
+                committed.write_sample(self.sample())
+                committed.commit()
+
+            self.assertTrue(destination.exists())
+
 
 if __name__ == "__main__":
     unittest.main()

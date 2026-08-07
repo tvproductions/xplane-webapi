@@ -4,15 +4,26 @@ from __future__ import annotations
 
 import threading
 import unittest
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import patch
 
 from xpwebapi.capture_protocol import WebsocketCaptureConfig
-from xpwebapi.fdr.models import FDRDataref, FDRHeader, FDRMetadata
-from xpwebapi.fdr.recorder import FDRSampleSink, FDRSampleSource, FDRSourceSample, LiveFDRSampleSource
+from xpwebapi.fdr import FDRReader, FDRWriter
+from xpwebapi.fdr.models import FDRDataref, FDRHeader, FDRMetadata, FDRSample
+from xpwebapi.fdr.recorder import (
+    FDRRecorder,
+    FDRRecordResult,
+    FDRSampleSink,
+    FDRSampleSource,
+    FDRSourceSample,
+    LiveFDRSampleSource,
+)
 from xpwebapi.ws import CALLBACK_TYPE
 
 
@@ -439,6 +450,271 @@ class LiveFDRSampleSourceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "aware UTC"):
             next(source.samples(threading.Event()))
         source.close()
+
+
+class SyntheticSource:
+    def __init__(
+        self,
+        header: FDRHeader,
+        items: Sequence[FDRSourceSample | BaseException],
+        *,
+        close_error: BaseException | None = None,
+    ) -> None:
+        self.header = header
+        self.items = items
+        self.close_error = close_error
+        self.close_count = 0
+
+    def samples(self, stop_event: threading.Event):  # type: ignore[no-untyped-def]
+        for item in self.items:
+            if isinstance(item, BaseException):
+                raise item
+            yield item
+
+    def close(self) -> None:
+        self.close_count += 1
+        if self.close_error is not None:
+            raise self.close_error
+
+
+class TimedSyntheticSource(SyntheticSource):
+    def __init__(self, header: FDRHeader, clock: RecorderClock, samples: tuple[FDRSourceSample, ...]) -> None:
+        super().__init__(header, [])
+        self.clock = clock
+        self.timed_samples = samples
+
+    def samples(self, stop_event: threading.Event):  # type: ignore[no-untyped-def]
+        for index, sample in enumerate(self.timed_samples):
+            if index:
+                self.clock.now += 2.0
+            yield sample
+
+
+class BlockingCloseSyntheticSource(SyntheticSource):
+    def __init__(self, header: FDRHeader, samples: list[FDRSourceSample], entered: threading.Event, release: threading.Event) -> None:
+        super().__init__(header, samples)
+        self.entered = entered
+        self.release = release
+
+    def close(self) -> None:
+        self.close_count += 1
+        self.entered.set()
+        self.release.wait()
+
+
+class SyntheticSink:
+    def __init__(
+        self,
+        *,
+        on_write: Callable[[FDRSample], None] | None = None,
+        commit_error: BaseException | None = None,
+        abort_error: BaseException | None = None,
+    ) -> None:
+        self.samples: list[FDRSample] = []
+        self.on_write = on_write
+        self.commit_error = commit_error
+        self.abort_error = abort_error
+        self.commit_count = 0
+        self.abort_count = 0
+        self.destination_path = Path("final.fdr")
+        self.partial_path = Path(".final.fdr.partial")
+
+    def write_sample(self, sample: FDRSample) -> None:
+        self.samples.append(sample)
+        if self.on_write is not None:
+            self.on_write(sample)
+
+    def commit(self) -> None:
+        self.commit_count += 1
+        if self.commit_error is not None:
+            raise self.commit_error
+
+    def abort(self) -> None:
+        self.abort_count += 1
+        if self.abort_error is not None:
+            raise self.abort_error
+
+
+class RecorderClock:
+    def __init__(self) -> None:
+        self.now = 10.0
+
+    def monotonic(self) -> float:
+        return self.now
+
+
+class FDRRecorderTests(unittest.TestCase):
+    def source_sample(self, second: int = 0, **changes: Any) -> FDRSourceSample:
+        values: dict[str, Any] = {
+            "longitude": -87.9048,
+            "latitude": 41.9742,
+            "altitude_msl_ft": 1000.0,
+            "heading_magnetic_deg": 270.0,
+            "pitch_deg": 2.0,
+            "roll_deg": -1.0,
+            "sim/test/zulu": 3.0,
+            "sim/test/alpha": 4.0,
+        }
+        values.update(changes)
+        return FDRSourceSample(datetime(2026, 8, 7, 18, 30, second, tzinfo=UTC), values)
+
+    def test_maps_source_samples_in_header_order_and_returns_immutable_result(self) -> None:
+        header = make_header(FDRDataref("sim/test/alpha", 1.0), FDRDataref("sim/test/zulu", 1.0))
+        source = SyntheticSource(header, [self.source_sample(), self.source_sample(1, longitude=-87.5)])
+        sink = SyntheticSink()
+
+        with patch("signal.signal") as signal_handler:
+            result = FDRRecorder(source=source, sink=sink).record(stop_event=threading.Event())
+
+        self.assertIsInstance(result, FDRRecordResult)
+        self.assertEqual(2, result.sample_count)
+        self.assertEqual(datetime(2026, 8, 7, 18, 30, tzinfo=UTC), result.started_at_utc)
+        self.assertEqual(datetime(2026, 8, 7, 18, 30, 1, tzinfo=UTC), result.ended_at_utc)
+        self.assertEqual(timedelta(seconds=1), result.duration)
+        self.assertEqual("source_exhausted", result.termination)
+        self.assertEqual(Path("final.fdr"), result.final_path)
+        self.assertIsNone(result.partial_path)
+        self.assertEqual((4.0, 3.0), sink.samples[0].additional_values)
+        self.assertEqual(1, source.close_count)
+        self.assertEqual(1, sink.commit_count)
+        self.assertEqual(0, sink.abort_count)
+        signal_handler.assert_not_called()
+        with self.assertRaises((AttributeError, TypeError)):
+            result.sample_count = 3  # ty: ignore[invalid-assignment]
+
+    def test_live_elevation_is_converted_from_metres_exactly_once_end_to_end(self) -> None:
+        factory = FakeWebsocketFactory(initial_values())
+        stop_event = threading.Event()
+        sink = SyntheticSink(on_write=lambda _sample: stop_event.set())
+        source = LiveFDRSampleSource(
+            config=WebsocketCaptureConfig(kind="websocket", host="127.0.0.1", port=8086),
+            header=make_header(),
+            sample_interval_seconds=0.5,
+            subscription_timeout_seconds=2.0,
+            client_factory=factory,
+            monotonic_clock=FakeClock().monotonic,
+            utc_clock=lambda: datetime(2026, 8, 7, 18, 30, tzinfo=UTC),
+            wait=FakeClock().wait,
+        )
+
+        result = FDRRecorder(source=source, sink=sink).record(stop_event=stop_event)
+
+        self.assertEqual(1, result.sample_count)
+        self.assertEqual(1000.0, sink.samples[0].altitude_msl_ft)
+
+    def test_duration_and_stop_event_are_distinct_graceful_terminations(self) -> None:
+        clock = RecorderClock()
+        duration_source = TimedSyntheticSource(make_header(), clock, (self.source_sample(), self.source_sample(2)))
+        duration_sink = SyntheticSink()
+        duration_result = FDRRecorder(source=duration_source, sink=duration_sink, monotonic_clock=clock.monotonic).record(
+            stop_event=threading.Event(), maximum_duration=2.0
+        )
+        self.assertEqual("duration_reached", duration_result.termination)
+        self.assertEqual(1, duration_result.sample_count)
+
+        stop_event = threading.Event()
+        stop_sink = SyntheticSink(on_write=lambda _sample: stop_event.set())
+        stop_result = FDRRecorder(source=SyntheticSource(make_header(), [self.source_sample(), self.source_sample(1)]), sink=stop_sink).record(
+            stop_event=stop_event
+        )
+        self.assertEqual("stop_requested", stop_result.termination)
+        self.assertEqual(1, stop_result.sample_count)
+
+    def test_keyboard_interrupt_after_a_sample_commits_gracefully(self) -> None:
+        source = SyntheticSource(make_header(), [self.source_sample(), KeyboardInterrupt()])
+        sink = SyntheticSink()
+
+        result = FDRRecorder(source=source, sink=sink).record(stop_event=threading.Event())
+
+        self.assertEqual("keyboard_interrupt", result.termination)
+        self.assertEqual(1, result.sample_count)
+        self.assertEqual(1, sink.commit_count)
+        self.assertEqual(1, source.close_count)
+
+    def test_empty_or_invalid_sessions_abort_and_never_commit(self) -> None:
+        invalid_optional_values = dict(self.source_sample().values)
+        invalid_optional_values["sim/test/alpha"] = float("inf")
+        invalid_optional = FDRSourceSample(self.source_sample().timestamp_utc, invalid_optional_values)
+        cases: tuple[tuple[list[FDRSourceSample | BaseException], str], ...] = (
+            ([], "without samples"),
+            ([self.source_sample(longitude=float("nan"))], "longitude"),
+            ([self.source_sample(pitch_deg=True)], "pitch_deg"),
+            ([invalid_optional], "sim/test/alpha"),
+            ([FDRSourceSample(self.source_sample().timestamp_utc, {"longitude": -87.9})], "missing"),
+        )
+        for items, message in cases:
+            with self.subTest(message=message):
+                source = SyntheticSource(make_header(FDRDataref("sim/test/alpha", 1.0)), items)
+                sink = SyntheticSink()
+                with self.assertRaisesRegex((ValueError, RuntimeError), message):
+                    FDRRecorder(source=source, sink=sink).record(stop_event=threading.Event())
+                self.assertEqual(0, sink.commit_count)
+                self.assertEqual(1, sink.abort_count)
+                self.assertEqual(1, source.close_count)
+
+    def test_path_success_commits_and_runtime_failure_preserves_only_partial(self) -> None:
+        with TemporaryDirectory() as temporary_directory:
+            successful_path = Path(temporary_directory, "successful.fdr")
+            successful_source = SyntheticSource(make_header(), [self.source_sample()])
+            successful_sink = FDRWriter().open(successful_source.header, successful_path)
+
+            result = FDRRecorder(source=successful_source, sink=successful_sink).record(stop_event=threading.Event())
+
+            self.assertEqual(successful_path, result.final_path)
+            self.assertIsNone(result.partial_path)
+            self.assertEqual(1, len(FDRReader().read(successful_path).samples))
+
+            failed_path = Path(temporary_directory, "failed.fdr")
+            failed_source = SyntheticSource(make_header(), [self.source_sample(), RuntimeError("source broke")])
+            failed_sink = FDRWriter().open(failed_source.header, failed_path)
+            expected_partial = failed_sink.partial_path
+
+            with self.assertRaisesRegex(RuntimeError, "source broke"):
+                FDRRecorder(source=failed_source, sink=failed_sink).record(stop_event=threading.Event())
+
+            self.assertFalse(failed_path.exists())
+            self.assertIsNotNone(expected_partial)
+            self.assertTrue(expected_partial.is_file())  # type: ignore[union-attr]
+            self.assertGreater(expected_partial.stat().st_size, 0)  # type: ignore[union-attr]
+
+    def test_cleanup_and_commit_failures_abort_without_masking_evidence(self) -> None:
+        source = SyntheticSource(make_header(), [self.source_sample()], close_error=RuntimeError("source close broke"))
+        sink = SyntheticSink(abort_error=RuntimeError("sink abort broke"))
+
+        with self.assertRaises(BaseExceptionGroup) as caught:
+            FDRRecorder(source=source, sink=sink).record(stop_event=threading.Event())
+
+        rendered = str(caught.exception)
+        self.assertIn("cleanup", rendered)
+        self.assertEqual(0, sink.commit_count)
+        self.assertEqual(1, sink.abort_count)
+
+        commit_sink = SyntheticSink(commit_error=RuntimeError("commit broke"))
+        with self.assertRaisesRegex(RuntimeError, "commit broke"):
+            FDRRecorder(source=SyntheticSource(make_header(), [self.source_sample()]), sink=commit_sink).record(stop_event=threading.Event())
+        self.assertEqual(1, commit_sink.abort_count)
+
+    def test_source_cleanup_has_an_injected_deadline(self) -> None:
+        entered = threading.Event()
+        release = threading.Event()
+        source = BlockingCloseSyntheticSource(make_header(), [self.source_sample()], entered, release)
+        observed_timeouts: list[float] = []
+
+        def timeout_wait(done: threading.Event, timeout: float) -> bool:
+            observed_timeouts.append(timeout)
+            if len(observed_timeouts) > 1:
+                return done.wait(timeout)
+            self.assertTrue(entered.wait(1.0))
+            release.set()
+            return False
+
+        sink = SyntheticSink()
+        with self.assertRaisesRegex(TimeoutError, "source cleanup"):
+            FDRRecorder(source=source, sink=sink, cleanup_timeout_seconds=0.25, cleanup_wait=timeout_wait).record(stop_event=threading.Event())
+
+        self.assertEqual([0.25, 0.25], observed_timeouts)
+        self.assertEqual(1, sink.abort_count)
+        self.assertEqual(0, sink.commit_count)
 
 
 if __name__ == "__main__":

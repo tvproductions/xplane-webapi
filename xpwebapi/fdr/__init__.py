@@ -4,6 +4,7 @@ from .errors import FDRParseError, FDRValidationError
 from .geojson import recording_to_geojson
 from .models import FDRDataref, FDRHeader, FDRLegacyColumn, FDRMetadata, FDRNormalizationResult, FDRRecording, FDRSample
 from .reader import FDRReader
+from .recorder import FDRRecorder, FDRRecordResult, FDRSampleSink, FDRSampleSource, FDRSourceSample, LiveFDRSampleSource
 from .writer import FDRStreamWriter, FDRWriter
 
 __all__ = [
@@ -15,9 +16,15 @@ __all__ = [
     "FDRParseError",
     "FDRRecording",
     "FDRReader",
+    "FDRRecorder",
+    "FDRRecordResult",
     "FDRSample",
+    "FDRSampleSink",
+    "FDRSampleSource",
+    "FDRSourceSample",
     "FDRStreamWriter",
     "FDRValidationError",
     "FDRWriter",
+    "LiveFDRSampleSource",
     "recording_to_geojson",
 ]

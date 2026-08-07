@@ -139,6 +139,11 @@ class FDRStreamWriter:
         return self._partial_path
 
     @property
+    def destination_path(self) -> Path | None:
+        """Return the requested final path for path-based output."""
+        return self._destination
+
+    @property
     def sample_count(self) -> int:
         """Return the number of successfully written samples."""
         return self._sample_count
@@ -203,6 +208,15 @@ class FDRStreamWriter:
     def _require_active(self) -> None:
         if self._state != "active":
             raise FDRValidationError(f"writer is already {self._state}")
+
+    def __enter__(self) -> FDRStreamWriter:
+        """Return this active writer for explicit-commit context use."""
+        self._require_active()
+        return self
+
+    def __exit__(self, _exc_type: object, _exc_value: object, _traceback: object) -> None:
+        """Abort an uncommitted writer while preserving path partials."""
+        self.abort()
 
 
 class FDRWriter:

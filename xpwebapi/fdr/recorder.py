@@ -8,17 +8,20 @@ import time
 from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from types import MappingProxyType
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol, cast
 
 from ..capture_protocol import CaptureRef, WebsocketCaptureConfig
 from ..capture_transport import CaptureTransport, Observation, create_observation_transport
+from .errors import FDRValidationError
 from .models import FDRHeader, FDRSample
 
 
 MonotonicClock = Callable[[], float]
 UTCClock = Callable[[], datetime]
 Wait = Callable[[threading.Event, float], bool]
+FDRRecordTermination = Literal["source_exhausted", "stop_requested", "duration_reached", "keyboard_interrupt"]
 
 _METRES_PER_FOOT = 0.3048
 _READINESS_POLL_SECONDS = 0.1
@@ -111,9 +114,242 @@ class FDRSampleSource(Protocol):
 
 
 class FDRSampleSink(Protocol):
-    """Destination accepting validated FDR model samples."""
+    """Lifecycle-managed destination accepting validated FDR samples."""
+
+    @property
+    def destination_path(self) -> Path | None: ...
+
+    @property
+    def partial_path(self) -> Path | None: ...
 
     def write_sample(self, sample: FDRSample) -> None: ...
+
+    def commit(self) -> None: ...
+
+    def abort(self) -> None: ...
+
+
+@dataclass(frozen=True, slots=True)
+class FDRRecordResult:
+    """Successful immutable recording-session outcome."""
+
+    sample_count: int
+    started_at_utc: datetime
+    ended_at_utc: datetime
+    duration: timedelta
+    termination: FDRRecordTermination
+    partial_path: Path | None
+    final_path: Path | None
+
+
+@dataclass(slots=True)
+class _RecordingProgress:
+    sample_count: int = 0
+    first_sample_at: datetime | None = None
+    last_sample_at: datetime | None = None
+    termination: FDRRecordTermination = "source_exhausted"
+
+
+class _RecordingStopEvent(threading.Event):
+    """Event view that combines a caller request with a monotonic deadline."""
+
+    def __init__(
+        self,
+        requested: threading.Event,
+        *,
+        monotonic_clock: MonotonicClock,
+        deadline: float | None,
+    ) -> None:
+        super().__init__()
+        self._requested = requested
+        self._monotonic_clock = monotonic_clock
+        self._deadline = deadline
+
+    @property
+    def duration_reached(self) -> bool:
+        return self._deadline is not None and self._monotonic_clock() >= self._deadline
+
+    def is_set(self) -> bool:
+        return super().is_set() or self._requested.is_set() or self.duration_reached
+
+    def wait(self, timeout: float | None = None) -> bool:
+        if self.is_set():
+            return True
+        effective_timeout = timeout
+        if self._deadline is not None:
+            remaining = max(0.0, self._deadline - self._monotonic_clock())
+            effective_timeout = remaining if timeout is None else min(timeout, remaining)
+        self._requested.wait(effective_timeout)
+        return self.is_set()
+
+
+def _source_number(values: Mapping[str, object], key: str) -> int | float:
+    try:
+        value = values[key]
+    except KeyError as exc:
+        raise FDRValidationError(f"source sample is missing required value {key!r}") from exc
+    if type(value) is int:
+        return value
+    if type(value) is not float or not math.isfinite(value):
+        raise FDRValidationError(f"source value {key!r} must be a finite int or float")
+    return value
+
+
+def _sample_from_source(header: FDRHeader, source_sample: FDRSourceSample) -> FDRSample:
+    values: Mapping[str, object] = source_sample.values
+    return FDRSample(
+        time_utc=source_sample.timestamp_utc.time(),
+        longitude=_source_number(values, "longitude"),
+        latitude=_source_number(values, "latitude"),
+        altitude_msl_ft=_source_number(values, "altitude_msl_ft"),
+        heading_magnetic_deg=_source_number(values, "heading_magnetic_deg"),
+        pitch_deg=_source_number(values, "pitch_deg"),
+        roll_deg=_source_number(values, "roll_deg"),
+        additional_values=tuple(_source_number(values, dataref.path) for dataref in header.datarefs),
+        legacy_values=(),
+    )
+
+
+class FDRRecorder:
+    """Map source snapshots into a sink and commit only graceful sessions."""
+
+    def __init__(
+        self,
+        *,
+        source: FDRSampleSource,
+        sink: FDRSampleSink,
+        monotonic_clock: MonotonicClock = time.monotonic,
+        cleanup_timeout_seconds: float = 5.0,
+        cleanup_wait: Wait = _wait,
+    ) -> None:
+        if not isinstance(source.header, FDRHeader) or source.header.source_version != 4:
+            raise ValueError("FDRRecorder requires a version 4 source header")
+        self._source = source
+        self._sink = sink
+        self._monotonic_clock = monotonic_clock
+        self._cleanup_timeout_seconds = _positive_finite(cleanup_timeout_seconds, "cleanup_timeout_seconds")
+        self._cleanup_wait = cleanup_wait
+
+    def _bounded_cleanup(self, action: Callable[[], None], label: str) -> None:
+        completed = threading.Event()
+        failures: list[BaseException] = []
+
+        def run() -> None:
+            try:
+                action()
+            except BaseException as exc:
+                failures.append(exc)
+            finally:
+                completed.set()
+
+        threading.Thread(target=run, name=f"xpwebapi-fdr-{label}", daemon=True).start()
+        if not self._cleanup_wait(completed, self._cleanup_timeout_seconds):
+            raise TimeoutError(f"{label} cleanup exceeded {self._cleanup_timeout_seconds:g} seconds")
+        if failures:
+            raise failures[0]
+
+    @staticmethod
+    def _raise_failures(failures: list[BaseException]) -> None:
+        if len(failures) == 1:
+            raise failures[0]
+        raise BaseExceptionGroup("FDR recording or cleanup failed", failures)
+
+    def _abort_with(self, failures: list[BaseException]) -> None:
+        try:
+            self._bounded_cleanup(self._sink.abort, "sink abort")
+        except BaseException as exc:
+            failures.append(exc)
+        self._raise_failures(failures)
+
+    def _accept_source_sample(self, progress: _RecordingProgress, source_sample: FDRSourceSample) -> None:
+        if progress.last_sample_at is not None and source_sample.timestamp_utc < progress.last_sample_at:
+            raise FDRValidationError("source sample UTC timestamps must not move backwards")
+        sample = _sample_from_source(self._source.header, source_sample)
+        self._sink.write_sample(sample)
+        progress.sample_count += 1
+        progress.first_sample_at = progress.first_sample_at or source_sample.timestamp_utc
+        progress.last_sample_at = source_sample.timestamp_utc
+
+    def _consume_samples(self, recording_stop: _RecordingStopEvent) -> _RecordingProgress:
+        progress = _RecordingProgress()
+        iterator = iter(self._source.samples(recording_stop))
+        while not recording_stop.is_set():
+            try:
+                source_sample = next(iterator)
+            except StopIteration:
+                break
+            except KeyboardInterrupt:
+                progress.termination = "keyboard_interrupt"
+                break
+            if recording_stop.is_set():
+                break
+            self._accept_source_sample(progress, source_sample)
+        return progress
+
+    @staticmethod
+    def _resolve_termination(
+        progress: _RecordingProgress,
+        recording_stop: _RecordingStopEvent,
+        stop_event: threading.Event,
+    ) -> None:
+        if progress.termination == "keyboard_interrupt":
+            return
+        if recording_stop.duration_reached:
+            progress.termination = "duration_reached"
+        elif stop_event.is_set() or recording_stop.is_set():
+            progress.termination = "stop_requested"
+
+    def _commit_result(self, progress: _RecordingProgress) -> FDRRecordResult:
+        if progress.sample_count == 0 or progress.first_sample_at is None or progress.last_sample_at is None:
+            self._abort_with([FDRValidationError("cannot complete an FDR recording without samples")])
+        completed_first_sample_at = cast(datetime, progress.first_sample_at)
+        completed_last_sample_at = cast(datetime, progress.last_sample_at)
+        try:
+            self._sink.commit()
+        except BaseException as exc:
+            self._abort_with([exc])
+        return FDRRecordResult(
+            sample_count=progress.sample_count,
+            started_at_utc=completed_first_sample_at,
+            ended_at_utc=completed_last_sample_at,
+            duration=completed_last_sample_at - completed_first_sample_at,
+            termination=progress.termination,
+            partial_path=None,
+            final_path=self._sink.destination_path,
+        )
+
+    def record(
+        self,
+        *,
+        stop_event: threading.Event,
+        maximum_duration: float | None = None,
+    ) -> FDRRecordResult:
+        """Record until exhaustion, request, deadline, or graceful interrupt."""
+
+        if not isinstance(stop_event, threading.Event):
+            raise TypeError("stop_event must be a threading.Event")
+        if maximum_duration is not None:
+            maximum_duration = _positive_finite(maximum_duration, "maximum_duration")
+        started_monotonic = self._monotonic_clock()
+        deadline = None if maximum_duration is None else started_monotonic + maximum_duration
+        recording_stop = _RecordingStopEvent(stop_event, monotonic_clock=self._monotonic_clock, deadline=deadline)
+        failures: list[BaseException] = []
+        progress = _RecordingProgress()
+
+        try:
+            progress = self._consume_samples(recording_stop)
+            self._resolve_termination(progress, recording_stop, stop_event)
+        except BaseException as exc:
+            failures.append(exc)
+        finally:
+            try:
+                self._bounded_cleanup(self._source.close, "source")
+            except BaseException as exc:
+                failures.append(exc)
+
+        if failures:
+            self._abort_with(failures)
+        return self._commit_result(progress)
 
 
 class LiveFDRSampleSource:
