@@ -55,8 +55,11 @@ The implementation will be checked against:
   `https://x-plane.com/manuals/desktop/12/`;
 - the X-Plane 12 `FDR Example Version 4.fdr` reference sample mirrored in
   `devleaks/xplane-webapi` under `docs/`;
-- a valid X-Plane version 3 reference fixture obtained before version 3 parser
+- the X-Plane 12 `FDR Example Version 3.fdr` reference sample distributed in
+  the simulator's `Instructions/` directory, obtained before version 3 parser
   work begins;
+- Laminar Research's legacy version 3 field documentation at
+  `https://www.x-plane.com/kb/fdr-files-x-plane-11/`;
 - RFC 7946 for GeoJSON geometry, feature properties, coordinate reference
   system, and antimeridian behavior.
 
@@ -134,14 +137,21 @@ An `FDRRecording` will contain:
 - ordered known and unknown metadata fields;
 - ordered `FDRDataref` declarations containing path, finite conversion factor,
   and optional comment;
+- for version 3 input, the ordered legacy fixed-column declarations and their
+  values, separate from version 4 `DREF` declarations;
 - ordered samples;
 - the unzoned local calendar date from `DATE`, when present.
 
-Mandatory sample fields are UTC time, longitude, latitude, altitude above mean
-sea level in feet, magnetic heading, pitch, and roll. Additional `DREF` fields
-remain ordered and are preserved as finite numeric sample values. The reader will
-accept surrounding whitespace but the writer will emit one canonical form.
-The conversion factor is part of the declaration, not pre-applied to the stored
+Version 4 mandatory sample fields are UTC time, longitude, latitude, altitude
+above mean sea level in feet, magnetic heading, pitch, and roll. Additional
+`DREF` fields remain ordered and are preserved as finite numeric sample values.
+Version 3 instead uses Laminar Research's legacy fixed-column `DATA` layout;
+the reader will preserve those positional values, resolve its elapsed-seconds
+field from the Zulu start time in `TIME`, and map its documented position,
+heading, pitch, and roll columns into the common navigation view.
+Legacy-only fields will not be mislabeled as DataRefs. The reader will accept
+surrounding whitespace but the writer will emit one canonical form. The version
+4 conversion factor is part of the declaration, not pre-applied to the stored
 sample. This preserves the source values that X-Plane will scale during replay.
 
 Models will reject booleans where a numeric value is required, non-finite
@@ -203,10 +213,12 @@ the source line number and a concise explanation. It will:
   comment;
 - treat human-readable column comments as optional annotations rather than
   schema;
-- derive the schema from the seven mandatory columns followed by the ordered
-  `DREF` declarations;
-- require every sample to contain exactly seven plus the declared `DREF` count
-  columns;
+- derive a version 4 schema from the seven mandatory columns followed by the
+  ordered `DREF` declarations;
+- derive a version 3 schema from Laminar Research's documented fixed-column
+  layout and retain all legacy positional values;
+- require every version 4 sample to contain exactly seven plus the declared
+  `DREF` count columns and every version 3 sample to match its fixed schema;
 - reject malformed numbers and timestamps rather than printing warnings;
 - detect midnight rollover when calculating duration or resolving an explicit
   caller-supplied UTC date;
@@ -219,12 +231,14 @@ Library code will not print diagnostics directly.
 
 ## Writer and Recording Behavior
 
-`FDRWriter` will serialize any valid `FDRRecording` as version 4
-deterministically. Given the same model, it will produce identical UTF-8 bytes
-and LF line endings. It will never derive dates, clocks, aircraft identity, or
-field order from ambient process state. A version 3 recording can therefore be
-read and normalized into version 4 output without claiming to preserve its
-original bytes.
+`FDRWriter` will serialize any valid version 4 `FDRRecording` deterministically.
+Given the same model, it will produce identical UTF-8 bytes and LF line endings.
+It will never derive dates, clocks, aircraft identity, or field order from
+ambient process state. A version 3 recording can be normalized into version 4
+only after an explicit lossy-conversion opt-in when it contains legacy-only
+columns. The conversion will retain the common navigation fields and report
+which legacy fields are omitted; it will never imply byte or semantic
+preservation that the target format cannot provide.
 
 `FDRRecorder` will compose a sample source and sink. Live recording will use
 the repository's read-only capture and observation machinery rather than a
@@ -336,7 +350,8 @@ Verification will include:
 - DataRef conversion-factor and comment preservation;
 - midnight rollover and multi-day duration;
 - deterministic writer output and read/write round trips;
-- version 3 input normalized to canonical version 4 output;
+- version 3 fixed-column preservation and explicit lossy normalization to
+  canonical version 4 output;
 - synthetic source-to-recorder tests with injected clocks;
 - valid GeoJSON structure, two-dimensional coordinate order, MSL altitude
   properties, explicit UTC-date resolution, and antimeridian splitting;
