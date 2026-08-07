@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import sysconfig
 from tempfile import TemporaryDirectory
 
 import xpwebapi
@@ -32,6 +33,7 @@ _FDR_PUBLIC_NAMES = frozenset(
         "FDRSample",
         "FDRSampleSink",
         "FDRSampleSource",
+        "FDRSampleStream",
         "FDRSourceSample",
         "FDRStreamWriter",
         "FDRValidationError",
@@ -63,7 +65,8 @@ def _check_installed_import() -> None:
 
 def _installed_command(name: str) -> Path:
     suffix = ".exe" if os.name == "nt" else ""
-    scripts = Path(sys.executable).resolve().parent
+    scripts_path = sysconfig.get_path("scripts")
+    scripts = Path(scripts_path) if scripts_path else Path(sys.executable).parent
     preferred = scripts / f"{name}{suffix}"
     alternate = scripts / (name if suffix else f"{name}.exe")
     return alternate if not preferred.is_file() and alternate.is_file() else preferred
@@ -94,6 +97,10 @@ def _check_geojson(path: Path) -> None:
     points = [feature for feature in features if feature.get("geometry", {}).get("type") == "Point"]
     if len(points) != 2:
         raise RuntimeError("FDR CLI GeoJSON does not contain the expected points")
+    expected_coordinates = [[-87.9048, 41.9742], [-87.9047, 41.9743]]
+    actual_coordinates = [point["geometry"].get("coordinates") for point in points]
+    if actual_coordinates != expected_coordinates:
+        raise RuntimeError("FDR CLI GeoJSON point coordinate pairs or order are incorrect")
     for point in points:
         coordinates = point["geometry"].get("coordinates")
         properties = point.get("properties", {})

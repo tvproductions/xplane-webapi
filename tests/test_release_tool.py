@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 import subprocess
 import sys
+import sysconfig
 import tarfile
 from tempfile import TemporaryDirectory
 import unittest
@@ -16,6 +17,8 @@ import zipfile
 
 from tools import installed_smoke, release
 from tools.release import ReleaseValidationError, check_dist, check_tag
+import xpwebapi.fdr as fdr
+from xpwebapi.fdr.reader import FDRSampleStream
 
 
 VERSION = "4.1.0"
@@ -115,6 +118,13 @@ def write_archives(
 
 
 class ReleaseToolTests(unittest.TestCase):
+    def test_public_fdr_contract_exports_sample_stream(self) -> None:
+        self.assertIn("FDRSampleStream", fdr.__all__)
+        self.assertIs(FDRSampleStream, fdr.FDRSampleStream)
+
+    def test_installed_smoke_requires_sample_stream(self) -> None:
+        self.assertIn("FDRSampleStream", installed_smoke._FDR_PUBLIC_NAMES)
+
     def test_tag_must_match_project_and_runtime_versions(self) -> None:
         check_tag("v4.1.0")
         for invalid_tag in ("v4.1.1", "4.1.0"):
@@ -378,6 +388,7 @@ class ReleaseToolTests(unittest.TestCase):
             with (
                 mock.patch.object(sys, "argv", ["installed_smoke.py", VERSION]),
                 mock.patch.object(installed_smoke.sys, "executable", str(python)),
+                mock.patch.object(sysconfig, "get_path", return_value=str(python.parent)),
                 mock.patch.object(installed_smoke, "REPO_ROOT", root / "checkout"),
                 mock.patch.object(installed_smoke.subprocess, "run", side_effect=run_command) as run,
             ):
@@ -400,6 +411,57 @@ class ReleaseToolTests(unittest.TestCase):
         ):
             installed_smoke.main()
         run.assert_not_called()
+
+    def test_installed_command_keeps_symlinked_venv_scripts_directory(self) -> None:
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            scripts = root / "venv" / "bin"
+            python = scripts / "python"
+            base_python = root / "base" / "bin" / "python"
+            suffix = ".exe" if installed_smoke.os.name == "nt" else ""
+            expected = scripts / f"xpwebapi-fdr{suffix}"
+            expected.parent.mkdir(parents=True)
+            expected.touch()
+            original_resolve = Path.resolve
+
+            def resolve_symlink(path: Path, strict: bool = False) -> Path:
+                if path == python:
+                    return base_python
+                return original_resolve(path, strict=strict)
+
+            with (
+                mock.patch.object(installed_smoke.sys, "executable", str(python)),
+                mock.patch.object(sysconfig, "get_path", return_value=str(scripts)),
+                mock.patch.object(Path, "resolve", resolve_symlink),
+            ):
+                self.assertEqual(expected, installed_smoke._installed_command("xpwebapi-fdr"))
+
+    def test_installed_smoke_rejects_wrong_geojson_coordinate_pairs_or_order(self) -> None:
+        with TemporaryDirectory() as temporary:
+            output = Path(temporary) / "flight.geojson"
+            output.write_text(
+                json.dumps(
+                    {
+                        "type": "FeatureCollection",
+                        "features": [
+                            {
+                                "type": "Feature",
+                                "geometry": {"type": "Point", "coordinates": [41.9742, -87.9048]},
+                                "properties": {"altitude_msl_ft": 1000, "altitude_msl_m": 304.8},
+                            },
+                            {
+                                "type": "Feature",
+                                "geometry": {"type": "Point", "coordinates": [-87.9047, 41.9743]},
+                                "properties": {"altitude_msl_ft": 1001, "altitude_msl_m": 305.1048},
+                            },
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(RuntimeError, "coordinate pairs"):
+                installed_smoke._check_geojson(output)
 
     def test_installed_smoke_rejects_invalid_capture_payload(self) -> None:
         payload = {
