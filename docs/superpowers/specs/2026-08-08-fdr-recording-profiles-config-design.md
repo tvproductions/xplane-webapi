@@ -1,5 +1,12 @@
 # FDR Recording Profiles and JSON Configuration Design
 
+> **Architecture superseded:** Profiles and adapter-neutral recording
+> configuration are moving to `tvproductions/xplane-fdr`. Web API connection
+> configuration remains in `xpwebapi`. This document remains the accepted
+> source for detailed profile membership, composition, validation, and failure
+> behavior, subject to that boundary change. See
+> `docs/superpowers/handoffs/2026-08-08-xplane-fdr-extraction-handoff.md`.
+
 ## Purpose
 
 Extend the approved `xpwebapi.fdr` recorder with useful stock-X-Plane

@@ -1,5 +1,12 @@
 # xpwebapi FDR Toolkit Design
 
+> **Architecture superseded:** The reusable FDR domain is being extracted to
+> the sibling `tvproductions/xplane-fdr` project before release. This document
+> remains the accepted source for detailed format, validation, GeoJSON, CLI,
+> and failure behavior, but references to ownership by `xpwebapi.fdr` no longer
+> define the package boundary. See
+> `docs/superpowers/handoffs/2026-08-08-xplane-fdr-extraction-handoff.md`.
+
 ## Purpose
 
 Add a supported Flight Data Recorder toolkit to `xpwebapi` for release as

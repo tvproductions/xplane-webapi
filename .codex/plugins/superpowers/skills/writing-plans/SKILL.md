@@ -102,7 +102,7 @@ def test_specific_behavior():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `uv run python -m unittest tests.path.test_module.TestClass.test_name -v`
+Run: `pytest tests/path/test.py::test_name -v`
 Expected: FAIL with "function not defined"
 
 - [ ] **Step 3: Write minimal implementation**
@@ -114,7 +114,7 @@ def function(input):
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `uv run python -m unittest tests.path.test_module.TestClass.test_name -v`
+Run: `pytest tests/path/test.py::test_name -v`
 Expected: PASS
 
 - [ ] **Step 5: Commit**
@@ -134,12 +134,6 @@ Every step must contain the actual content an engineer needs. These are **plan f
 - "Similar to Task N" (repeat the code — the engineer may be reading tasks out of order)
 - Steps that describe what to do without showing how (code blocks required for code steps)
 - References to types, functions, or methods not defined in any task
-
-## Remember
-- Exact file paths always
-- Complete code in every step — if a step changes code, show the code
-- Exact commands with expected output
-- DRY, YAGNI, TDD, frequent commits
 
 ## Self-Review
 
