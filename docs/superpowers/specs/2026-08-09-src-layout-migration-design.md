@@ -1,9 +1,9 @@
 # xplane-webapi Source-Layout Migration Design
 
-- **Status:** draft
+- **Status:** approved
 - **Date:** 2026-08-09
 - **Decision owner:** Jeff / tvproductions
-- **Approval:** —
+- **Approval:** 2026-08-09 — Jeff / tvproductions
 
 ## Context
 
