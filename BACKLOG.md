@@ -59,7 +59,7 @@
 
 ### [x] CI/CD pipeline
 - [x] GitHub Actions: lint (`ruff check`), format (`ruff format --check`), type check (`ty check`), test (`python -m unittest discover -v`), and package build validation (`uv build`)
-- [ ] Publish to PyPI on tagged release via `uv publish` — deferred pending upstream PR outcome and package-name strategy
+- [x] Publish version 4.0.0 to PyPI from the tagged release workflow
 - [x] Pre-commit hooks for local development
 - [x] Preserve MkDocs deployment on pushes to `main`
 
