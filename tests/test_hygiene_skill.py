@@ -78,11 +78,11 @@ class HygieneSkillTests(unittest.TestCase):
         skill = (ROOT / ".codex" / "skills" / "hygiene" / "SKILL.md").read_text(encoding="utf-8")
 
         self.assertIn(
-            "uv run python .codex/skills/hygiene/scripts/hygiene.py",
+            "uv run --frozen python .codex/skills/hygiene/scripts/hygiene.py",
             skill,
         )
         self.assertIn(
-            "uv run python .codex/skills/hygiene/scripts/hygiene.py --dependencies",
+            "uv run --frozen python .codex/skills/hygiene/scripts/hygiene.py --dependencies",
             skill,
         )
         self.assertIn("full-strength", skill)
@@ -130,8 +130,8 @@ updates:
             [
                 ("git", "status", "--short", "--branch"),
                 ("uv", "lock", "--check", "--offline"),
-                ("uv", "run", "python", "tools/quality.py", "check"),
-                ("uv", "run", "python", "tools/quality.py", "pre-commit"),
+                ("uv", "run", "--frozen", "python", "tools/quality.py", "check"),
+                ("uv", "run", "--frozen", "python", "tools/quality.py", "pre-commit"),
             ],
         )
 

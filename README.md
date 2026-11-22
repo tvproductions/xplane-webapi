@@ -15,10 +15,11 @@ Laminar Research. X-Plane is a trademark of Laminar Research.
 
 ## Installation
 
-Requires Python 3.12 or 3.13.
+Requires Python 3.12.
 
 ```sh
-pip install xpwebapi
+uv venv --python 3.12.15
+uv pip install --python .venv xpwebapi
 ```
 
 ## Quick start
@@ -51,9 +52,15 @@ https://tvproductions.github.io/xplane-webapi/.
 ```sh
 git clone https://github.com/tvproductions/xplane-webapi.git
 cd xplane-webapi
-uv sync
-uv run python -m unittest discover -v
+uv python install
+uv sync --frozen
+uv run --frozen python -m unittest discover -v
 ```
+
+uv manages the pinned Python runtime, project environment and committed lockfile.
+Use `uv add`, `uv remove` and `uv lock` for dependency changes; run project tools
+with `uv run --frozen`. Agent workflow policy is in
+[AGENTS.skills-first.md](https://github.com/tvproductions/xplane-webapi/blob/main/AGENTS.skills-first.md).
 
 ## License
 

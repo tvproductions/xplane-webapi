@@ -17,8 +17,8 @@ Runner = Callable[..., subprocess.CompletedProcess[str]]
 LOCAL_COMMANDS = (
     ("git", "status", "--short", "--branch"),
     ("uv", "lock", "--check", "--offline"),
-    ("uv", "run", "python", "tools/quality.py", "check"),
-    ("uv", "run", "python", "tools/quality.py", "pre-commit"),
+    ("uv", "run", "--frozen", "python", "tools/quality.py", "check"),
+    ("uv", "run", "--frozen", "python", "tools/quality.py", "pre-commit"),
 )
 DEPENDENCY_COMMAND = (
     "uv",

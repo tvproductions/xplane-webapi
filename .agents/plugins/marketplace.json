@@ -1,0 +1,47 @@
+{
+  "name": "xplane-webapi-skills-first",
+  "interface": {
+    "displayName": "xplane-webapi skills-first stack"
+  },
+  "plugins": [
+    {
+      "name": "superpowers",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/obra/superpowers.git",
+        "ref": "5bf4e78011075bcfc0dc295f0724994cd123ee71"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_USE"
+      },
+      "category": "Developer Tools"
+    },
+    {
+      "name": "superpowers-backplane",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/tvproductions/superpowers-backplane.git",
+        "ref": "d0eeee829c491da02351e793544aa16ad96461bf"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_USE"
+      },
+      "category": "Developer Tools"
+    },
+    {
+      "name": "gz-skills",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/tvproductions/gz-skills.git",
+        "ref": "6ebf803e4a2775d3742c84984a03548275b7c926"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_USE"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}

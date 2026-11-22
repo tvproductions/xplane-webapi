@@ -14,7 +14,7 @@ Use the repo-local wrapper in `tools/quality.py` so agents run the same quality 
 Run the blocking gate before commits, pushes, PRs, and after non-trivial code changes:
 
 ```powershell
-uv run python tools\quality.py check
+uv run --frozen python tools\quality.py check
 ```
 
 `check` runs:
@@ -39,24 +39,24 @@ Fix in-scope failures and rerun the failed gate or the full `check`.
 Use focused gates during iteration:
 
 ```powershell
-uv run python tools\quality.py lint
-uv run python tools\quality.py format-check
-uv run python tools\quality.py format
-uv run python tools\quality.py typecheck
-uv run python tools\quality.py test
-uv run python tools\quality.py coverage
-uv run python tools\quality.py security
-uv run python tools\quality.py docs
-uv run python tools\quality.py dead-code
-uv run python tools\quality.py metrics
-uv run python tools\quality.py pre-commit
-uv run python tools\quality.py complexity
+uv run --frozen python tools\quality.py lint
+uv run --frozen python tools\quality.py format-check
+uv run --frozen python tools\quality.py format
+uv run --frozen python tools\quality.py typecheck
+uv run --frozen python tools\quality.py test
+uv run --frozen python tools\quality.py coverage
+uv run --frozen python tools\quality.py security
+uv run --frozen python tools\quality.py docs
+uv run --frozen python tools\quality.py dead-code
+uv run --frozen python tools\quality.py metrics
+uv run --frozen python tools\quality.py pre-commit
+uv run --frozen python tools\quality.py complexity
 ```
 
 Use the Wily trend gate as an advisory or targeted refactor tool after the worktree is clean:
 
 ```powershell
-uv run python tools\quality.py wily
+uv run --frozen python tools\quality.py wily
 ```
 
 The current complexity baseline is `C/B/A`: block rank `C`, module rank `B`, average rank `A`. Wily's git archiver requires a clean worktree.
@@ -68,4 +68,4 @@ The current complexity baseline is `C/B/A`: block rank `C`, module rank `B`, ave
 - Treat `tools/quality.py check` as the CI-equivalent local gate.
 - Keep generated coverage and Wily cache data out of commits.
 - Update `.secrets.baseline` intentionally when secret-scan settings or reviewed findings change; do not regenerate it casually to hide new findings.
-- If a gate fails because a required dev tool is missing, run `uv sync` and retry once.
+- If a gate fails because a required dev tool is missing, run `uv sync --frozen` and retry once.

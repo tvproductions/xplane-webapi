@@ -17,9 +17,9 @@ Publish the current `xplane-webapi` worktree deliberately: inspect scope, valida
 4. Run validation before committing:
 
 ```powershell
-uv run python -m unittest discover -v
-uv run ruff check xpwebapi tests
-uv run ruff format --check xpwebapi tests
+uv run --frozen python -m unittest discover -v
+uv run --frozen ruff check xpwebapi tests
+uv run --frozen ruff format --check xpwebapi tests
 ```
 
 5. Fix validation failures that are in scope, then rerun the failed command. Do not introduce or suggest other test frameworks.

@@ -83,7 +83,7 @@ def _check_metadata(metadata_bytes: bytes, *, archive: Path, version: str) -> No
     if metadata["Name"] != "xpwebapi" or metadata["Version"] != version:
         raise ReleaseValidationError(f"{archive.name} metadata identity is incorrect")
     requires_python = "".join(str(metadata["Requires-Python"]).split())
-    if requires_python not in {">=3.12,<3.14", "<3.14,>=3.12"}:
+    if requires_python not in {">=3.12,<3.13", "<3.13,>=3.12"}:
         raise ReleaseValidationError(f"{archive.name} Requires-Python is incorrect")
 
 

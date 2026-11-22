@@ -1,0 +1,25 @@
+# Register this checkout's catalog with: codex plugin marketplace add .
+# Native installation is shared; enablement below applies to this project.
+[plugins."superpowers@xplane-webapi-skills-first"]
+enabled = true
+
+[plugins."gz-skills@xplane-webapi-skills-first"]
+enabled = true
+
+[plugins."superpowers-backplane@xplane-webapi-skills-first"]
+enabled = false
+
+[plugins."gz-skills@gz-skills"]
+enabled = false
+
+[plugins."superpowers@xplane-health-skills-first"]
+enabled = false
+
+[plugins."gz-skills@xplane-health-skills-first"]
+enabled = false
+
+[plugins."superpowers@ortho4xp-skills-first"]
+enabled = false
+
+[plugins."gz-skills@ortho4xp-skills-first"]
+enabled = false

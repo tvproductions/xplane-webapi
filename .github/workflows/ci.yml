@@ -10,17 +10,17 @@ permissions:
 
 jobs:
   quality:
-    # python-version: "3.13" is selected explicitly by the uv commands below.
+    # python-version: "3.12.15" is selected explicitly by the uv commands below.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
       - uses: astral-sh/setup-uv@v9.0.0
         with:
           enable-cache: true
-      - run: uv python install 3.13
-      - run: uv sync --frozen --python 3.13
-      - run: uv run --python 3.13 python tools/quality.py check
-      - run: uv run --python 3.13 mkdocs build --strict
+      - run: uv python install 3.12.15
+      - run: uv sync --frozen --python 3.12.15
+      - run: uv run --frozen --python 3.12.15 python tools/quality.py check
+      - run: uv run --frozen --python 3.12.15 mkdocs build --strict
 
   package:
     needs: quality
@@ -28,11 +28,11 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: astral-sh/setup-uv@v9.0.0
-      - run: uv python install 3.13
-      - run: uv build --no-sources
-      - run: uv tool run twine check --strict dist/*
-      # uv run python tools/release.py check-dist dist uses Python 3.13 below.
-      - run: uv run --python 3.13 python tools/release.py check-dist dist
+      - run: uv python install 3.12.15
+      - run: uv build --python 3.12.15 --no-sources
+      - run: uv run --frozen --python 3.12.15 twine check --strict dist/*
+      # uv run python tools/release.py check-dist dist uses Python 3.12.15 below.
+      - run: uv run --frozen --python 3.12.15 python tools/release.py check-dist dist
       - uses: actions/upload-artifact@v7
         with:
           name: python-distributions
@@ -45,13 +45,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.12", "3.13"]
+        python-version: ["3.12.15"]
     steps:
       - uses: actions/checkout@v6
       - uses: astral-sh/setup-uv@v9.0.0
       - run: uv python install ${{ matrix.python-version }}
       - run: uv sync --frozen --python ${{ matrix.python-version }}
-      - run: uv run --python ${{ matrix.python-version }} python -m unittest discover -v
+      - run: uv run --frozen --python ${{ matrix.python-version }} python -m unittest discover -v
       - uses: actions/download-artifact@v8
         with:
           name: python-distributions
@@ -72,7 +72,7 @@ jobs:
         with:
           fetch-depth: 0
       - uses: astral-sh/setup-uv@v9.0.0
-      - run: uv python install 3.13
-      - run: uv sync --frozen --python 3.13
-      # uv run mkdocs gh-deploy --force uses Python 3.13 below.
-      - run: uv run --python 3.13 mkdocs gh-deploy --force
+      - run: uv python install 3.12.15
+      - run: uv sync --frozen --python 3.12.15
+      # uv run mkdocs gh-deploy --force uses Python 3.12.15 below.
+      - run: uv run --frozen --python 3.12.15 mkdocs gh-deploy --force

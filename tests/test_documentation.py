@@ -90,7 +90,7 @@ class TestDocumentationContent(unittest.TestCase):
             tag_step.get("env"),
         )
         self.assertEqual(
-            'uv run --python 3.13 python tools/release.py check-tag "$RELEASE_TAG"',
+            'uv run --frozen --python 3.12.15 python tools/release.py check-tag "$RELEASE_TAG"',
             tag_step["run"],
         )
 
@@ -138,7 +138,7 @@ class TestDocumentationContent(unittest.TestCase):
         self.assertEqual("compatibility", jobs["pypi"]["needs"])
         self.assertEqual("pypi", jobs["github-release"]["needs"])
         self.assertEqual(
-            ["3.12", "3.13"],
+            ["3.12.15"],
             jobs["compatibility"]["strategy"]["matrix"]["python-version"],
         )
 
@@ -171,7 +171,7 @@ class TestDocumentationContent(unittest.TestCase):
 
         commands = [step["run"] for job in jobs.values() for step in _run_steps(job)]
         self.assertEqual(
-            ["uv build --no-sources"],
+            ["uv build --python 3.12.15 --no-sources"],
             [command for command in commands if "uv build" in command],
         )
 
@@ -238,7 +238,7 @@ class TestDocumentationContent(unittest.TestCase):
         self.assertEqual("package", jobs["compatibility"]["needs"])
         self.assertEqual(["quality", "compatibility"], jobs["docs"]["needs"])
         self.assertEqual(
-            ["3.12", "3.13"],
+            ["3.12.15"],
             jobs["compatibility"]["strategy"]["matrix"]["python-version"],
         )
 
@@ -258,29 +258,29 @@ class TestDocumentationContent(unittest.TestCase):
         }
         expected_commands = {
             "quality": [
-                "uv python install 3.13",
-                "uv sync --frozen --python 3.13",
-                "uv run --python 3.13 python tools/quality.py check",
-                "uv run --python 3.13 mkdocs build --strict",
+                "uv python install 3.12.15",
+                "uv sync --frozen --python 3.12.15",
+                "uv run --frozen --python 3.12.15 python tools/quality.py check",
+                "uv run --frozen --python 3.12.15 mkdocs build --strict",
             ],
             "package": [
-                "uv python install 3.13",
-                "uv build --no-sources",
-                "uv tool run twine check --strict dist/*",
-                "uv run --python 3.13 python tools/release.py check-dist dist",
+                "uv python install 3.12.15",
+                "uv build --python 3.12.15 --no-sources",
+                "uv run --frozen --python 3.12.15 twine check --strict dist/*",
+                "uv run --frozen --python 3.12.15 python tools/release.py check-dist dist",
             ],
             "compatibility": [
                 "uv python install ${{ matrix.python-version }}",
                 "uv sync --frozen --python ${{ matrix.python-version }}",
-                "uv run --python ${{ matrix.python-version }} python -m unittest discover -v",
+                "uv run --frozen --python ${{ matrix.python-version }} python -m unittest discover -v",
                 "uv venv --python ${{ matrix.python-version }} .smoke",
                 "uv pip install --python .smoke/bin/python dist/*.whl",
                 'cd "$RUNNER_TEMP" && "$GITHUB_WORKSPACE/.smoke/bin/python" "$GITHUB_WORKSPACE/tools/installed_smoke.py" 4.0.0',
             ],
             "docs": [
-                "uv python install 3.13",
-                "uv sync --frozen --python 3.13",
-                "uv run --python 3.13 mkdocs gh-deploy --force",
+                "uv python install 3.12.15",
+                "uv sync --frozen --python 3.12.15",
+                "uv run --frozen --python 3.12.15 mkdocs gh-deploy --force",
             ],
         }
         for job_name in jobs:
@@ -400,7 +400,8 @@ class TestDocumentationContent(unittest.TestCase):
         readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
         changelog = (REPO_ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
 
-        self.assertIn("pip install xpwebapi", readme)
+        self.assertIn("uv venv --python 3.12.15", readme)
+        self.assertIn("uv pip install --python .venv xpwebapi", readme)
         self.assertIn("TV Productions", readme)
         self.assertIn("devleaks/xplane-webapi", readme)
         self.assertIn("independently maintained fork", readme)

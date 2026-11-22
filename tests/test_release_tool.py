@@ -27,7 +27,7 @@ SCHEMAS = (
 )
 
 
-def metadata(*, name: str = "xpwebapi", version: str = VERSION, requires_python: str = "<3.14,>=3.12") -> str:
+def metadata(*, name: str = "xpwebapi", version: str = VERSION, requires_python: str = "<3.13,>=3.12") -> str:
     return "\n".join(
         (
             "Metadata-Version: 2.4",
@@ -138,9 +138,22 @@ class ReleaseToolTests(unittest.TestCase):
     def test_build_backend_requires_python_spacing_is_accepted(self) -> None:
         with TemporaryDirectory() as temporary:
             root = Path(temporary)
-            built_metadata = metadata(requires_python=">=3.12, <3.14")
+            built_metadata = metadata(requires_python=">=3.12, <3.13")
             write_archives(root, wheel_metadata=built_metadata, source_metadata=built_metadata)
             check_dist(root)
+
+    def test_former_python_313_support_is_rejected(self) -> None:
+        for member in ("wheel_metadata", "source_metadata"):
+            with self.subTest(member=member), TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                former_metadata = metadata(requires_python=">=3.12,<3.14")
+                write_archives(
+                    root,
+                    wheel_metadata=former_metadata if member == "wheel_metadata" else None,
+                    source_metadata=former_metadata if member == "source_metadata" else None,
+                )
+                with self.assertRaisesRegex(ReleaseValidationError, "Requires-Python"):
+                    check_dist(root)
 
     def test_missing_wheel_members_are_rejected(self) -> None:
         prefix = f"xpwebapi-{VERSION}.dist-info"

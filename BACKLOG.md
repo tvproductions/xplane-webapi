@@ -1,5 +1,38 @@
 # Backlog
 
+GitHub Issues are the actionable backlog for this independently maintained
+fork. This file is the concise priority index; detailed scope, decisions,
+progress, and acceptance evidence belong in the linked issues and their
+Superpowers specifications and plans. Changes from `devleaks/xplane-webapi`
+are reviewed selectively and are not merged wholesale.
+
+## Active roadmap
+
+1. [Complete the `src/xpwebapi` source-layout migration](https://github.com/tvproductions/xplane-webapi/issues/2)
+2. [Add typed X-Plane API v3 flight management](https://github.com/tvproductions/xplane-webapi/issues/3)
+3. [Add configurable NUL-byte replacement for decoded DataRefs](https://github.com/tvproductions/xplane-webapi/issues/4)
+4. [Integrate and verify the FDR toolkit](https://github.com/tvproductions/xplane-webapi/issues/5)
+5. [Design an optional FDR flight and telemetry viewer](https://github.com/tvproductions/xplane-webapi/issues/6)
+6. [Establish a recurring upstream-intake workflow](https://github.com/tvproductions/xplane-webapi/issues/7)
+
+## Release scope
+
+- The published baseline is `v4.0.0` (2026-07-26), commit
+  `2518aed3b234bf3aca73323d452f33628258d65f`, with Python support `>=3.12,<3.14`.
+- The [skills-first adoption record](docs/superpowers/skills-first-adoption.md)
+  covers the completed adoption of native skills, frozen uv workflows, and
+  the Python `>=3.12,<3.13` support policy. Dropping Python 3.13 is a
+  breaking compatibility change despite an unchanged Python client API.
+- Shipping that removal requires `5.0.0` and a new major PRD. The release
+  scope and target remain unapproved. Package metadata, runtime version and
+  lock metadata still agree on `4.0.0`, with the changes under Unreleased in
+  the changelog. Before release, approve the PRD and finite scope, reconcile
+  version mirrors and changelog, and pass the existing quality, packaging,
+  installed-wheel and tag gates.
+- Implementation of the active roadmap remains pending. Individual items enter
+  a release through its approved scope. Backplane stays deferred under the
+  adoption record.
+
 ## P0 — Critical
 
 ### [x] Expand unittest coverage

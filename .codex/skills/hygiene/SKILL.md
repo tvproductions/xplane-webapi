@@ -17,7 +17,7 @@ Inspect the worktree, then run the deterministic workflow:
 git status --short --branch
 git diff --stat
 git diff --cached --stat
-uv run python .codex/skills/hygiene/scripts/hygiene.py
+uv run --frozen python .codex/skills/hygiene/scripts/hygiene.py
 ```
 
 Always use the full-strength workflow. It validates the lockfile offline, runs the complete quality gate, and runs repository pre-commit hooks.
@@ -27,7 +27,7 @@ Always use the full-strength workflow. It validates the lockfile offline, runs t
 For dependency freshness requests and before completing a dependency chore, run:
 
 ```powershell
-uv run python .codex/skills/hygiene/scripts/hygiene.py --dependencies
+uv run --frozen python .codex/skills/hygiene/scripts/hygiene.py --dependencies
 ```
 
 This mode queries package metadata, reports stale direct runtime and development dependencies separately, and then runs the full local workflow when dependency versions are current.

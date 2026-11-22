@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+- Clarify existing release planning: PRDs guide majors, selected work and
+  requirements drive minors, and fixes drive patches. Require explicit scope,
+  version rationale and acceptance evidence; preserve current release gates.
+
+- Restrict Python support to 3.12 for XPPython-adjacent compatibility; pin
+  uv-managed development and CI to 3.12.15.
+- Adopt the skills-first starter with the lite profile, pinned native Superpowers
+  and gz-skills, and deferred Backplane.
+- Require frozen uv execution for routine quality workflows and lock Twine as a
+  development dependency.
+
 ## 4.0.0 - 2026-07-26
 
 First independently maintained TV Productions release and first PyPI release.

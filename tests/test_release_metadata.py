@@ -21,9 +21,9 @@ class ReleaseMetadataTests(unittest.TestCase):
         project = PROJECT["project"]
         self.assertEqual("xpwebapi", project["name"])
         self.assertEqual("4.0.0", project["version"])
-        self.assertEqual(">=3.12,<3.14", project["requires-python"])
+        self.assertEqual(">=3.12,<3.13", project["requires-python"])
         self.assertIn("Programming Language :: Python :: 3.12", project["classifiers"])
-        self.assertIn("Programming Language :: Python :: 3.13", project["classifiers"])
+        self.assertNotIn("Programming Language :: Python :: 3.13", project["classifiers"])
         self.assertNotIn(
             "License :: OSI Approved :: MIT License",
             project["classifiers"],

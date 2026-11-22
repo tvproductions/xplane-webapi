@@ -33,6 +33,7 @@ updates:
           - "pre-commit"
           - "pyyaml"
           - "ruff"
+          - "twine"
           - "ty"
           - "vulture"
           - "wily"

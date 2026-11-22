@@ -58,7 +58,7 @@ class TestQualityTool(unittest.TestCase):
             result = quality.run_steps(quality.COMMANDS["typecheck"], runner=runner)
 
         self.assertEqual(result, 0)
-        runner.assert_called_once_with(("uv", "run", "ty", "check"), check=False)
+        runner.assert_called_once_with(("uv", "run", "--frozen", "ty", "check"), check=False)
 
     def test_tracked_path_gate_appends_git_tracked_files(self):
         runner = MagicMock()

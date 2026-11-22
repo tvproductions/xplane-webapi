@@ -26,7 +26,7 @@ class Step:
 
 
 def uv(*args: str) -> tuple[str, ...]:
-    return ("uv", "run", *args)
+    return ("uv", "run", "--frozen", *args)
 
 
 COMMANDS: dict[str, tuple[Step, ...]] = {
