@@ -1088,8 +1088,9 @@ work began; TV Productions maintains releases beginning with 4.0.0.</p>
 <p>This project is not endorsed by or affiliated with the upstream maintainer or
 Laminar Research. X-Plane is a trademark of Laminar Research.</p>
 <h2 id="installation">Installation</h2>
-<p>Requires Python 3.12 or 3.13.</p>
-<pre><code class="language-sh">pip install xpwebapi
+<p>Requires Python 3.12.</p>
+<pre><code class="language-sh">uv venv --python 3.12.15
+uv pip install --python .venv xpwebapi
 </code></pre>
 <h2 id="quick-start">Quick start</h2>
 <pre><code class="language-python">import xpwebapi
@@ -1111,9 +1112,14 @@ https://tvproductions.github.io/xplane-webapi/.</p>
 <h2 id="development">Development</h2>
 <pre><code class="language-sh">git clone https://github.com/tvproductions/xplane-webapi.git
 cd xplane-webapi
-uv sync
-uv run python -m unittest discover -v
+uv python install
+uv sync --frozen
+uv run --frozen python -m unittest discover -v
 </code></pre>
+<p>uv manages the pinned Python runtime, project environment and committed lockfile.
+Use <code>uv add</code>, <code>uv remove</code> and <code>uv lock</code> for dependency changes; run project tools
+with <code>uv run --frozen</code>. Agent workflow policy is in
+<a href="https://github.com/tvproductions/xplane-webapi/blob/main/AGENTS.skills-first.md">AGENTS.skills-first.md</a>.</p>
 <h2 id="license">License</h2>
 <p>MIT. See <a href="https://github.com/tvproductions/xplane-webapi/blob/main/LICENSE"><code>LICENSE</code></a>.</p>
 
