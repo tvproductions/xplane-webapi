@@ -23,6 +23,12 @@ are reviewed selectively and are not merged wholesale.
   covers the completed adoption of native skills, frozen uv workflows, and
   the Python `>=3.12,<3.13` support policy. Dropping Python 3.13 is a
   breaking compatibility change despite an unchanged Python client API.
+- The November dependency refresh updates the Python 3.12 patch, compatible
+  locked packages, packaging, CI and the workflow-stack pins. It also qualifies
+  websockets 17 alongside 16 and switches both REST clients to HTTPX2. Code
+  that uses the exposed REST sessions or catches their transport exceptions
+  directly must use the HTTPX2 types. The selected work still requires a major
+  release if shipped with the Python 3.13 support removal.
 - Shipping that removal requires `5.0.0` and a new major PRD. The release
   scope and target remain unapproved. Package metadata, runtime version and
   lock metadata still agree on `4.0.0`, with the changes under Unreleased in

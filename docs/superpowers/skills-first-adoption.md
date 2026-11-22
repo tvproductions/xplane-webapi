@@ -79,29 +79,22 @@ policy is an independent user decision and is not implicitly reverted with plugi
 
 ## Installation and verification
 
-For another checkout, use the native manager from the project root:
+Open the project in Codex so the native host can discover
+`.agents/plugins/marketplace.json` and apply the enablement in
+`.codex/config.toml`. Inspect the result with `codex plugin list --json` and
+verify the installed source revisions and fresh skill discovery. Preserve
+inherited user defaults and use the starter's project-scope installation
+procedure. Backplane activation requires a separate approved adoption.
 
-```powershell
-codex plugin marketplace add .
-codex plugin add superpowers@xplane-webapi-skills-first
-codex plugin add gz-skills@xplane-webapi-skills-first
-codex plugin list --json
-```
-
-Inspect native global enablement after installation and keep these two entries
-disabled there; project configuration enables the pair locally. Preserve existing
-marketplaces and unrelated selections. Do not install Backplane during normal
-onboarding. Promote lite to heavy only through an explicit future adoption.
-
-Codex CLI 0.162.1 installed Superpowers 6.4.1 and gz-skills 0.7.0. Their native
-cache git HEADs match the full catalog pins. Configuration/profile validation
+During the October adoption, Codex CLI 0.162.1 installed Superpowers 6.4.1 and
+gz-skills 0.7.0. The native cache commits matched the full catalog pins.
+Configuration/profile validation
 and native installation are separate from actual fresh-session discovery.
 Restart Codex and verify `superpowers:using-superpowers` and
 `gz-skills:gzs-router`, their sources and absence of duplicate copies.
 
-Fresh-session discovery is **UNKNOWN** in the current session, which began with
-the old skill catalog. Backplane remains disabled and combined-stack readiness
-is not claimed.
+Fresh-session discovery was **UNKNOWN** in the original adoption session, which
+began with the old skill catalog. Backplane remained disabled.
 
 ## Final verification evidence
 
@@ -127,3 +120,74 @@ advisory that the existing uv_build 0.11 family differs from the installed uv
 0.13 family; packaging verification passed and the backend family was retained.
 Windows cache-to-workspace hardlink fallback was advisory. MkDocs Material emitted
 its upstream informational notice; strict documentation verification passed.
+
+## November 22, 2026 dependency maintenance
+
+The project pins were checked against GitHub's full published release histories
+and each remote tag's commit. Earlier cached release pages returned superseded
+starter, gz-skills and Backplane releases. The October pins are available in the
+original adoption section and in Git commit `1f170dd`.
+
+| Component | Selected release and commit | Project use |
+| --- | --- | --- |
+| GZ Starter | [v0.12.1](https://github.com/tvproductions/gz-starter/releases/tag/v0.12.1), `a1c3550eac441b0a7beaddc66fb00c58ce0f1e6a` | Relocate starter state, link the canonical ADR policy, and refresh `update-gz-template` |
+| Superpowers | [v7.0.2](https://github.com/obra/superpowers/releases/tag/v7.0.2), `22f0b463e7a5e579904dd6211a520321035526f7` | Enabled in the project catalog |
+| gz-skills | [v0.14.0](https://github.com/tvproductions/gz-skills/releases/tag/v0.14.0), `0cbd2359c64b473d6c109e1296118f2475057fbc` | Enabled in the project catalog |
+| Superpowers Backplane | [v0.3.0](https://github.com/tvproductions/superpowers-backplane/releases/tag/v0.3.0), `39fbe3065c16ac119c4c10a3c2428fda39d57e61` | Installed with project activation disabled |
+
+The lite profile retains this project's Python support range, full quality
+gates and frozen uv commands. Python 3.12.16 is the exact execution patch. CI
+tests uv 0.13.9 and the project accepts uv 0.13.5 or later. The build-backend
+range is `uv_build>=0.13.9,<0.14`.
+
+The lock at `.gz-starter/bundle.lock.json` and the template skill match the
+release helper's generated files. The generation used Codex, linked ADR policy
+mode and the exact release commit. A second configure preview reported zero
+writes in the reference checkout. The project retains its own instruction
+fragment, catalog and Python 3.12 verification workflow.
+
+uv refreshed 51 locked packages, including these direct dependencies.
+
+| Direct dependency | Previous | Updated |
+| --- | --- | --- |
+| packaging | 26.2 | 26.3 |
+| pydantic | 2.13.4 | 2.14.4 |
+| websockets | 16.1.1 | 17.4 |
+| Coverage | 7.15.2 | 7.17.4 |
+| Lizard | 1.23.0 | 1.26.1 |
+| MkDocs Git Revision Date Localized Plugin | 1.5.3 | 1.7.0 |
+| Material for MkDocs | 9.7.7 | 9.8.2 |
+| mkdocstrings | 1.0.6 | 1.0.8 |
+| mkdocstrings-python | 2.0.5 | 2.0.11 |
+| pre-commit | 4.6.0 | 4.7.0 |
+| PyYAML | 6.0.3 | 6.0.4 |
+| Ruff | 0.15.22 | 0.17.6 |
+| ty | 0.0.61 | 0.0.69 |
+
+The project accepts websockets 16 and 17. The full unittest suite passed on
+17.4 and a threaded loopback exchange passed on 16.1.1 and 17.4. ty 0.0.69
+passes the existing rules after a test fixture adopted the connection-status
+enum. ty 0.0.108 reported 57 diagnostics on the refreshed environment. A newer
+ty pin depends on a typing migration that satisfies the existing rules.
+MkDocs Material 9.8.2 continues to build this site and reports its maintenance
+window ends May 5, 2027.
+
+CI now uses checkout 7.0.1, setup-uv 10.4.0, upload-artifact 7.0.2,
+download-artifact 8.0.2 and action-gh-release 3.0.4. The PyPI publishing
+action's `release/v1` branch resolved to the v1.14.3 commit when checked.
+
+The catalog-specific native upgrader refreshed all three cached plugins using
+a temporary Git snapshot of the project catalog and a command-line override.
+The host's persistent user configuration matched before and after. Fresh Codex
+CLI 0.171.0 processes at the repository root and under `xpwebapi/` loaded the
+exact new revisions with the normal project configuration. Each process found
+37 enabled project skills, including `update-gz-template`, with no duplicate
+discovery sources. Backplane was disabled and the outside control found zero
+active project skills.
+
+The updated lock syncs on Python 3.12.16 and a second resolution found no
+additional changes. Full hygiene passed with 525 unittest cases and 84%
+coverage. The Windows and Linux uv audits reported no known vulnerabilities.
+The wheel and source archive built successfully, passed Twine and metadata
+validation, and the wheel passed an isolated smoke test with locked runtime
+dependencies.

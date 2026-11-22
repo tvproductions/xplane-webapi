@@ -10,30 +10,33 @@ permissions:
 
 jobs:
   quality:
-    # python-version: "3.12.15" is selected explicitly by the uv commands below.
+    # python-version: "3.12.16" is selected explicitly by the uv commands below.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: astral-sh/setup-uv@v9.0.0
+      - uses: actions/checkout@v7.0.1
+      - uses: astral-sh/setup-uv@v10.4.0
         with:
+          version: "0.13.9"
           enable-cache: true
-      - run: uv python install 3.12.15
-      - run: uv sync --frozen --python 3.12.15
-      - run: uv run --frozen --python 3.12.15 python tools/quality.py check
-      - run: uv run --frozen --python 3.12.15 mkdocs build --strict
+      - run: uv python install 3.12.16
+      - run: uv sync --frozen --python 3.12.16
+      - run: uv run --frozen --python 3.12.16 python tools/quality.py check
+      - run: uv run --frozen --python 3.12.16 mkdocs build --strict
 
   package:
     needs: quality
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: astral-sh/setup-uv@v9.0.0
-      - run: uv python install 3.12.15
-      - run: uv build --python 3.12.15 --no-sources
-      - run: uv run --frozen --python 3.12.15 twine check --strict dist/*
-      # uv run python tools/release.py check-dist dist uses Python 3.12.15 below.
-      - run: uv run --frozen --python 3.12.15 python tools/release.py check-dist dist
-      - uses: actions/upload-artifact@v7
+      - uses: actions/checkout@v7.0.1
+      - uses: astral-sh/setup-uv@v10.4.0
+        with:
+          version: "0.13.9"
+      - run: uv python install 3.12.16
+      - run: uv build --python 3.12.16 --no-sources
+      - run: uv run --frozen --python 3.12.16 twine check --strict dist/*
+      # uv run python tools/release.py check-dist dist uses Python 3.12.16 below.
+      - run: uv run --frozen --python 3.12.16 python tools/release.py check-dist dist
+      - uses: actions/upload-artifact@v7.0.2
         with:
           name: python-distributions
           path: dist/
@@ -45,14 +48,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.12.15"]
+        python-version: ["3.12.16"]
     steps:
-      - uses: actions/checkout@v6
-      - uses: astral-sh/setup-uv@v9.0.0
+      - uses: actions/checkout@v7.0.1
+      - uses: astral-sh/setup-uv@v10.4.0
+        with:
+          version: "0.13.9"
       - run: uv python install ${{ matrix.python-version }}
       - run: uv sync --frozen --python ${{ matrix.python-version }}
       - run: uv run --frozen --python ${{ matrix.python-version }} python -m unittest discover -v
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@v8.0.2
         with:
           name: python-distributions
           path: dist/
@@ -68,11 +73,13 @@ jobs:
       contents: write
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
-      - uses: astral-sh/setup-uv@v9.0.0
-      - run: uv python install 3.12.15
-      - run: uv sync --frozen --python 3.12.15
-      # uv run mkdocs gh-deploy --force uses Python 3.12.15 below.
-      - run: uv run --frozen --python 3.12.15 mkdocs gh-deploy --force
+      - uses: astral-sh/setup-uv@v10.4.0
+        with:
+          version: "0.13.9"
+      - run: uv python install 3.12.16
+      - run: uv sync --frozen --python 3.12.16
+      # uv run mkdocs gh-deploy --force uses Python 3.12.16 below.
+      - run: uv run --frozen --python 3.12.16 mkdocs gh-deploy --force

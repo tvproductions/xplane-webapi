@@ -7,8 +7,9 @@ import logging
 from types import TracebackType
 from typing import Any, Self, cast
 
-import httpx
+import httpx2
 
+from ._http import create_rest_ssl_context
 from .api import (
     API,
     CONNECTION_STATUS,
@@ -26,7 +27,7 @@ from .api import (
 from .retry import RetryConfig, async_sleep_before_retry
 from .exceptions import XPReadOnlyViolation
 from .read_only import _ReadOnlyAsyncHttpClientProxy
-from .rest import PROXY_TCP_PORT, REST_KW, V1_CAPABILITIES, XP_SUPER_MIN_VERSION
+from .rest import PROXY_TCP_PORT, REST_HEADERS, REST_KW, V1_CAPABILITIES, XP_SUPER_MIN_VERSION
 
 logger = logging.getLogger(__name__)
 
@@ -72,8 +73,8 @@ class AsyncXPRestAPI:
         self.all_datarefs: DatarefCache | None = None
         self.all_commands: CommandCache | None = None
 
-        raw_session = httpx.AsyncClient(headers={"Accept": "application/json", "Content-Type": "application/json"})
-        self.session: httpx.AsyncClient | _ReadOnlyAsyncHttpClientProxy = _ReadOnlyAsyncHttpClientProxy(raw_session) if self.read_only else raw_session
+        raw_session = httpx2.AsyncClient(headers=REST_HEADERS, verify=create_rest_ssl_context())
+        self.session: httpx2.AsyncClient | _ReadOnlyAsyncHttpClientProxy = _ReadOnlyAsyncHttpClientProxy(raw_session) if self.read_only else raw_session
         self.set_network(host=host, port=port, api=api, api_version=api_version)
 
     def _require_write_access(self, operation: str) -> None:
@@ -215,7 +216,7 @@ class AsyncXPRestAPI:
                     return True
                 self.status = CONNECTION_STATUS.REST_API_NOT_REACHABLE
                 self._unreach_count = self._unreach_count + 1
-            except httpx.ConnectError:
+            except httpx2.ConnectError:
                 if self._warning_count % 20 == 0:
                     logger.warning("api unreachable, X-Plane may be not running")
                 self.status = CONNECTION_STATUS.REST_API_NOT_REACHABLE

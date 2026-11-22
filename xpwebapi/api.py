@@ -13,7 +13,7 @@ from typing import Any, Protocol, cast
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    import httpx
+    import httpx2
 
     from .beacon import BeaconData
     from .read_only import _ReadOnlyHttpClientProxy
@@ -212,7 +212,7 @@ class API(Protocol):
     _show_stats: bool
     _stats: dict[str, int]
     read_only: bool
-    session: httpx.Client | _ReadOnlyHttpClientProxy
+    session: httpx2.Client | _ReadOnlyHttpClientProxy
     use_cache: bool
     all_datarefs: DatarefCache | None
     all_commands: CommandCache | None
@@ -234,7 +234,7 @@ class API(Protocol):
         self._stats = {}
         self.read_only = read_only
 
-        self.session: httpx.Client | _ReadOnlyHttpClientProxy
+        self.session: httpx2.Client | _ReadOnlyHttpClientProxy
         self.use_cache: bool = False
         self.all_datarefs: DatarefCache | None = None
         self.all_commands: CommandCache | None = None

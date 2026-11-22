@@ -3,7 +3,7 @@ import unittest
 from typing import cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import httpx
+import httpx2
 
 import xpwebapi
 from tests.helpers import mock_response
@@ -36,6 +36,10 @@ class AsyncRestAPITestCase(unittest.IsolatedAsyncioTestCase):
 
 
 class TestAsyncXPRestAPILifecycle(AsyncRestAPITestCase):
+    async def test_session_uses_httpx2(self):
+        async with AsyncXPRestAPI() as api:
+            self.assertIsInstance(api.session, httpx2.AsyncClient)
+
     async def test_async_rest_transport_state_is_always_rest(self):
         api = self.make_api()
 
@@ -45,7 +49,7 @@ class TestAsyncXPRestAPILifecycle(AsyncRestAPITestCase):
         raw_session = MagicMock()
         raw_session.post = AsyncMock()
         raw_session.patch = AsyncMock()
-        with patch("xpwebapi.async_rest.httpx.AsyncClient", return_value=raw_session):
+        with patch("xpwebapi.async_rest.httpx2.AsyncClient", return_value=raw_session):
             api = AsyncXPRestAPI(read_only=True)
         protocol_api = cast(API, api)
         dataref = Dataref(path="sim/test/value", api=protocol_api)
@@ -92,7 +96,7 @@ class TestAsyncXPRestAPIConnected(AsyncRestAPITestCase):
 
     async def test_rest_api_reachable_returns_false_for_connect_error(self):
         api = self.make_api()
-        api.session.get.side_effect = httpx.ConnectError("failed")
+        api.session.get.side_effect = httpx2.ConnectError("failed")
         self.assertFalse(await api.rest_api_reachable())
         self.assertEqual(api.status, CONNECTION_STATUS.REST_API_NOT_REACHABLE)
 
@@ -106,7 +110,7 @@ class TestAsyncXPRestAPIConnected(AsyncRestAPITestCase):
     async def test_rest_api_reachable_retries_transient_connect_error(self):
         api = AsyncXPRestAPI(host="127.0.0.1", port=8086, api="/api", api_version="v1", retry_attempts=3, retry_backoff=0.25)
         api.session = MagicMock()
-        api.session.get = AsyncMock(side_effect=[httpx.ConnectError("failed"), mock_response(200, {"data": 1})])
+        api.session.get = AsyncMock(side_effect=[httpx2.ConnectError("failed"), mock_response(200, {"data": 1})])
         api.session.aclose = AsyncMock()
         api._show_stats = False
 

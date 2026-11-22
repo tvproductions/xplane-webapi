@@ -1,5 +1,5 @@
-# Register this checkout's catalog with: codex plugin marketplace add .
-# Native installation is shared; enablement below applies to this project.
+# This project exposes its catalog in .agents/plugins/marketplace.json.
+# Native downloads use shared storage. Enablement applies to this project.
 [plugins."superpowers@xplane-webapi-skills-first"]
 enabled = true
 
@@ -22,4 +22,10 @@ enabled = false
 enabled = false
 
 [plugins."gz-skills@ortho4xp-skills-first"]
+enabled = false
+
+[plugins."superpowers@skills-first-starter"]
+enabled = false
+
+[plugins."gz-skills@skills-first-starter"]
 enabled = false

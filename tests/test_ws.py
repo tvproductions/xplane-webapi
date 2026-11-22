@@ -22,7 +22,7 @@ class WebsocketAPITestCase(unittest.TestCase):
         api.version = "v2"
         api._api_root_path = "/api"
         api._api_version = "/v2"
-        api._status = 0
+        api._status = CONNECTION_STATUS.NO_BEACON
         api._stats = {}
         api._show_stats = False
         api._use_rest = False

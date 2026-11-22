@@ -90,7 +90,7 @@ class TestDocumentationContent(unittest.TestCase):
             tag_step.get("env"),
         )
         self.assertEqual(
-            'uv run --frozen --python 3.12.15 python tools/release.py check-tag "$RELEASE_TAG"',
+            'uv run --frozen --python 3.12.16 python tools/release.py check-tag "$RELEASE_TAG"',
             tag_step["run"],
         )
 
@@ -138,28 +138,28 @@ class TestDocumentationContent(unittest.TestCase):
         self.assertEqual("compatibility", jobs["pypi"]["needs"])
         self.assertEqual("pypi", jobs["github-release"]["needs"])
         self.assertEqual(
-            ["3.12.15"],
+            ["3.12.16"],
             jobs["compatibility"]["strategy"]["matrix"]["python-version"],
         )
 
         expected_actions = {
             "build": [
-                "actions/checkout@v6",
-                "astral-sh/setup-uv@v9.0.0",
-                "actions/upload-artifact@v7",
+                "actions/checkout@v7.0.1",
+                "astral-sh/setup-uv@v10.4.0",
+                "actions/upload-artifact@v7.0.2",
             ],
             "compatibility": [
-                "actions/checkout@v6",
-                "astral-sh/setup-uv@v9.0.0",
-                "actions/download-artifact@v8",
+                "actions/checkout@v7.0.1",
+                "astral-sh/setup-uv@v10.4.0",
+                "actions/download-artifact@v8.0.2",
             ],
             "pypi": [
-                "actions/download-artifact@v8",
+                "actions/download-artifact@v8.0.2",
                 "pypa/gh-action-pypi-publish@release/v1",
             ],
             "github-release": [
-                "actions/download-artifact@v8",
-                "softprops/action-gh-release@v3",
+                "actions/download-artifact@v8.0.2",
+                "softprops/action-gh-release@v3.0.4",
             ],
         }
         for job_name, actions in expected_actions.items():
@@ -171,12 +171,12 @@ class TestDocumentationContent(unittest.TestCase):
 
         commands = [step["run"] for job in jobs.values() for step in _run_steps(job)]
         self.assertEqual(
-            ["uv build --python 3.12.15 --no-sources"],
+            ["uv build --python 3.12.16 --no-sources"],
             [command for command in commands if "uv build" in command],
         )
 
-        upload = _step_using(jobs["build"], "actions/upload-artifact@v7")
-        downloads = [_step_using(jobs[job_name], "actions/download-artifact@v8") for job_name in ("compatibility", "pypi", "github-release")]
+        upload = _step_using(jobs["build"], "actions/upload-artifact@v7.0.2")
+        downloads = [_step_using(jobs[job_name], "actions/download-artifact@v8.0.2") for job_name in ("compatibility", "pypi", "github-release")]
         self.assertEqual("python-distributions", upload["with"]["name"])
         self.assertEqual(
             {"python-distributions"},
@@ -238,36 +238,36 @@ class TestDocumentationContent(unittest.TestCase):
         self.assertEqual("package", jobs["compatibility"]["needs"])
         self.assertEqual(["quality", "compatibility"], jobs["docs"]["needs"])
         self.assertEqual(
-            ["3.12.15"],
+            ["3.12.16"],
             jobs["compatibility"]["strategy"]["matrix"]["python-version"],
         )
 
         expected_actions = {
-            "quality": ["actions/checkout@v6", "astral-sh/setup-uv@v9.0.0"],
+            "quality": ["actions/checkout@v7.0.1", "astral-sh/setup-uv@v10.4.0"],
             "package": [
-                "actions/checkout@v6",
-                "astral-sh/setup-uv@v9.0.0",
-                "actions/upload-artifact@v7",
+                "actions/checkout@v7.0.1",
+                "astral-sh/setup-uv@v10.4.0",
+                "actions/upload-artifact@v7.0.2",
             ],
             "compatibility": [
-                "actions/checkout@v6",
-                "astral-sh/setup-uv@v9.0.0",
-                "actions/download-artifact@v8",
+                "actions/checkout@v7.0.1",
+                "astral-sh/setup-uv@v10.4.0",
+                "actions/download-artifact@v8.0.2",
             ],
-            "docs": ["actions/checkout@v6", "astral-sh/setup-uv@v9.0.0"],
+            "docs": ["actions/checkout@v7.0.1", "astral-sh/setup-uv@v10.4.0"],
         }
         expected_commands = {
             "quality": [
-                "uv python install 3.12.15",
-                "uv sync --frozen --python 3.12.15",
-                "uv run --frozen --python 3.12.15 python tools/quality.py check",
-                "uv run --frozen --python 3.12.15 mkdocs build --strict",
+                "uv python install 3.12.16",
+                "uv sync --frozen --python 3.12.16",
+                "uv run --frozen --python 3.12.16 python tools/quality.py check",
+                "uv run --frozen --python 3.12.16 mkdocs build --strict",
             ],
             "package": [
-                "uv python install 3.12.15",
-                "uv build --python 3.12.15 --no-sources",
-                "uv run --frozen --python 3.12.15 twine check --strict dist/*",
-                "uv run --frozen --python 3.12.15 python tools/release.py check-dist dist",
+                "uv python install 3.12.16",
+                "uv build --python 3.12.16 --no-sources",
+                "uv run --frozen --python 3.12.16 twine check --strict dist/*",
+                "uv run --frozen --python 3.12.16 python tools/release.py check-dist dist",
             ],
             "compatibility": [
                 "uv python install ${{ matrix.python-version }}",
@@ -278,9 +278,9 @@ class TestDocumentationContent(unittest.TestCase):
                 'cd "$RUNNER_TEMP" && "$GITHUB_WORKSPACE/.smoke/bin/python" "$GITHUB_WORKSPACE/tools/installed_smoke.py" 4.0.0',
             ],
             "docs": [
-                "uv python install 3.12.15",
-                "uv sync --frozen --python 3.12.15",
-                "uv run --frozen --python 3.12.15 mkdocs gh-deploy --force",
+                "uv python install 3.12.16",
+                "uv sync --frozen --python 3.12.16",
+                "uv run --frozen --python 3.12.16 mkdocs gh-deploy --force",
             ],
         }
         for job_name in jobs:
@@ -294,10 +294,10 @@ class TestDocumentationContent(unittest.TestCase):
                     [step["run"] for step in _run_steps(jobs[job_name])],
                 )
 
-        upload = _step_using(jobs["package"], "actions/upload-artifact@v7")
+        upload = _step_using(jobs["package"], "actions/upload-artifact@v7.0.2")
         download = _step_using(
             jobs["compatibility"],
-            "actions/download-artifact@v8",
+            "actions/download-artifact@v8.0.2",
         )
         self.assertEqual("python-distributions", upload["with"]["name"])
         self.assertEqual(upload["with"]["name"], download["with"]["name"])
@@ -400,7 +400,7 @@ class TestDocumentationContent(unittest.TestCase):
         readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
         changelog = (REPO_ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
 
-        self.assertIn("uv venv --python 3.12.15", readme)
+        self.assertIn("uv venv --python 3.12.16", readme)
         self.assertIn("uv pip install --python .venv xpwebapi", readme)
         self.assertIn("TV Productions", readme)
         self.assertIn("devleaks/xplane-webapi", readme)

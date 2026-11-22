@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "starter": {
+    "repository": "https://github.com/tvproductions/gz-starter.git",
+    "version": "0.12.1",
+    "revision": "a1c3550eac441b0a7beaddc66fb00c58ce0f1e6a"
+  },
+  "components": [
+    {
+      "name": "superpowers",
+      "repository": "https://github.com/obra/superpowers",
+      "release": "v7.0.2",
+      "revision": "22f0b463e7a5e579904dd6211a520321035526f7",
+      "status": "released; selected independently of deferred Backplane",
+      "enabled_by_default": true
+    },
+    {
+      "name": "superpowers-backplane",
+      "repository": "https://github.com/tvproductions/superpowers-backplane",
+      "release": "v0.3.0",
+      "revision": "39fbe3065c16ac119c4c10a3c2428fda39d57e61",
+      "status": "released; deferred, adoption and host acceptance incomplete",
+      "enabled_by_default": false
+    },
+    {
+      "name": "gz-skills",
+      "repository": "https://github.com/tvproductions/gz-skills",
+      "release": "v0.14.0",
+      "revision": "0cbd2359c64b473d6c109e1296118f2475057fbc",
+      "status": "released",
+      "enabled_by_default": true
+    }
+  ],
+  "adr_policy": {
+    "mode": "link",
+    "source_path": "docs/engineering/architectural-decisions.md",
+    "source_sha256": "a01343789f3cb1c2164073908ad6465e28651fe6fd16b2aaf37f3baca21e37b7"
+  }
+}

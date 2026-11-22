@@ -1,7 +1,7 @@
 # Skills-first development stack
 
 Read AGENTS.md first. Source provenance is recorded in
-[.skills-first/bundle.lock.json](.skills-first/bundle.lock.json); native plugin
+[.gz-starter/bundle.lock.json](.gz-starter/bundle.lock.json); native plugin
 sources are pinned in [.agents/plugins/marketplace.json](.agents/plugins/marketplace.json).
 Use one active discovery source per upstream plugin; do not vendor upstream skills.
 
@@ -20,6 +20,8 @@ compatibility review and explicit adoption. Lite can be promoted to heavy later.
 This project supports Python `>=3.12,<3.13`, selected by the user for its
 XPPython-adjacent context. uv manages the exact development interpreter in
 .python-version, all virtual environments, dependencies, builds and execution.
+The supported uv minimum is 0.13.5. CI uses the exact tested uv release recorded
+in its workflows.
 Use `uv python install`, `uv sync --frozen` and `uv run --frozen` for routine work.
 Use `uv add`, `uv remove` and `uv lock` for authorized dependency changes; commit
 pyproject.toml and uv.lock together. Do not hand-edit uv.lock or use standalone
@@ -51,6 +53,21 @@ workflows composed with project-owned quality commands; preserve project additio
 and policy exceptions. Record official release evidence, full source SHAs,
 adopt/defer decisions and revisit conditions. Keep rollback sources and distinguish
 policy changes from version refreshes. No automatic schedules are created.
+
+Use `update-gz-template` for the starter's adoption and migration workflow.
+Resolve native plugins through the project catalog and project enablement in
+`.codex/config.toml`. Preserve inherited user defaults and suppress duplicate
+sources in this project's configuration.
+
+Dependency maintenance and bare `gzs-update-dependencies` invocations select
+update mode. Check official release histories and verify published tags before
+migrating the in-scope dependencies. Preserve the Python support policy and
+required quality gates. An explicit freshness review selects assessment only.
+
+Use the starter's [architectural decision policy](https://github.com/tvproductions/gz-starter/blob/a1c3550eac441b0a7beaddc66fb00c58ce0f1e6a/docs/engineering/architectural-decisions.md)
+when work requires an architectural decision. The lock records the source and
+hash. Use existing repository authorities and obtain explicit approval for any
+new or replacement architectural decision before dependent implementation.
 
 Configuration, installation and fresh-session loading are separate checks.
 Verify actual discovered skills and loaded source revisions after restarting

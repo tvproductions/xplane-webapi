@@ -14,9 +14,10 @@ updates:
           - "ifaddr"
           - "natsort"
           - "packaging"
-          - "httpx"
           - "websockets"
           - "pydantic"
+          - "httpx2"
+          - "certifi"
       development-dependencies:
         patterns:
           - "bandit"

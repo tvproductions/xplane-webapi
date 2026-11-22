@@ -1,8 +1,9 @@
 import base64
+import ssl
 import unittest
 from unittest.mock import MagicMock, PropertyMock, patch
 
-import httpx
+import httpx2
 
 from tests.helpers import mock_response
 from xpwebapi.api import DATAREF_DATATYPE, Command, CommandMeta, Dataref, DatarefCache, DatarefMeta
@@ -29,6 +30,10 @@ class RestAPITestCase(unittest.TestCase):
 
 
 class TestXPRestAPIConnected(RestAPITestCase):
+    def test_session_uses_httpx2(self):
+        with XPRestAPI() as api:
+            self.assertIsInstance(api.session, httpx2.Client)
+
     def test_read_only_rest_rejects_write_and_raw_post_before_http(self):
         raw_session = MagicMock()
         with patch("xpwebapi.rest._make_http_client", return_value=raw_session):
@@ -54,7 +59,7 @@ class TestXPRestAPIConnected(RestAPITestCase):
         api.session.close.assert_called_once()
 
     def test_pooled_clients_reuse_session_until_last_close(self):
-        with patch("xpwebapi.rest.httpx.Client") as client_cls:
+        with patch("xpwebapi.rest.httpx2.Client") as client_cls:
             shared_session = MagicMock()
             client_cls.return_value = shared_session
 
@@ -70,7 +75,7 @@ class TestXPRestAPIConnected(RestAPITestCase):
         shared_session.close.assert_called_once()
 
     def test_unpooled_clients_keep_independent_sessions(self):
-        with patch("xpwebapi.rest.httpx.Client") as client_cls:
+        with patch("xpwebapi.rest.httpx2.Client") as client_cls:
             first_session = MagicMock()
             second_session = MagicMock()
             client_cls.side_effect = [first_session, second_session]
@@ -87,8 +92,8 @@ class TestXPRestAPIConnected(RestAPITestCase):
         second.close()
         second_session.close.assert_called_once()
 
-    def test_pool_configuration_passes_limits_and_timeout_to_httpx_client(self):
-        with patch("xpwebapi.rest.httpx.Client") as client_cls:
+    def test_pool_configuration_passes_limits_and_timeout_to_httpx2_client(self):
+        with patch("xpwebapi.rest.httpx2.Client") as client_cls:
             client_cls.return_value = MagicMock()
 
             api = XPRestAPI(
@@ -107,6 +112,7 @@ class TestXPRestAPIConnected(RestAPITestCase):
         limits = kwargs["limits"]
         timeout = kwargs["timeout"]
 
+        self.assertIsInstance(kwargs.get("verify"), ssl.SSLContext)
         self.assertEqual(limits.max_connections, 8)
         self.assertEqual(limits.max_keepalive_connections, 4)
         self.assertEqual(limits.keepalive_expiry, 12.5)
@@ -127,14 +133,14 @@ class TestXPRestAPIConnected(RestAPITestCase):
 
     def test_connected_returns_false_for_connect_error(self):
         api = self.make_api()
-        api.session.get.side_effect = httpx.ConnectError("failed")
+        api.session.get.side_effect = httpx2.ConnectError("failed")
         self.assertFalse(api.connected)
 
     def test_rest_api_reachable_retries_transient_connect_error(self):
         api = XPRestAPI(host="127.0.0.1", port=8086, api="/api", api_version="v1", retry_attempts=3, retry_backoff=0.25)
         api.session = MagicMock()
         api._show_stats = False
-        api.session.get.side_effect = [httpx.ConnectError("failed"), mock_response(200, {"data": 1})]
+        api.session.get.side_effect = [httpx2.ConnectError("failed"), mock_response(200, {"data": 1})]
 
         with patch("xpwebapi.rest.sleep_before_retry") as sleep:
             self.assertTrue(api.connected)

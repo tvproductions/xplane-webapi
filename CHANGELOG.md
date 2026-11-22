@@ -14,6 +14,12 @@ All notable changes to this project will be documented in this file.
   and gz-skills, and deferred Backplane.
 - Require frozen uv execution for routine quality workflows and lock Twine as a
   development dependency.
+- Refresh Python to 3.12.16, the dependency lock, the build backend and CI
+  tooling. Refresh the reviewed skills-first template and plugin revisions.
+- Support websockets 17 alongside 16.
+- Switch synchronous and asynchronous REST to HTTPX2. The underlying client
+  and exception types now come from `httpx2`. Certificate verification still
+  uses `SSL_CERT_FILE`, `SSL_CERT_DIR`, or the certifi bundle in that order.
 
 ## 4.0.0 - 2026-07-26
 

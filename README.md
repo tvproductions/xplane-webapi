@@ -18,7 +18,7 @@ Laminar Research. X-Plane is a trademark of Laminar Research.
 Requires Python 3.12.
 
 ```sh
-uv venv --python 3.12.15
+uv venv --python 3.12.16
 uv pip install --python .venv xpwebapi
 ```
 

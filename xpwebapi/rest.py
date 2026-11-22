@@ -11,9 +11,10 @@ from types import TracebackType
 from typing import TYPE_CHECKING, Self
 from enum import Enum
 
-import httpx
+import httpx2
 from natsort import natsorted
 
+from ._http import create_rest_ssl_context
 from .api import (
     CONNECTION_STATUS,
     DATAREF_DATATYPE,
@@ -64,7 +65,7 @@ class _RestClientPoolKey:
 
 @dataclass
 class _RestClientPoolEntry:
-    client: httpx.Client
+    client: httpx2.Client
     references: int = 0
 
 
@@ -73,7 +74,7 @@ class _RestClientPool:
     _lock = Lock()
 
     @classmethod
-    def acquire(cls, key: _RestClientPoolKey) -> httpx.Client:
+    def acquire(cls, key: _RestClientPoolKey) -> httpx2.Client:
         with cls._lock:
             entry = cls._clients.get(key)
             if entry is None:
@@ -84,7 +85,7 @@ class _RestClientPool:
 
     @classmethod
     def release(cls, key: _RestClientPoolKey) -> None:
-        client: httpx.Client | None = None
+        client: httpx2.Client | None = None
         with cls._lock:
             entry = cls._clients.get(key)
             if entry is None:
@@ -97,24 +98,23 @@ class _RestClientPool:
             client.close()
 
 
-def _make_http_client(key: _RestClientPoolKey) -> httpx.Client:
+def _make_http_client(key: _RestClientPoolKey) -> httpx2.Client:
     limits = None
     if key.max_connections is not None or key.max_keepalive_connections is not None or key.keepalive_expiry is not None:
-        limits = httpx.Limits(
+        limits = httpx2.Limits(
             max_connections=key.max_connections,
             max_keepalive_connections=key.max_keepalive_connections,
             keepalive_expiry=key.keepalive_expiry,
         )
-    timeout = httpx.Timeout(key.timeout) if key.timeout is not None else None
-    if limits is None and timeout is None:
-        return httpx.Client(headers=REST_HEADERS)
-    if key.timeout is not None:
-        if limits is None:
-            return httpx.Client(headers=REST_HEADERS, timeout=timeout)
-        return httpx.Client(headers=REST_HEADERS, limits=limits, timeout=timeout)
-    if limits is not None:
-        return httpx.Client(headers=REST_HEADERS, limits=limits)
-    return httpx.Client(headers=REST_HEADERS)
+    timeout = httpx2.Timeout(key.timeout) if key.timeout is not None else None
+    verify = create_rest_ssl_context()
+    if limits is None:
+        if timeout is None:
+            return httpx2.Client(headers=REST_HEADERS, verify=verify)
+        return httpx2.Client(headers=REST_HEADERS, verify=verify, timeout=timeout)
+    if timeout is None:
+        return httpx2.Client(headers=REST_HEADERS, verify=verify, limits=limits)
+    return httpx2.Client(headers=REST_HEADERS, verify=verify, limits=limits, timeout=timeout)
 
 
 # REST KEYWORDS
@@ -200,7 +200,7 @@ class XPRestAPI(API):
         self._dataref_by_id = {}  # {dataref-id: Dataref}
 
         raw_session = _RestClientPool.acquire(self._session_pool_key) if self._session_pool_key is not None else _make_http_client(client_key)
-        self.session: httpx.Client | _ReadOnlyHttpClientProxy = _ReadOnlyHttpClientProxy(raw_session) if self.read_only else raw_session
+        self.session: httpx2.Client | _ReadOnlyHttpClientProxy = _ReadOnlyHttpClientProxy(raw_session) if self.read_only else raw_session
 
     def __enter__(self) -> Self:
         return self
@@ -279,7 +279,7 @@ class XPRestAPI(API):
                     return True
                 self.status = CONNECTION_STATUS.REST_API_NOT_REACHABLE
                 self._unreach_count = self._unreach_count + 1
-            except httpx.ConnectError:
+            except httpx2.ConnectError:
                 if self._warning_count % 20 == 0:
                     logger.warning("api unreachable, X-Plane may be not running")
                 self.status = CONNECTION_STATUS.REST_API_NOT_REACHABLE

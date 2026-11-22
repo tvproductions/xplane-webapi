@@ -5,7 +5,7 @@ import socket
 import struct
 from typing import Any, Never
 
-import httpx
+import httpx2
 from websockets.sync.client import ClientConnection
 
 from .exceptions import XPReadOnlyViolation
@@ -19,10 +19,10 @@ def _forbidden_attribute(name: str) -> Never:
 
 
 class _ReadOnlyHttpClientProxy:
-    def __init__(self, client: httpx.Client) -> None:
+    def __init__(self, client: httpx2.Client) -> None:
         self.__client = client
 
-    def get(self, *args: Any, **kwargs: Any) -> httpx.Response:
+    def get(self, *args: Any, **kwargs: Any) -> httpx2.Response:
         return self.__client.get(*args, **kwargs)
 
     def close(self) -> None:
@@ -33,10 +33,10 @@ class _ReadOnlyHttpClientProxy:
 
 
 class _ReadOnlyAsyncHttpClientProxy:
-    def __init__(self, client: httpx.AsyncClient) -> None:
+    def __init__(self, client: httpx2.AsyncClient) -> None:
         self.__client = client
 
-    async def get(self, *args: Any, **kwargs: Any) -> httpx.Response:
+    async def get(self, *args: Any, **kwargs: Any) -> httpx2.Response:
         return await self.__client.get(*args, **kwargs)
 
     async def aclose(self) -> None:

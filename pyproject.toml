@@ -22,9 +22,10 @@ dependencies = [
     "ifaddr~=0.2",
     "natsort~=8.4",
     "packaging~=26.2",
-    "httpx~=0.28",
-    "websockets>=16,<17",
+    "websockets>=16,<18",
     "pydantic>=2,<3",
+    "httpx2>=2.16.2,<3",
+    "certifi>=2026.11.20",
 ]
 
 [project.scripts]
@@ -53,7 +54,8 @@ dev = [
     "pyyaml>=6.0.3",
     "ruff>=0.15.17",
     "twine>=7.0.0",
-    "ty>=0.0.49",
+    # 0.0.70+ rejects legacy dynamic return boundaries that need a typing migration.
+    "ty>=0.0.49,<0.0.70",
     "vulture>=2.16",
     "wily>=1.12.2",
     "xenon>=0.9.3",
@@ -71,8 +73,11 @@ exclude_lines = [
 ]
 
 [build-system]
-requires = ["uv_build>=0.11.26,<0.12"]
+requires = ["uv_build>=0.13.9,<0.14"]
 build-backend = "uv_build"
+
+[tool.uv]
+required-version = ">=0.13.5"
 
 [tool.uv.build-backend]
 module-root = ""
