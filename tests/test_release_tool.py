@@ -18,7 +18,7 @@ from tools import installed_smoke, release
 from tools.release import ReleaseValidationError, check_dist, check_tag
 
 
-VERSION = "4.0.0"
+VERSION = "5.0.0"
 SCHEMAS = (
     "capture-event-v1.schema.json",
     "capture-request-v1.schema.json",
@@ -104,8 +104,8 @@ def write_archives(
 
 class ReleaseToolTests(unittest.TestCase):
     def test_tag_must_match_project_and_runtime_versions(self) -> None:
-        check_tag("v4.0.0")
-        for invalid_tag in ("v4.0.1", "4.0.0"):
+        check_tag(f"v{VERSION}")
+        for invalid_tag in ("v4.0.0", VERSION):
             with self.subTest(tag=invalid_tag):
                 with self.assertRaisesRegex(ReleaseValidationError, invalid_tag):
                     check_tag(invalid_tag)
@@ -314,7 +314,7 @@ class ReleaseToolTests(unittest.TestCase):
             check_dist(root)
 
     def test_release_cli_returns_zero_for_valid_tag(self) -> None:
-        with mock.patch.object(sys, "argv", ["release.py", "check-tag", "v4.0.0"]):
+        with mock.patch.object(sys, "argv", ["release.py", "check-tag", f"v{VERSION}"]):
             self.assertEqual(0, release.main())
 
     def test_release_cli_exits_one_and_reports_validation_error(self) -> None:

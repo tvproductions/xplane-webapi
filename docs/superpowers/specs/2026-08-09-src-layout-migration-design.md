@@ -23,7 +23,11 @@ Move the import package from `xpwebapi/` to `src/xpwebapi/` and configure
 `uv_build` with `module-root = "src"`.
 
 The distribution name, import name, version, public API, capture command,
-runtime dependencies, schemas, and installed wheel paths remain unchanged.
+runtime dependencies, schemas, and installed wheel paths remain unchanged
+relative to the flat-layout 5.0.0 preparation checkpoint. The
+[5.0.0 PRD](2026-11-22-xpwebapi-5.0.0-prd.md) governs the supported Python
+range of `>=3.12,<3.13`. Build and verify installed artifacts on uv-managed
+Python 3.12.16.
 
 ## Scope
 
@@ -121,8 +125,11 @@ The migration stops if:
   installed project rather than a top-level checkout package.
 - Wheel members, public imports, schemas, and command entry points remain
   unchanged while source-archive members use `src/xpwebapi`.
-- Full quality, documentation, distribution, and installed-artifact checks pass
-  before the migration is synchronized.
+- Compare package paths and file bytes in both archive formats against artifacts
+  built from the flat-layout 5.0.0 checkpoint. The new source-archive prefix is
+  the only package path change.
+- Full quality, documentation, distribution, and installed-artifact checks
+  pass on the staged migration tree. The migration commit uses that same tree.
 
 ## Delivery boundary
 

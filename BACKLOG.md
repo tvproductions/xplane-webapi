@@ -29,12 +29,14 @@ are reviewed selectively and are not merged wholesale.
   that uses the exposed REST sessions or catches their transport exceptions
   directly must use the HTTPX2 types. The selected work still requires a major
   release if shipped with the Python 3.13 support removal.
-- Shipping that removal requires `5.0.0` and a new major PRD. The release
-  scope and target remain unapproved. Package metadata, runtime version and
-  lock metadata still agree on `4.0.0`, with the changes under Unreleased in
-  the changelog. Before release, approve the PRD and finite scope, reconcile
-  version mirrors and changelog, and pass the existing quality, packaging,
-  installed-wheel and tag gates.
+- The maintainer approved the [5.0.0 PRD](docs/superpowers/specs/2026-11-22-xpwebapi-5.0.0-prd.md)
+  on 2026-11-22. Package, runtime, lock, and the unreleased changelog track
+  `5.0.0`. The [preparation handoff](docs/superpowers/handoffs/2026-11-22-xpwebapi-5-preparation.md)
+  identifies the flat-layout checkpoint and the pending source-layout plan
+  approval. Typed flight management and FDR integration follow the move.
+  The capture settings decision awaits separate architectural approval.
+  The existing quality, packaging, installed-wheel, and tag gates apply
+  to publication.
 - Implementation of the active roadmap remains pending. Individual items enter
   a release through its approved scope. Backplane stays deferred under the
   adoption record.

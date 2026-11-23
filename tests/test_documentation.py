@@ -275,7 +275,7 @@ class TestDocumentationContent(unittest.TestCase):
                 "uv run --frozen --python ${{ matrix.python-version }} python -m unittest discover -v",
                 "uv venv --python ${{ matrix.python-version }} .smoke",
                 "uv pip install --python .smoke/bin/python dist/*.whl",
-                'cd "$RUNNER_TEMP" && "$GITHUB_WORKSPACE/.smoke/bin/python" "$GITHUB_WORKSPACE/tools/installed_smoke.py" 4.0.0',
+                'cd "$RUNNER_TEMP" && "$GITHUB_WORKSPACE/.smoke/bin/python" "$GITHUB_WORKSPACE/tools/installed_smoke.py" 5.0.0',
             ],
             "docs": [
                 "uv python install 3.12.16",

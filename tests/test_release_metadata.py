@@ -20,7 +20,7 @@ class ReleaseMetadataTests(unittest.TestCase):
     def test_distribution_identity_and_supported_python(self) -> None:
         project = PROJECT["project"]
         self.assertEqual("xpwebapi", project["name"])
-        self.assertEqual("4.0.0", project["version"])
+        self.assertEqual("5.0.0", project["version"])
         self.assertEqual(">=3.12,<3.13", project["requires-python"])
         self.assertIn("Programming Language :: Python :: 3.12", project["classifiers"])
         self.assertNotIn("Programming Language :: Python :: 3.13", project["classifiers"])

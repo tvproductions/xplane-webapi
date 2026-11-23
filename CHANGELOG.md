@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## Unreleased (5.0.0)
 
 - Clarify existing release planning: PRDs guide majors, selected work and
   requirements drive minors, and fixes drive patches. Require explicit scope,
